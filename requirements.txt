@@ -1,0 +1,9 @@
+supabase==2.9.1
+imapclient==3.0.1
+python-dotenv==1.0.1
+anthropic==0.40.0
+schedule==1.2.2
+pytest>=9.0
+pdfplumber>=0.11.0
+PyJWT>=2.8.0
+bcrypt>=4.1.0
