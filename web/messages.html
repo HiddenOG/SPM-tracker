@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messages — SPM Tracker</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --accent:#8B1A1A;--accent-h:#6E1616;
+  --bg:#f0f2f5;--surface:#ffffff;--s2:#f7f8fa;
+  --border:#e4e7ec;--border-strong:#d0d5dd;
+  --t1:#111827;--t2:#374151;--t3:#6b7280;
+  --ok:#16a34a;--warn:#d97706;--crit:#dc2626;
+  --radius:8px;--radius-sm:5px;
+  --mono:'Courier New',monospace;
+  --sb-w:220px;--sb-bg:#1a1a2e;--sb-text:rgba(255,255,255,0.75);
+  --sb-active:rgba(255,255,255,0.12);--sb-active-text:#fff;
+}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#0f1117;--surface:#1c1f26;--s2:#252830;--border:#2e3340;--border-strong:#3d4354;--t1:#f3f4f6;--t2:#d1d5db;--t3:#9ca3af}
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--t1);display:flex;min-height:100vh;font-size:14px}
+
+/* ── Sidebar ── */
+.sidebar{width:var(--sb-w);background:var(--sb-bg);display:flex;flex-direction:column;flex-shrink:0;position:fixed;top:0;left:0;height:100vh;z-index:20;overflow-y:auto}
+.sb-brand{display:flex;align-items:center;gap:10px;padding:18px 16px 10px;color:#fff;font-weight:700;font-size:15px;letter-spacing:-.01em}
+.sb-bmark{width:26px;height:26px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sb-sec{font-size:10px;font-weight:600;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:.08em;padding:14px 16px 4px}
+.nav{display:flex;align-items:center;gap:10px;padding:8px 14px;margin:1px 8px;border-radius:6px;cursor:pointer;color:var(--sb-text);font-size:13px;font-weight:400;text-decoration:none;transition:background .12s,color .12s}
+.nav:hover{background:rgba(255,255,255,0.07);color:#fff}
+.nav.active{background:var(--sb-active);color:var(--sb-active-text);font-weight:500}
+.nav .badge{margin-left:auto;background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;min-width:18px;text-align:center}
+.sb-bottom{margin-top:auto;padding:10px 8px 16px}
+.sb-user{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.08)}
+.av{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sb-uname{font-size:12px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-urole{font-size:10px;color:rgba(255,255,255,0.5)}
+
+/* ── Main ── */
+.main{margin-left:var(--sb-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{display:flex;align-items:center;gap:12px;padding:0 1.5rem;height:52px;background:var(--accent);border-bottom:1px solid rgba(0,0,0,0.15);position:sticky;top:0;z-index:10}
+.topbar-title{color:#fff;font-size:15px;font-weight:600;flex:1}
+.content{padding:1.5rem;flex:1}
+.ph{margin-bottom:1.5rem}
+.ph-title{font-size:20px;font-weight:700;color:var(--t1);letter-spacing:-.02em}
+.ph-sub{font-size:13px;color:var(--t3);margin-top:3px}
+
+/* ── Messages layout ── */
+.msg-layout{display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+
+/* Inbox list */
+.inbox-hd{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border)}
+.inbox-hd-title{font-size:13px;font-weight:600;color:var(--t1)}
+.inbox-list{display:flex;flex-direction:column}
+.msg-row{display:flex;gap:11px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s;position:relative}
+.msg-row:last-child{border-bottom:none}
+.msg-row:hover{background:var(--s2)}
+.msg-row.active{background:var(--s2)}
+.msg-row.unread .msg-row-subject{font-weight:600;color:var(--t1)}
+.msg-av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;margin-top:2px}
+.msg-row-body{flex:1;min-width:0}
+.msg-row-from{font-size:11px;color:var(--t3);margin-bottom:2px}
+.msg-row-subject{font-size:13px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg-row-preview{font-size:11px;color:var(--t3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg-row-time{font-size:10px;color:var(--t3);white-space:nowrap;flex-shrink:0;margin-top:3px}
+.unread-dot{position:absolute;left:6px;top:50%;transform:translateY(-50%);width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.msg-empty{padding:3rem;text-align:center;color:var(--t3);font-size:13px}
+
+/* Message detail */
+.msg-detail{display:none}
+.msg-detail.open{display:block}
+.detail-hd{padding:18px 20px 14px;border-bottom:1px solid var(--border)}
+.detail-subject{font-size:16px;font-weight:700;color:var(--t1);margin-bottom:8px}
+.detail-meta{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--t3)}
+.detail-meta span b{color:var(--t2);font-weight:500}
+.rbadge{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:3px;text-transform:capitalize;letter-spacing:.03em;white-space:nowrap}
+.rbadge.admin{background:#3b0764;color:#e9d5ff}
+.rbadge.procurement{background:#1e3a8a;color:#bfdbfe}
+.rbadge.warehouse{background:#78350f;color:#fde68a}
+.rbadge.expeditor{background:#064e3b;color:#a7f3d0}
+.rbadge.accounts{background:#1f2937;color:#d1fae5}
+
+/* PO summary card */
+.po-card{margin:16px 20px;background:var(--s2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px}
+.po-card-title{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.po-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.po-field{display:flex;flex-direction:column;gap:2px}
+.po-label{font-size:10px;color:var(--t3);font-weight:500}
+.po-value{font-size:13px;color:var(--t1);font-family:var(--mono)}
+
+/* Message body */
+.detail-body{padding:16px 20px;font-size:13px;color:var(--t2);line-height:1.6;white-space:pre-wrap;border-bottom:1px solid var(--border)}
+.detail-empty{padding:4rem 20px;text-align:center;color:var(--t3);font-size:13px}
+
+/* Reply panel */
+.reply-bar{padding:12px 20px;border-top:1px solid var(--border)}
+.reply-btn{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--accent);background:none;border:1px solid var(--accent);border-radius:5px;padding:7px 14px;cursor:pointer;transition:background .12s,color .12s}
+.reply-btn:hover{background:var(--accent);color:#fff}
+.reply-panel{display:none;padding:14px 20px;border-top:1px solid var(--border);background:var(--s2)}
+.reply-panel.open{display:block}
+.reply-to-lbl{font-size:11px;color:var(--t3);margin-bottom:6px}
+.reply-to-lbl b{color:var(--t2)}
+.reply-textarea{width:100%;border:1px solid var(--border);border-radius:5px;padding:9px 11px;font-size:13px;color:var(--t1);background:var(--surface);resize:vertical;min-height:90px;font-family:inherit;margin-bottom:10px}
+.reply-textarea:focus{outline:none;border-color:var(--accent)}
+.reply-actions{display:flex;gap:8px}
+.reply-send{background:var(--accent);color:#fff;border:none;border-radius:5px;padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer}
+.reply-send:disabled{opacity:.5;cursor:not-allowed}
+.reply-cancel{background:none;border:1px solid var(--border);border-radius:5px;padding:8px 16px;font-size:13px;color:var(--t2);cursor:pointer}
+.reply-cancel:hover{background:var(--border)}
+.reply-err{font-size:12px;color:#dc2626;margin-top:8px;display:none}
+
+/* Type chip */
+.type-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;text-transform:capitalize}
+.type-chip.availability_check{background:#fef3c7;color:#92400e}
+.type-chip.stock_response{background:#d1fae5;color:#065f46}
+.type-chip.dispatch_update{background:#dbeafe;color:#1e40af}
+.type-chip.general{background:var(--s2);color:var(--t3)}
+
+/* Responsive */
+@media(max-width:700px){
+  .sidebar{transform:translateX(-100%)}
+  .main{margin-left:0}
+  .msg-layout{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sb-brand">
+    <div class="sb-bmark">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.75"><path d="M12 3L2 7.5v9L12 21l10-4.5v-9z"/><path d="M12 12L2 7.5M12 12v9M12 12l10-4.5"/></svg>
+    </div>
+    SPM Tracker
+  </div>
+
+  <div class="sb-sec">Workspace</div>
+  <a class="nav" href="/">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span>Dashboard</span>
+  </a>
+  <a class="nav" href="/">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+    <span>Orders</span>
+  </a>
+  <a class="nav active" href="/messages">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+    <span>Messages</span>
+    <span class="badge" id="sb-unread" style="display:none"></span>
+  </a>
+
+  <div class="sb-bottom">
+    <div class="sb-user">
+      <div class="av" id="sb-av">?</div>
+      <div style="flex:1;min-width:0">
+        <div class="sb-uname" id="sb-uname">—</div>
+        <div class="sb-urole" id="sb-urole">—</div>
+      </div>
+      <button onclick="logout()" title="Sign out" style="background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.5);padding:4px;flex-shrink:0">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-title">Messages</div>
+  </header>
+
+  <div class="content">
+    <div class="ph">
+      <div class="ph-title">Inbox</div>
+      <div class="ph-sub" id="inbox-sub">Loading…</div>
+    </div>
+
+    <div class="msg-layout">
+      <!-- Message list -->
+      <div class="card">
+        <div class="inbox-hd">
+          <span class="inbox-hd-title">Received</span>
+          <span id="inbox-count" style="font-size:11px;color:var(--t3)"></span>
+        </div>
+        <div class="inbox-list" id="inbox-list">
+          <div class="msg-empty">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Message detail -->
+      <div class="card">
+        <div class="detail-empty" id="detail-empty">Select a message to read it</div>
+        <div class="msg-detail" id="msg-detail">
+          <div class="detail-hd">
+            <div class="detail-subject" id="detail-subject"></div>
+            <div class="detail-meta">
+              <span>From: <b id="detail-from"></b></span>
+              <span id="detail-type-wrap"></span>
+              <span id="detail-time" style="margin-left:auto"></span>
+            </div>
+          </div>
+          <div id="po-summary" style="display:none">
+            <div class="po-card">
+              <div class="po-card-title">Referenced order</div>
+              <div class="po-grid" id="po-grid"></div>
+            </div>
+          </div>
+          <div class="detail-body" id="detail-body"></div>
+          <div id="detail-pdf" style="display:none;padding:12px 20px;border-top:1px solid var(--border);display:none">
+            <a id="detail-pdf-link" href="" target="_blank" download style="display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--accent);text-decoration:none;padding:7px 14px;border:1px solid var(--accent);border-radius:5px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+              <span id="detail-pdf-name">Download PO Document</span>
+            </a>
+          </div>
+          <!-- Reply -->
+          <div class="reply-bar" id="reply-bar">
+            <button class="reply-btn" onclick="openReply()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 00-4-4H4"/></svg>
+              Reply
+            </button>
+          </div>
+          <div class="reply-panel" id="reply-panel">
+            <div class="reply-to-lbl">Replying to <b id="reply-to-name">—</b></div>
+            <textarea class="reply-textarea" id="reply-body" placeholder="Write your reply…"></textarea>
+            <div class="reply-actions">
+              <button class="reply-send" id="reply-send-btn" onclick="sendReply()">Send Reply</button>
+              <button class="reply-cancel" onclick="closeReply()">Cancel</button>
+            </div>
+            <div class="reply-err" id="reply-err"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Auth ──────────────────────────────────────────────────────────────────────
+var _inIframe    = window.parent !== window;
+var _authHeader  = sessionStorage.getItem('spm_auth') || '';
+var _currentUser = null;
+try { _currentUser = JSON.parse(sessionStorage.getItem('spm_user') || 'null'); } catch(e) {}
+
+if (_inIframe) {
+  // Hide sidebar — navigation is handled by the parent page
+  document.addEventListener('DOMContentLoaded', function() {
+    var sb = document.querySelector('.sidebar');
+    var tb = document.querySelector('.topbar');
+    var mn = document.querySelector('.main');
+    if (sb) sb.style.display = 'none';
+    if (tb) tb.style.display = 'none';
+    if (mn) { mn.style.marginLeft = '0'; }
+  });
+  // Receive auth from parent via postMessage
+  window.addEventListener('message', function(e) {
+    if (e.origin !== window.location.origin) return;
+    if (e.data && e.data.type === 'spm_auth') {
+      _authHeader  = e.data.token || '';
+      _currentUser = e.data.user  || null;
+      if (_currentUser) initMessages();
+    }
+  });
+} else {
+  // Standalone — read sessionStorage directly
+  if (!_authHeader || !_currentUser) { window.location.href = '/'; }
+  else { document.addEventListener('DOMContentLoaded', initMessages); }
+}
+
+function authFetch(url, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({}, opts.headers, _authHeader ? {Authorization: _authHeader} : {});
+  return fetch(url, opts);
+}
+
+function logout() {
+  sessionStorage.removeItem('spm_auth');
+  sessionStorage.removeItem('spm_user');
+  window.location.href = '/';
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+var _AV_PAL = ['#7c3aed','#1d4ed8','#0369a1','#047857','#b45309','#9f1239','#0e7490','#4338ca'];
+function _avColor(s) {
+  var h = 0;
+  for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffff;
+  return _AV_PAL[h % _AV_PAL.length];
+}
+function _esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function _relTime(iso) {
+  if (!iso) return '';
+  var diff = Date.now() - new Date(iso).getTime();
+  var m = Math.floor(diff / 60000);
+  if (m < 2)  return 'Just now';
+  if (m < 60) return m + 'm ago';
+  var h = Math.floor(m / 60);
+  if (h < 24) return h + 'h ago';
+  var d = Math.floor(h / 24);
+  if (d < 7)  return d + 'd ago';
+  return new Date(iso).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function initMessages() {
+  if (!_currentUser) return;
+  var name  = _currentUser.name || _currentUser.email || '?';
+  var parts = name.trim().split(/\s+/);
+  var ini   = parts.length >= 2 ? (parts[0][0]+parts[parts.length-1][0]).toUpperCase() : name.slice(0,2).toUpperCase();
+  var role  = _currentUser.role || '';
+  var sbAv  = document.getElementById('sb-av');
+  if (sbAv) sbAv.textContent = ini;
+  var sbName = document.getElementById('sb-uname');
+  if (sbName) sbName.textContent = name;
+  var sbRole = document.getElementById('sb-urole');
+  if (sbRole) sbRole.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+  var sub = document.getElementById('inbox-sub');
+  if (sub) sub.textContent = 'Showing messages for ' + role + ' role';
+  loadMessages();
+}
+
+// ── Messages ──────────────────────────────────────────────────────────────────
+var MESSAGES = [];
+var _openId  = null;
+
+async function loadMessages() {
+  try {
+    var role = _currentUser ? _currentUser.role : '';
+    var res  = await authFetch('/api/messages?role=' + encodeURIComponent(role));
+    if (!res.ok) return;
+    MESSAGES = await res.json();
+    renderInbox();
+  } catch(e) { console.error('loadMessages:', e); }
+}
+
+function renderInbox() {
+  var list  = document.getElementById('inbox-list');
+  var count = document.getElementById('inbox-count');
+  var unread = MESSAGES.filter(function(m){ return !m.is_read; }).length;
+  if (count) count.textContent = MESSAGES.length + ' message' + (MESSAGES.length !== 1 ? 's' : '') + (unread ? ' · ' + unread + ' unread' : '');
+  var badge = document.getElementById('sb-unread');
+  if (badge) { badge.textContent = unread; badge.style.display = unread ? '' : 'none'; }
+  if (!MESSAGES.length) {
+    list.innerHTML = '<div class="msg-empty">No messages yet</div>';
+    return;
+  }
+  list.innerHTML = MESSAGES.map(function(m) {
+    var ini   = (m.from_name || '?').split(' ').map(function(w){ return w[0]; }).slice(0,2).join('').toUpperCase();
+    var color = _avColor(m.from_name || m.id);
+    var isActive = _openId === m.id;
+    return '<div class="msg-row' + (!m.is_read ? ' unread' : '') + (isActive ? ' active' : '') + '" onclick="openMessage(\'' + _esc(m.id) + '\')">'
+      + (!m.is_read ? '<div class="unread-dot"></div>' : '')
+      + '<div class="msg-av" style="background:' + color + '">' + ini + '</div>'
+      + '<div class="msg-row-body">'
+      +   '<div class="msg-row-from">' + _esc(m.from_name || '—') + '</div>'
+      +   '<div class="msg-row-subject">' + _esc(m.subject) + '</div>'
+      +   '<div class="msg-row-preview">' + _esc((m.body || '').slice(0, 80)) + '</div>'
+      + '</div>'
+      + '<div class="msg-row-time">' + _relTime(m.created_at) + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+async function openMessage(id) {
+  var m = MESSAGES.find(function(x){ return x.id === id; });
+  if (!m) return;
+  _openId = id;
+  _replyToMsg = m;
+  // Reset reply panel for new message
+  closeReply();
+  document.getElementById('reply-bar').innerHTML = '<button class="reply-btn" onclick="openReply()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 00-4-4H4"/></svg>Reply</button>';
+
+  // Mark read
+  if (!m.is_read) {
+    m.is_read = true;
+    authFetch('/api/messages/' + id + '/read', {method:'POST'}).catch(function(){});
+    renderInbox();
+  }
+
+  document.getElementById('detail-empty').style.display = 'none';
+  var detail = document.getElementById('msg-detail');
+  detail.classList.add('open');
+  document.getElementById('detail-subject').textContent = m.subject;
+  document.getElementById('detail-from').textContent    = m.from_name || '—';
+  document.getElementById('detail-time').textContent    = m.created_at ? new Date(m.created_at).toLocaleString('en-GB') : '';
+  document.getElementById('detail-body').textContent    = m.body || '';
+
+  // Type chip
+  var typeWrap = document.getElementById('detail-type-wrap');
+  if (m.message_type && m.message_type !== 'general') {
+    typeWrap.innerHTML = '<span class="type-chip ' + _esc(m.message_type) + '">' + _esc(m.message_type.replace(/_/g,' ')) + '</span>';
+  } else { typeWrap.innerHTML = ''; }
+
+  // PDF download
+  var pdfEl   = document.getElementById('detail-pdf');
+  var pdfLink = document.getElementById('detail-pdf-link');
+  var pdfName = document.getElementById('detail-pdf-name');
+  if (m.po_pdf_url) {
+    var fn = m.subject ? m.subject.replace(/[^a-zA-Z0-9_\-]/g,'_') + '.pdf' : 'PO_document.pdf';
+    pdfLink.href = m.po_pdf_url;
+    pdfLink.setAttribute('download', fn);
+    pdfName.textContent = 'Download PO Document';
+    pdfEl.style.display = '';
+  } else { pdfEl.style.display = 'none'; }
+
+  // PO summary
+  var poSummary = document.getElementById('po-summary');
+  if (m.order_id && m.po_summary) {
+    poSummary.style.display = '';
+    var po = m.po_summary;
+    document.getElementById('po-grid').innerHTML = Object.entries(po).map(function(kv) {
+      return '<div class="po-field"><div class="po-label">' + _esc(kv[0]) + '</div><div class="po-value">' + _esc(kv[1] || '—') + '</div></div>';
+    }).join('');
+  } else { poSummary.style.display = 'none'; }
+
+  // Highlight row
+  document.querySelectorAll('.msg-row').forEach(function(r){ r.classList.remove('active'); });
+  var rows = document.querySelectorAll('.msg-row');
+  rows.forEach(function(r, i){ if (MESSAGES[i] && MESSAGES[i].id === id) r.classList.add('active'); });
+}
+
+// ── Reply ─────────────────────────────────────────────────────────────────────
+var _replyToMsg = null;
+
+function openReply() {
+  if (!_replyToMsg) return;
+  var m = _replyToMsg;
+  document.getElementById('reply-to-name').textContent = m.from_name || 'sender';
+  document.getElementById('reply-body').value = '';
+  document.getElementById('reply-err').style.display = 'none';
+  document.getElementById('reply-panel').classList.add('open');
+  document.getElementById('reply-bar').style.display = 'none';
+  document.getElementById('reply-body').focus();
+}
+
+function closeReply() {
+  document.getElementById('reply-panel').classList.remove('open');
+  document.getElementById('reply-bar').style.display = '';
+}
+
+async function sendReply() {
+  if (!_replyToMsg) return;
+  var m    = _replyToMsg;
+  var body = document.getElementById('reply-body').value.trim();
+  var errEl = document.getElementById('reply-err');
+  var btn   = document.getElementById('reply-send-btn');
+  errEl.style.display = 'none';
+  if (!body) { errEl.textContent = 'Reply cannot be empty.'; errEl.style.display = ''; return; }
+  if (!m.from_role) { errEl.textContent = 'Cannot determine who to reply to.'; errEl.style.display = ''; return; }
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    var res = await authFetch('/api/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        to_role:      m.from_role,
+        subject:      'Re: ' + (m.subject || ''),
+        body:         body,
+        message_type: 'stock_response',
+        order_id:     m.order_id     || null,
+        order_client: m.order_client || null,
+      }),
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    closeReply();
+    // Brief confirmation
+    var bar = document.getElementById('reply-bar');
+    bar.innerHTML = '<span style="font-size:12px;color:var(--ok);font-weight:500">✓ Reply sent to ' + _esc(m.from_role) + '</span>';
+    setTimeout(function() {
+      bar.innerHTML = '<button class="reply-btn" onclick="openReply()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 00-4-4H4"/></svg>Reply</button>';
+    }, 3000);
+  } catch(e) {
+    errEl.textContent = e.message || 'Could not send reply.';
+    errEl.style.display = '';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Send Reply';
+  }
+}
+
+</script>
+</body>
+</html>
