@@ -1,0 +1,16 @@
+supabase==2.9.1
+imapclient==3.0.1
+python-dotenv==1.0.1
+anthropic>=0.40.0
+pdfplumber>=0.11.0
+PyMuPDF>=1.24.0
+pytesseract>=0.3.10
+Pillow>=10.0.0
+PyJWT>=2.8.0
+bcrypt>=4.1.0
+reportlab>=4.0.0
+openpyxl>=3.1.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+gunicorn>=22.0.0
+python-multipart>=0.0.9
