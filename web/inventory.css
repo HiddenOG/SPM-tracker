@@ -1,0 +1,39 @@
+/*
+  inventory.css — Stock and Products.
+
+  Loaded after style.css, so every token and component it uses (--t2, .qt-tbl,
+  .qf-inp, .cell-box) comes from there and the two pages stay in step with the
+  rest of the app when it is restyled. Only what is genuinely new lives here.
+*/
+
+/* ── Sidebar dropdown group ───────────────────────────────────────────────
+   The sidebar was a flat list. Inventory holds two pages, so it gets a header
+   that opens and closes instead of two more top-level rows. */
+.nav-group .nav-chev { margin-left: auto; transition: transform .15s; opacity: .6 }
+.nav-group.open .nav-chev { transform: rotate(180deg) }
+.nav-sub { display: none; margin: 1px 0 3px }
+.nav-sub.open { display: block }
+.nav.nav-child { padding-left: 30px; font-size: 12.5px }
+.nav.nav-child svg { opacity: .75 }
+
+/* ── Stock item form ──────────────────────────────────────────────────────
+   Labels sit above their boxes here rather than beside them, because the
+   modal is narrow — the side-by-side layout the quote form uses would leave
+   the inputs too small to read a part code in. */
+.sf-row { margin-bottom: 11px }
+.sf-lbl { display: block; font-size: 11.5px; font-weight: 500; color: var(--t2); margin-bottom: 4px }
+.sf-lbl em { color: var(--accent); font-style: normal }
+.sf-row > .qf-inp { display: block; width: 100%; box-sizing: border-box }
+.sf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }
+@media (max-width: 520px) { .sf-grid { grid-template-columns: 1fr; gap: 0 } }
+.sf-hint { font-size: 11.5px; color: var(--t3); margin: -6px 0 11px; min-height: 0 }
+.sf-hint.on { min-height: 16px }
+
+.sf-history { max-height: 160px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px }
+.sf-move { display: flex; align-items: baseline; gap: 10px; padding: 6px 10px; font-size: 12px; border-bottom: 1px solid var(--border) }
+.sf-move:last-child { border-bottom: none }
+.sf-move-delta { font-family: var(--mono); font-weight: 600; min-width: 52px; text-align: right }
+.sf-move-up { color: var(--ok, #15803d) }
+.sf-move-down { color: var(--crit) }
+.sf-move-note { color: var(--t2); flex: 1; min-width: 0 }
+.sf-move-when { color: var(--t3); white-space: nowrap; font-size: 11px }

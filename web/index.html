@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPMprocure360</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="inventory.css" />
+</head>
+<body>
+
+<!-- ══════ WELCOME ══════ -->
+<div id="screen-welcome">
+  <div class="welcome-inner">
+    <div class="welcome-logo-wrap">
+      <img src="/logo.png" alt="SPM Logo" class="welcome-logo" />
+    </div>
+    <div class="welcome-text-wrap">
+      <div class="welcome-title" id="welcome-title">Special Piping Limited</div>
+    </div>
+    <div class="welcome-tagline">Supply Chain Management Portal</div>
+  </div>
+</div>
+
+<!-- ══════ DEPARTMENT ══════ -->
+<div id="screen-department" style="display:none">
+  <div class="dept-outer">
+    <div class="dept-header">
+      <img src="/logo.png" alt="SPM Logo" class="dept-logo" />
+      <div class="dept-header-text">
+        <div class="dept-brand-name">SPMprocure360</div>
+        <div class="dept-brand-sub">Choose your department to sign in</div>
+      </div>
+    </div>
+    <div class="dept-grid">
+      <button class="dept-card" onclick="selectDept('admin')">
+        <div class="dept-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M18 8l2 2-2 2"/><path d="M20 10h-2"/></svg>
+        </div>
+        <span class="dept-card-label">Admin</span>
+        <span class="dept-card-sub">Full access</span>
+      </button>
+      <button class="dept-card" onclick="selectDept('procurement')">
+        <div class="dept-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+        </div>
+        <span class="dept-card-label">Procurement</span>
+        <span class="dept-card-sub">Orders &amp; reports</span>
+      </button>
+      <button class="dept-card" onclick="selectDept('warehouse')">
+        <div class="dept-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3"/><rect x="9" y="11" width="14" height="10" rx="1"/><circle cx="12" cy="20" r="1"/><circle cx="20" cy="20" r="1"/></svg>
+        </div>
+        <span class="dept-card-label">Warehouse</span>
+        <span class="dept-card-sub">Stock &amp; dispatch</span>
+      </button>
+      <button class="dept-card" onclick="selectDept('accounts')">
+        <div class="dept-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4M14 15h4"/></svg>
+        </div>
+        <span class="dept-card-label">Accounts</span>
+        <span class="dept-card-sub">Finance &amp; billing</span>
+      </button>
+      <button class="dept-card" onclick="selectDept('expeditor')">
+        <div class="dept-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <span class="dept-card-label">Expeditor</span>
+        <span class="dept-card-sub">Tracking &amp; delays</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ LOGIN ══════ -->
+<div id="screen-login" style="display:none">
+  <div class="login-card">
+    <button class="login-back-btn" id="login-back-btn" onclick="goBackToDept()" type="button">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back
+    </button>
+    <div class="login-brand">
+      <img src="/logo.png" alt="SPM Logo" class="login-logo-img" />
+      <span class="brand-name">SPMprocure360</span>
+    </div>
+    <div class="login-dept-badge" id="login-dept-badge">Procurement</div>
+
+    <!-- Admin only: email field -->
+    <div id="admin-email-row" style="display:none">
+      <label class="fl" for="em">Your email address</label>
+      <input class="fi" type="email" id="em" autocomplete="email" placeholder="admin@specialpipingltd.com" />
+    </div>
+    <!-- Non-admin: show dept email read-only -->
+    <div id="dept-email-row">
+      <label class="fl">Department email</label>
+      <div class="login-dept-email-display" id="dept-email-display">specialpiping@gmail.com</div>
+    </div>
+
+    <label class="fl" for="un">Your name</label>
+    <input class="fi" type="text" id="un" autocomplete="name" placeholder="Enter your name" />
+
+    <label class="fl" for="pw">Password</label>
+    <input class="fi" type="password" id="pw" autocomplete="current-password" placeholder="••••••••" />
+
+    <button class="btn-primary" id="btn-in" style="margin-top:4px">
+      Sign in
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </button>
+
+    <div class="login-foot" id="login-err-msg">SPM Procurement · Authorised personnel only</div>
+    <div class="login-foot" style="margin-top:6px">Forgot your password? Contact an administrator.</div>
+  </div>
+</div>
+
+<!-- ══════ APP ══════ -->
+<div id="screen-app" style="display:none">
+
+  <div class="mob-sb-backdrop" id="mob-sb-backdrop"></div>
+
+  <nav class="sidebar" id="sidebar" aria-label="Main navigation">
+    <!-- Collapse / expand toggle -->
+    <div class="sb-toggle" id="sb-toggle" title="Toggle sidebar">
+      <svg id="sb-toggle-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+    </div>
+    <!-- Drag-to-resize handle -->
+    <div class="sb-resize" id="sb-resize"></div>
+
+    <div class="sb-brand">
+      <div class="sb-bmark">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3L2 7.5v9L12 21l10-4.5v-9z"/><path d="M12 12L2 7.5M12 12v9M12 12l10-4.5"/></svg>
+      </div>
+      <span class="sb-bname">SPMprocure360</span>
+    </div>
+
+    <div class="sb-sec">Workspace</div>
+    <div class="nav active" data-p="dashboard">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>Dashboard</span>
+    </div>
+    <div class="nav" data-p="orders">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+      <span>Orders</span>
+    </div>
+    <div class="nav" data-p="suppliers">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3"/><rect x="9" y="11" width="14" height="10" rx="1"/><circle cx="12" cy="20" r="1"/><circle cx="20" cy="20" r="1"/></svg>
+      <span>Suppliers</span>
+    </div>
+    <div class="nav nav-group" id="nav-inventory-group" onclick="toggleNavGroup('inventory')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8v11a1 1 0 01-1 1H4a1 1 0 01-1-1V8"/><rect x="2" y="4" width="20" height="4" rx="1"/><path d="M10 12h4"/></svg>
+      <span>Inventory</span>
+      <svg class="nav-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="nav-sub" id="nav-sub-inventory">
+      <div class="nav nav-child" data-p="stock">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        <span>Stock</span>
+      </div>
+      <div class="nav nav-child" data-p="products">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 11l8 4 8-4"/><path d="M4 15l8 4 8-4"/></svg>
+        <span>Products</span>
+      </div>
+    </div>
+    <div class="nav" data-p="delays">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      <span>Delays</span>
+    </div>
+
+    <div class="sb-sec">Communication</div>
+    <div class="nav" data-p="messages" id="nav-messages">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <span>Messages</span>
+      <span id="msg-badge" style="display:none;margin-left:auto;background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;min-width:18px;text-align:center"></span>
+    </div>
+
+    <div class="sb-sec">Reporting</div>
+    <div class="nav" data-p="reports">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+      <span>Reports</span>
+    </div>
+    <div class="nav" data-p="quotes" id="nav-quotes" style="display:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <span>Quotes</span>
+    </div>
+    <div class="nav" data-p="purchase-orders" id="nav-purchase-orders" style="display:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h9l5 5v15a1 1 0 01-1 1H6a1 1 0 01-1-1V3a1 1 0 011-1z"/><polyline points="15 2 15 7 20 7"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>
+      <span>Purchase Orders</span>
+    </div>
+
+    <div class="sb-bottom">
+      <div class="nav" data-p="team" id="nav-team" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        <span>Team</span>
+      </div>
+      <div class="nav" data-p="settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span>Settings</span>
+      </div>
+      <div class="sb-user" id="sb-user-block">
+        <div class="av" id="sb-av">?</div>
+        <div style="flex:1;min-width:0">
+          <div class="sb-uname" id="sb-uname">—</div>
+          <div class="sb-urole" id="sb-urole">—</div>
+        </div>
+        <button id="btn-logout" title="Sign out" style="background:none;border:none;cursor:pointer;color:var(--t3);padding:4px;flex-shrink:0" onclick="logout()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="main" id="main">
+    <header class="topbar">
+      <button class="btn-hamburger" id="btn-hamburger" aria-label="Open navigation">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      </button>
+      <div class="period-dd" id="client-sw-dd" style="display:none">
+        <button class="client-sw-btn" id="client-sw-btn" onclick="toggleClientSwDd()">Chevron ▾</button>
+        <div class="period-dd-menu hidden" id="client-sw-menu" style="min-width:160px">
+          <div class="period-dd-item on"  onclick="switchClient('chevron')">Chevron</div>
+          <div class="period-dd-item"     onclick="switchClient('nlng')">NLNG</div>
+          <div class="period-dd-item"     onclick="switchClient('seplat')">SEPLAT / MOBILE</div>
+        </div>
+      </div>
+      <div class="tb-sp"></div>
+      <div class="notif-wrap">
+        <div class="tb-icon" id="notif-bell" title="Notifications" style="cursor:pointer" onclick="toggleNotifPanel()">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          <div class="npip" id="notif-pip" style="display:none"></div>
+        </div>
+        <div class="notif-panel" id="notif-panel">
+          <div class="notif-hd">
+            <span>Alerts</span>
+            <button onclick="closeNotifPanel()">✕</button>
+          </div>
+          <div class="notif-body" id="notif-body">
+            <div class="notif-empty">No alerts — all orders on track.</div>
+          </div>
+        </div>
+      </div>
+      <div class="tb-av">SM</div>
+    </header>
+
+    <div class="preview-bar" id="preview-bar">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span id="preview-bar-label">Previewing as —</span>
+      <button class="preview-bar-exit" onclick="exitPreview()">Exit preview</button>
+    </div>
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <section class="page active" id="page-dashboard">
+        <div class="ph">
+          <div class="ph-title">Dashboard</div>
+          <div class="ph-sub" id="dash-sub">Loading…</div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-lbl">Active orders</div><div class="kpi-val" id="kpi-active">—</div><div class="kpi-note" id="kpi-active-note">Loading…</div></div>
+          <div class="kpi"><div class="kpi-lbl">Total value</div><div class="kpi-val mono" id="kpi-value">—</div><div class="kpi-note" id="kpi-value-note">Total PO values</div></div>
+          <div class="kpi"><div class="kpi-lbl">Delivered</div><div class="kpi-val" id="kpi-delivered">—</div><div class="kpi-note" id="kpi-delivered-note"> </div></div>
+          <div class="kpi"><div class="kpi-lbl">SOs from Flexitallic</div><div class="kpi-val" id="kpi-spm-pos">—</div><div class="kpi-note" id="kpi-spm-pos-note">Loading…</div></div>
+        </div>
+
+        <div class="sec-lbl">2026 supply pipeline</div>
+        <div class="funnel" role="list">
+          <div class="fs fs-n" role="listitem" onclick="toggleFunnelLabel(this)"><div class="fsv" id="fun-notified">—</div><div class="fsl">Notified</div></div>
+          <div class="fs fs-r" role="listitem" onclick="toggleFunnelLabel(this)"><div class="fsv" id="fun-spm">—</div><div class="fsl">SPM PO sent</div></div>
+          <div class="fs fs-r2" role="listitem" onclick="toggleFunnelLabel(this)"><div class="fsv" id="fun-so">—</div><div class="fsl">SO ack'd</div></div>
+          <div class="fs fs-w" role="listitem" onclick="toggleFunnelLabel(this)"><div class="fsv" id="fun-live">—</div><div class="fsl">Live</div></div>
+          <div class="fs fs-g" role="listitem" onclick="toggleFunnelLabel(this)"><div class="fsv" id="fun-closed">—</div><div class="fsl">Closed</div></div>
+        </div>
+
+        <div class="dash-grid">
+          <div class="card">
+            <div class="card-hd"><span class="card-ttl">Recent orders</span><span class="card-act" id="goto-orders">View all →</span></div>
+            <div id="recent-orders"><div style="padding:1.5rem;text-align:center;color:var(--t3);font-size:13px">Loading…</div></div>
+          </div>
+          <div class="card">
+            <div class="card-hd"><span class="card-ttl">Activity</span></div>
+            <div id="activity-feed"><div style="padding:1.5rem;text-align:center;color:var(--t3);font-size:13px">Loading…</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ORDERS -->
+      <section class="page" id="page-orders">
+        <div class="ph"><div class="ph-title">Orders</div><div class="ph-sub" id="orders-ph-sub">All tracked Chevron purchase orders</div></div>
+
+        <!-- ── Chevron view ── -->
+        <div id="view-chevron">
+        <div class="ot-bar">
+          <div class="srch">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="text" id="ot-q" placeholder="Search PO number, description…" oninput="clearTimeout(this._dbt);this._dbt=setTimeout(function(){filterOrders();},150)" />
+          </div>
+          <div class="chips-row">
+            <div class="chips" id="status-chips"></div>
+            <button class="chip" id="so-filter-btn" onclick="toggleSoFilter()" title="Show only POs with an SO number">Has SO</button>
+          </div>
+          <div class="tb-btns">
+            <button class="btn-sm" id="btn-refresh" title="Reload data">&#8635; Refresh</button>
+            <button class="btn-sm btn-exp" id="btn-export">Export</button>
+          </div>
+        </div>
+        <div class="otd-sub-bar hidden" id="orders-sub-bar">
+          <div class="otd-chips" id="sub-filter-chips"></div>
+        </div>
+        <div class="period-row" id="orders-period-row">
+          <span class="period-lbl">Received</span>
+          <div class="dr-wrap" id="orders-period-dr">
+            <button class="chip-dt" id="orders-period-btn" onclick="toggleDrPicker('orders-period-dr')">All ▾</button>
+            <div class="dr-pop hidden" id="orders-period-dr-pop">
+              <div class="dr-row"><label class="dr-lbl">From</label><input type="date" class="dr-inp" id="orders-period-from" onchange="onOrdersPeriodChange()"></div>
+              <div class="dr-row"><label class="dr-lbl">To</label><input type="date" class="dr-inp" id="orders-period-to" onchange="onOrdersPeriodChange()"></div>
+              <div class="dr-actions"><button class="dr-clr" onclick="clearOrdersPeriod()">Clear</button></div>
+            </div>
+          </div>
+          <span class="period-lbl">Promised</span>
+          <div class="dr-wrap" id="orders-promised-dr">
+            <button class="chip-dt" id="orders-promised-btn" onclick="toggleDrPicker('orders-promised-dr')">All ▾</button>
+            <div class="dr-pop hidden" id="orders-promised-dr-pop">
+              <div class="dr-row"><label class="dr-lbl">From</label><input type="date" class="dr-inp" id="orders-promised-from" onchange="onOrdersPromisedChange()"></div>
+              <div class="dr-row"><label class="dr-lbl">To</label><input type="date" class="dr-inp" id="orders-promised-to" onchange="onOrdersPromisedChange()"></div>
+              <div class="dr-actions"><button class="dr-clr" onclick="clearOrdersPromised()">Clear</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="tw-wrap">
+          <div class="tw" id="tw-main">
+            <table id="orders-table">
+              <thead><tr id="ot-head-row"></tr></thead>
+              <tbody id="ot-body"></tbody>
+            </table>
+            <div class="empty hidden" id="ot-empty">No orders match your search</div>
+          </div>
+          <div class="pagination" id="ot-pagination"></div>
+        </div>
+        </div><!-- /#view-chevron -->
+
+        <!-- ── NLNG view ── -->
+        <div id="view-nlng" style="display:none">
+          <div id="nlng-bar">
+            <div class="ot-bar" style="margin-bottom:8px">
+              <div class="srch">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="text" id="nlng-q" placeholder="Search PO, description…" oninput="clearTimeout(this._dbt);this._dbt=setTimeout(function(){filterNlng();},150)" />
+              </div>
+            </div>
+            <div class="chips-row" style="margin-bottom:8px">
+              <div class="chips" id="nlng-status-chips"></div>
+              <button class="chip" id="nlng-so-filter-btn" onclick="toggleNlngSoFilter()" title="Show only NLNG POs with an SO number">Has SO</button>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+              <div class="tb-btns">
+                <button class="btn-sm" id="nlng-refresh" title="Reload NLNG data">&#8635; Refresh</button>
+                <button class="btn-sm btn-exp" id="nlng-btn-export">Export</button>
+              </div>
+            </div>
+          </div>
+          <div class="otd-sub-bar hidden" id="nlng-sub-bar">
+            <div class="otd-chips" id="nlng-sub-chips"></div>
+          </div>
+          <div class="period-row" id="nlng-period-row">
+            <span class="period-lbl">Received</span>
+            <div class="dr-wrap" id="nlng-period-dr">
+              <button class="chip-dt" id="nlng-period-btn" onclick="toggleDrPicker('nlng-period-dr')">All ▾</button>
+              <div class="dr-pop hidden" id="nlng-period-dr-pop">
+                <div class="dr-row"><label class="dr-lbl">From</label><input type="date" class="dr-inp" id="nlng-period-from" onchange="onNlngPeriodChange()"></div>
+                <div class="dr-row"><label class="dr-lbl">To</label><input type="date" class="dr-inp" id="nlng-period-to" onchange="onNlngPeriodChange()"></div>
+                <div class="dr-actions"><button class="dr-clr" onclick="clearNlngPeriod()">Clear</button></div>
+              </div>
+            </div>
+            <span class="period-lbl">Promised</span>
+            <div class="dr-wrap" id="nlng-promised-dr">
+              <button class="chip-dt" id="nlng-promised-btn" onclick="toggleDrPicker('nlng-promised-dr')">All ▾</button>
+              <div class="dr-pop hidden" id="nlng-promised-dr-pop">
+                <div class="dr-row"><label class="dr-lbl">From</label><input type="date" class="dr-inp" id="nlng-promised-from" onchange="onNlngPromisedChange()"></div>
+                <div class="dr-row"><label class="dr-lbl">To</label><input type="date" class="dr-inp" id="nlng-promised-to" onchange="onNlngPromisedChange()"></div>
+                <div class="dr-actions"><button class="dr-clr" onclick="clearNlngPromised()">Clear</button></div>
+              </div>
+            </div>
+          </div>
+          <div class="tw-wrap">
+            <div class="tw" id="tw-nlng">
+              <table class="nlng-tbl" id="nlng-table">
+                <thead><tr id="nlng-head-row"></tr></thead>
+                <tbody id="nlng-body"></tbody>
+              </table>
+              <div class="empty hidden" id="nlng-empty">No NLNG orders yet</div>
+            </div>
+            <div class="pagination" id="nlng-pagination"></div>
+          </div>
+        </div><!-- /#view-nlng -->
+
+        <!-- ── SEPLAT / MOBILE view ── -->
+        <div id="view-seplat" style="display:none">
+          <div class="card" style="padding:2rem;color:var(--t3);font-size:13px">SEPLAT / MOBILE orders — coming soon.</div>
+        </div>
+
+      </section>
+
+      <section class="page" id="page-suppliers">
+        <div class="ph" style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div>
+            <div class="ph-title">Flexitallic</div>
+            <div class="ph-sub" id="fx-sub">Purchase orders and sales orders, 2024 to date</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="qt-co-tabs" role="group" aria-label="Value basis">
+              <button id="fx-basis-so" class="qt-co-tab qt-co-tab-active" onclick="setFxBasis('so')">Sales order value</button>
+              <button id="fx-basis-po" class="qt-co-tab" onclick="setFxBasis('po')">Client PO value</button>
+            </div>
+            <button class="btn-sm btn-exp" onclick="exportFlexitallicCsv()">Export</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" id="fx-kpis"></div>
+
+        <div class="rpt-chart-row" style="margin-top:12px">
+          <div class="card" style="padding:14px">
+            <div class="card-ttl" style="margin-bottom:8px" id="fx-t-year">Order value by year</div>
+            <div id="fx-bars-year"></div>
+            <div class="rpt-bars-legend" id="fx-bars-note"></div>
+          </div>
+          <div class="card" style="padding:14px">
+            <div class="card-ttl" style="margin-bottom:8px" id="fx-t-cust">Value by end customer</div>
+            <div class="rpt-donut-wrap">
+              <div id="fx-donut-cust"></div>
+              <div class="rpt-leg" id="fx-leg-cust"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="padding:14px;margin-bottom:12px">
+          <div class="card-ttl" style="margin-bottom:8px">Gasket mix by Flexitallic item code</div>
+          <div class="fx-mix-note">
+            Grouped by the item-code prefix Flexitallic use. Codes are shown as-is
+            rather than translated into product names, which have never been
+            confirmed with Flexitallic.
+          </div>
+          <div id="fx-bars-mix"></div>
+        </div>
+
+        <div class="card" style="padding:0">
+          <div style="padding:12px 14px 0">
+            <div class="chips-row">
+              <div class="chips" id="fx-chips-year"></div>
+            </div>
+            <div class="chips-row" style="margin-top:6px">
+              <div class="chips" id="fx-chips-cust"></div>
+            </div>
+          </div>
+          <div class="tw" id="tw-flex" style="margin-top:10px">
+            <table id="fx-tbl">
+              <thead><tr id="fx-thead"></tr></thead>
+              <tbody id="fx-tbody"></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="fx-foot"></div>
+        </div>
+      </section>
+      <section class="page" id="page-delays">
+        <div class="ph">
+          <div class="ph-title">OTD Tracker</div>
+          <div class="ph-sub" id="delays-ph-sub">On-time delivery status for all active Chevron purchase orders</div>
+        </div>
+
+        <!-- ── Chevron OTD view ── -->
+        <div id="otd-view-chevron">
+        <div class="otd-cards">
+          <div class="otd-card c-ok" data-f="on-track" onclick="setOtdFilter('on-track')">
+            <div class="oc-lbl">On Track</div>
+            <div class="oc-n" id="otd-c-ok">—</div>
+            <div class="oc-sub">&gt; 30 days remaining</div>
+          </div>
+          <div class="otd-card c-warn" data-f="at-risk" onclick="setOtdFilter('at-risk')">
+            <div class="oc-lbl">At Risk</div>
+            <div class="oc-n" id="otd-c-risk">—</div>
+            <div class="oc-sub">7 – 30 days remaining</div>
+          </div>
+          <div class="otd-card c-crit" data-f="overdue" onclick="setOtdFilter('overdue')">
+            <div class="oc-lbl">Overdue / Critical</div>
+            <div class="oc-n" id="otd-c-crit">—</div>
+            <div class="oc-sub">Past deadline or &lt; 7 days</div>
+          </div>
+          <div class="otd-card c-grey" data-f="delivered" onclick="setOtdFilter('delivered')">
+            <div class="oc-lbl">Delivered</div>
+            <div class="oc-n" id="otd-c-del">—</div>
+            <div class="oc-sub">Closed orders</div>
+          </div>
+          <div class="otd-card c-ok" id="otd-score-card" onclick="setOtdFilter('delivered')">
+            <div class="oc-lbl">Chevron OTD Score</div>
+            <div class="oc-n" id="otd-c-score">—</div>
+            <div class="oc-sub" id="otd-c-score-sub">line items on time</div>
+          </div>
+        </div>
+        <div class="ot-bar" style="margin-bottom:8px">
+          <div class="srch">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="text" id="otd-q" placeholder="Search PO number, description…" oninput="clearTimeout(this._dbt);this._dbt=setTimeout(function(){renderOTD();},150)" />
+          </div>
+        </div>
+        <div class="otd-bar">
+          <div class="otd-chips" id="otd-chips">
+            <button class="otd-chip on" data-f="all"       onclick="setOtdFilter('all')">All</button>
+            <button class="otd-chip"    data-f="on-track"  onclick="setOtdFilter('on-track')">On Track</button>
+            <button class="otd-chip"    data-f="at-risk"   onclick="setOtdFilter('at-risk')">At Risk</button>
+            <button class="otd-chip"    data-f="critical"  onclick="setOtdFilter('critical')">Critical</button>
+            <button class="otd-chip"    data-f="overdue"   onclick="setOtdFilter('overdue')">Overdue</button>
+            <button class="otd-chip"    data-f="delivered" onclick="setOtdFilter('delivered')">Delivered</button>
+          </div>
+        </div>
+        <div class="otd-sub-bar hidden" id="otd-del-sub-bar">
+          <div class="otd-chips">
+            <button class="otd-chip on"  data-sf="all"      onclick="setOtdDeliveredSub('all')">All delivered</button>
+            <button class="otd-chip"     data-sf="del-otd"  onclick="setOtdDeliveredSub('del-otd')">OTD</button>
+            <button class="otd-chip"     data-sf="del-late" onclick="setOtdDeliveredSub('del-late')">Late delivery</button>
+          </div>
+        </div>
+        <div class="period-row" id="otd-period-row">
+          <span class="period-lbl">Received</span>
+          <div class="period-dd" id="otd-period-dd">
+            <button class="chip-dt" id="otd-period-btn" onclick="toggleOtdPeriodDd()">All ▾</button>
+            <div class="period-dd-menu hidden" id="otd-period-menu"></div>
+          </div>
+        </div>
+        <div class="otd-tw">
+          <table class="otd-tbl">
+            <thead>
+              <tr id="otd-head-row">
+                <th style="width:32px"></th>
+                <th style="width:120px" data-col="buyer_po_number">PO Number <span class="sort-ind"></span></th>
+                <th style="width:100px" data-col="so_number">SO Number <span class="sort-ind"></span></th>
+                <th style="width:130px" data-col="buyer_name">Buyer/Requester <span class="sort-ind"></span></th>
+                <th style="width:95px" data-col="po_destination">Destination <span class="sort-ind"></span></th>
+                <th style="width:105px" data-col="notification_received_at">Received <span class="sort-ind"></span></th>
+                <th style="width:100px" data-col="required_delivery_date">Required By <span class="sort-ind"></span></th>
+                <th style="width:100px" data-col="_po_promised">PO Promised <span class="sort-ind"></span></th>
+                <th style="width:88px" class="c" data-col="_days_left">Days Left <span class="sort-ind"></span></th>
+                <th style="width:95px" data-col="promised_date">SO Promised <span class="sort-ind"></span></th>
+                <th style="width:80px" data-col="_gap">Gap <span class="sort-ind"></span></th>
+                <th style="width:130px" data-col="overall_status">Current Stage <span class="sort-ind"></span></th>
+                <th style="width:80px" data-col="_in_stage">In Stage <span class="sort-ind"></span></th>
+                <th style="width:65px" class="c" data-col="_li_count">Items <span class="sort-ind"></span></th>
+                <th style="width:92px" data-col="_otd">OTD <span class="sort-ind"></span></th>
+              </tr>
+            </thead>
+            <tbody id="otd-body">
+              <tr><td colspan="15" style="text-align:center;padding:3rem;color:var(--t3)">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination" id="otd-pagination"></div>
+        </div><!-- /#otd-view-chevron -->
+
+        <!-- ── NLNG OTD view ── -->
+        <div id="otd-view-nlng" style="display:none">
+        <div class="otd-cards">
+          <div class="otd-card c-ok"   data-f="on-track" onclick="setNlngOtdFilter('on-track')">
+            <div class="oc-lbl">On Track</div>
+            <div class="oc-n" id="nlng-otd-c-ok">—</div>
+            <div class="oc-sub">&gt; 30 days remaining</div>
+          </div>
+          <div class="otd-card c-warn" data-f="at-risk"  onclick="setNlngOtdFilter('at-risk')">
+            <div class="oc-lbl">At Risk</div>
+            <div class="oc-n" id="nlng-otd-c-risk">—</div>
+            <div class="oc-sub">7 – 30 days remaining</div>
+          </div>
+          <div class="otd-card c-crit" data-f="overdue"  onclick="setNlngOtdFilter('overdue')">
+            <div class="oc-lbl">Overdue / Critical</div>
+            <div class="oc-n" id="nlng-otd-c-crit">—</div>
+            <div class="oc-sub">Past deadline or &lt; 7 days</div>
+          </div>
+          <div class="otd-card c-grey" data-f="delivered" onclick="setNlngOtdFilter('delivered')">
+            <div class="oc-lbl">Delivered</div>
+            <div class="oc-n" id="nlng-otd-c-del">—</div>
+            <div class="oc-sub">Closed orders</div>
+          </div>
+          <div class="otd-card c-ok" id="nlng-otd-score-card" onclick="setNlngOtdFilter('delivered')">
+            <div class="oc-lbl">NLNG OTD Score</div>
+            <div class="oc-n" id="nlng-otd-c-score">—</div>
+            <div class="oc-sub" id="nlng-otd-c-score-sub">line items on time</div>
+          </div>
+        </div>
+        <div class="ot-bar" style="margin-bottom:8px">
+          <div class="srch">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="text" id="nlng-otd-q" placeholder="Search PO number, description…" oninput="clearTimeout(this._dbt);this._dbt=setTimeout(function(){renderNlngOTD();},150)" />
+          </div>
+        </div>
+        <div class="otd-bar">
+          <div class="otd-chips" id="nlng-otd-chips">
+            <button class="otd-chip on" data-f="all"       onclick="setNlngOtdFilter('all')">All</button>
+            <button class="otd-chip"    data-f="on-track"  onclick="setNlngOtdFilter('on-track')">On Track</button>
+            <button class="otd-chip"    data-f="at-risk"   onclick="setNlngOtdFilter('at-risk')">At Risk</button>
+            <button class="otd-chip"    data-f="critical"  onclick="setNlngOtdFilter('critical')">Critical</button>
+            <button class="otd-chip"    data-f="overdue"   onclick="setNlngOtdFilter('overdue')">Overdue</button>
+            <button class="otd-chip"    data-f="delivered" onclick="setNlngOtdFilter('delivered')">Delivered</button>
+          </div>
+        </div>
+        <div class="otd-sub-bar hidden" id="nlng-otd-del-sub-bar">
+          <div class="otd-chips">
+            <button class="otd-chip on"  data-sf="all"      onclick="setNlngOtdDeliveredSub('all')">All delivered</button>
+            <button class="otd-chip"     data-sf="del-otd"  onclick="setNlngOtdDeliveredSub('del-otd')">OTD</button>
+            <button class="otd-chip"     data-sf="del-late" onclick="setNlngOtdDeliveredSub('del-late')">Late delivery</button>
+          </div>
+        </div>
+        <div class="period-row" id="nlng-otd-period-row">
+          <span class="period-lbl">Received</span>
+          <div class="period-dd" id="nlng-otd-period-dd">
+            <button class="chip-dt" id="nlng-otd-period-btn" onclick="toggleNlngOtdPeriodDd()">All ▾</button>
+            <div class="period-dd-menu hidden" id="nlng-otd-period-menu"></div>
+          </div>
+        </div>
+        <div class="otd-tw">
+          <table class="otd-tbl">
+            <thead>
+              <tr id="nlng-otd-head-row">
+                <th style="width:32px"></th>
+                <th style="width:130px" data-col="po_number">NLNG PO <span class="sort-ind"></span></th>
+                <th style="width:100px" data-col="so_number">SO Number <span class="sort-ind"></span></th>
+                <th style="width:130px" data-col="contact_name">Buyer/Requester <span class="sort-ind"></span></th>
+                <th style="width:105px" data-col="notification_received_at">Received <span class="sort-ind"></span></th>
+                <th style="width:100px" data-col="required_delivery_date">Required By <span class="sort-ind"></span></th>
+                <th style="width:88px" class="c" data-col="_days_left">Days Left <span class="sort-ind"></span></th>
+                <th style="width:95px" data-col="promised_date">Promised <span class="sort-ind"></span></th>
+                <th style="width:80px" data-col="_gap">Gap <span class="sort-ind"></span></th>
+                <th style="width:130px" data-col="overall_status">Current Stage <span class="sort-ind"></span></th>
+                <th style="width:80px" data-col="_in_stage">In Stage <span class="sort-ind"></span></th>
+                <th style="width:65px" class="c" data-col="_li_count">Items <span class="sort-ind"></span></th>
+                <th style="width:92px" data-col="_otd">OTD <span class="sort-ind"></span></th>
+              </tr>
+            </thead>
+            <tbody id="nlng-otd-body">
+              <tr><td colspan="13" style="text-align:center;padding:3rem;color:var(--t3)">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination" id="nlng-otd-pagination"></div>
+        </div><!-- /#otd-view-nlng -->
+
+      </section>
+      <section class="page" id="page-reports">
+        <div class="ph">
+          <div class="ph-title">Reports</div>
+          <div class="ph-sub">Summary analytics by client</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:1.2rem">
+          <button class="mode-chip on" id="rpt-btn-chevron" onclick="switchReport('chevron')">Chevron</button>
+          <button class="mode-chip" id="rpt-btn-nlng" onclick="switchReport('nlng')">NLNG</button>
+        </div>
+        <!-- Chevron report view -->
+        <div id="rpt-chevron">
+          <div class="kpi-grid" style="margin-bottom:1rem">
+            <div class="kpi"><div class="kpi-lbl">Total POs</div><div class="kpi-val" id="rpt-ch-total">—</div><div class="kpi-note">Received from Chevron</div></div>
+            <div class="kpi"><div class="kpi-lbl">Active</div><div class="kpi-val" id="rpt-ch-active">—</div><div class="kpi-note">In pipeline</div></div>
+            <div class="kpi"><div class="kpi-lbl">Delivered</div><div class="kpi-val" id="rpt-ch-delivered">—</div><div class="kpi-note">Complete</div></div>
+            <div class="kpi"><div class="kpi-lbl">OTD Score</div><div class="kpi-val" id="rpt-ch-otd">—</div><div class="kpi-note" id="rpt-ch-otd-note">On-time delivery rate</div></div>
+            <div class="kpi"><div class="kpi-lbl">Active Overdue</div><div class="kpi-val" id="rpt-ch-overdue">—</div><div class="kpi-note">Past required date</div></div>
+          </div>
+          <div class="rpt-chart-row">
+            <div class="card">
+              <div class="card-hd"><span class="card-ttl">Pipeline breakdown</span><span style="font-size:10px;color:var(--t3)">Current snapshot</span></div>
+              <div style="padding:14px">
+                <div class="rpt-donut-wrap"><div id="rpt-donut-ch"></div><div class="rpt-leg" id="rpt-leg-ch"></div></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-hd"><span class="card-ttl">Monthly intake</span><div class="rpt-bar-btns"><button id="rpt-ch-btn-recv" class="rpt-btn rpt-btn-on" onclick="_rptBarToggle('ch','received')">Received</button><button id="rpt-ch-btn-due" class="rpt-btn" onclick="_rptBarToggle('ch','due')">Due for delivery</button><select id="rpt-ch-yr-sel" class="rpt-yr-sel" style="display:none" onchange="_rptBarYearChange('ch',this.value)"></select></div></div>
+              <div style="padding:10px 14px 14px" id="rpt-bars-ch"></div>
+            </div>
+          </div>
+          <div class="rpt-chart-row" style="grid-template-columns:1fr">
+            <div class="card">
+              <div class="card-hd" style="flex-wrap:wrap;gap:6px">
+                <span class="card-ttl">Product breakdown</span>
+                <span style="font-size:10px;color:var(--t3)">By quantity ordered</span>
+                <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+                  <select id="rpt-yr-ch" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--s3);background:var(--s1);color:var(--t1);cursor:pointer"></select>
+                  <select id="rpt-mo-ch" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--s3);background:var(--s1);color:var(--t1);cursor:pointer"></select>
+                </span>
+              </div>
+              <div style="padding:10px 14px 14px" id="rpt-litems-ch"></div>
+            </div>
+          </div>
+          <div class="rpt-chart-row">
+            <div class="card">
+              <div class="card-hd"><span class="card-ttl">Delivery performance</span><span style="font-size:10px;color:var(--t3)">Closed orders</span></div>
+              <div style="padding:14px" id="rpt-perf-ch"></div>
+            </div>
+            <div class="card">
+              <div class="card-hd"><span class="card-ttl">Product value</span><span style="font-size:10px;color:var(--t3)">All amounts in USD</span></div>
+              <div style="padding:10px 14px 14px" id="rpt-catval-ch"></div>
+            </div>
+          </div>
+          <div class="rpt-chart-row" style="grid-template-columns:1fr">
+            <div class="card">
+              <div class="card-hd">
+                <span class="card-ttl">OTD trend</span>
+                <span style="font-size:10px;color:var(--t3)">on-time delivery rate by month</span>
+                <select id="rpt-otdmode-ch" style="margin-left:auto;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--bdr);background:var(--s1);color:var(--t1);cursor:pointer">
+                  <option value="delivery">By delivery month</option>
+                  <option value="due">By due-date month</option>
+                </select>
+              </div>
+              <div style="padding:10px 14px 14px" id="rpt-otdtrend-ch"></div>
+            </div>
+          </div>
+        </div>
+        <!-- NLNG report view -->
+        <div id="rpt-nlng" style="display:none">
+          <div class="kpi-grid" style="margin-bottom:1rem">
+            <div class="kpi"><div class="kpi-lbl">Total POs</div><div class="kpi-val" id="rpt-nl-total">—</div><div class="kpi-note">Received from NLNG</div></div>
+            <div class="kpi"><div class="kpi-lbl">Active</div><div class="kpi-val" id="rpt-nl-active">—</div><div class="kpi-note">In pipeline</div></div>
+            <div class="kpi"><div class="kpi-lbl">Delivered</div><div class="kpi-val" id="rpt-nl-delivered">—</div><div class="kpi-note">Complete</div></div>
+            <div class="kpi"><div class="kpi-lbl">OTD Score</div><div class="kpi-val" id="rpt-nl-otd">—</div><div class="kpi-note" id="rpt-nl-otd-note">On-time delivery rate</div></div>
+            <div class="kpi"><div class="kpi-lbl">Active Overdue</div><div class="kpi-val" id="rpt-nl-overdue">—</div><div class="kpi-note">Past required date</div></div>
+          </div>
+          <div class="rpt-chart-row">
+            <div class="card">
+              <div class="card-hd"><span class="card-ttl">Pipeline breakdown</span><span style="font-size:10px;color:var(--t3)">Current snapshot</span></div>
+              <div style="padding:14px">
+                <div class="rpt-donut-wrap"><div id="rpt-donut-nl"></div><div class="rpt-leg" id="rpt-leg-nl"></div></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-hd"><span class="card-ttl">Monthly intake</span><div class="rpt-bar-btns"><button id="rpt-nl-btn-recv" class="rpt-btn rpt-btn-on" onclick="_rptBarToggle('nl','received')">Received</button><button id="rpt-nl-btn-due" class="rpt-btn" onclick="_rptBarToggle('nl','due')">Due for delivery</button><select id="rpt-nl-yr-sel" class="rpt-yr-sel" style="display:none" onchange="_rptBarYearChange('nl',this.value)"></select></div></div>
+              <div style="padding:10px 14px 14px" id="rpt-bars-nl"></div>
+            </div>
+          </div>
+          <div class="rpt-chart-row" style="grid-template-columns:1fr">
+            <div class="card">
+              <div class="card-hd" style="flex-wrap:wrap;gap:6px">
+                <span class="card-ttl">Product breakdown</span>
+                <span style="font-size:10px;color:var(--t3)">By quantity ordered</span>
+                <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+                  <select id="rpt-yr-nl" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--s3);background:var(--s1);color:var(--t1);cursor:pointer"></select>
+                  <select id="rpt-mo-nl" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--s3);background:var(--s1);color:var(--t1);cursor:pointer"></select>
+                </span>
+              </div>
+              <div style="padding:10px 14px 14px" id="rpt-litems-nl"></div>
+            </div>
+          </div>
+          <div class="rpt-chart-row">
+            <div class="card">
+              <div class="card-hd"><span class="card-ttl">Delivery performance</span><span style="font-size:10px;color:var(--t3)">Closed orders</span></div>
+              <div style="padding:14px" id="rpt-perf-nl"></div>
+            </div>
+            <div class="card">
+              <div class="card-hd"><span class="card-ttl">Product value</span><span style="font-size:10px;color:var(--t3)">All amounts in USD</span></div>
+              <div style="padding:10px 14px 14px" id="rpt-catval-nl"></div>
+            </div>
+          </div>
+          <div class="rpt-chart-row" style="grid-template-columns:1fr">
+            <div class="card">
+              <div class="card-hd">
+                <span class="card-ttl">OTD trend</span>
+                <span style="font-size:10px;color:var(--t3)">on-time delivery rate by month</span>
+                <select id="rpt-otdmode-nl" style="margin-left:auto;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--bdr);background:var(--s1);color:var(--t1);cursor:pointer">
+                  <option value="delivery">By delivery month</option>
+                  <option value="due">By due-date month</option>
+                </select>
+              </div>
+              <div style="padding:10px 14px 14px" id="rpt-otdtrend-nl"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="page" id="page-settings">
+        <div class="ph"><div class="ph-title">Settings</div></div>
+        <div class="card" style="padding:1.5rem 2rem;max-width:520px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:1.1rem">Appearance</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:1.5rem">
+            <div>
+              <div style="font-size:14px;font-weight:600;color:var(--t1)">Theme</div>
+              <div style="font-size:12px;color:var(--t3);margin-top:3px">Choose how SPMprocure360 looks</div>
+            </div>
+            <div class="theme-btns" id="theme-btns">
+              <button class="theme-btn" data-theme="light" onclick="setTheme('light')">Light</button>
+              <button class="theme-btn" data-theme="auto" onclick="setTheme('auto')">Auto</button>
+              <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')">Dark</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MESSAGES -->
+      <section class="page" id="page-messages">
+        <iframe id="msg-iframe" title="Messages"></iframe>
+      </section>
+
+      <!-- TEAM (admin only) -->
+      <section class="page" id="page-team">
+        <div class="ph">
+          <div class="ph-title">Team</div>
+          <div class="ph-sub">Manage who has access to SPMprocure360</div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="team-hd">
+            <div style="display:flex;align-items:center">
+              <span style="font-size:13px;font-weight:600;color:var(--t1)">Members</span>
+              <span class="team-cnt" id="team-count"></span>
+            </div>
+            <button class="btn-primary" onclick="openAddUserModal()" style="width:auto;height:32px;font-size:12px;padding:0 14px">+ Add user</button>
+          </div>
+          <div class="team-list" id="team-list">
+            <div style="padding:2.5rem;text-align:center;color:var(--t3);font-size:13px">Loading…</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════ QUOTES PAGE ══════ -->
+      <section class="page" id="page-quotes">
+
+        <!-- LIST VIEW -->
+        <div id="quotes-list-view">
+          <div class="ph" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+              <div>
+                <div class="ph-title" id="qt-co-title">Quotations</div>
+                <div class="ph-sub" id="qt-co-sub">Special Piping Materials</div>
+              </div>
+              <div class="qt-co-tabs">
+                <button id="qt-co-spm" class="qt-co-tab qt-co-tab-active" onclick="setQuoteCompany('spm')">Special Piping</button>
+                <button id="qt-co-danmag" class="qt-co-tab" onclick="setQuoteCompany('danmag')">Daniel Mag</button>
+              </div>
+            </div>
+            <button class="btn-sm btn-exp" onclick="openQuoteForm(null)">+ New Quote</button>
+          </div>
+          <div class="ot-bar" style="margin-bottom:12px">
+            <div class="srch">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input type="text" id="qt-search" placeholder="Search quote number, client, reference, subject…" oninput="clearTimeout(this._dbt);this._dbt=setTimeout(filterQuotesList,150)" />
+            </div>
+          </div>
+          <div class="tw-wrap">
+            <div class="tw">
+              <table class="qt-tbl">
+                <thead>
+                  <tr>
+                    <th>Quote #</th>
+                    <th>Client</th>
+                    <th>Reference REQ</th>
+                    <th>Subject</th>
+                    <th style="text-align:right">Total ($)</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="quotes-list-body">
+                  <tr><td colspan="8" style="text-align:center;padding:2.5rem;color:var(--t3)">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="pagination" id="qt-pagination"></div>
+        </div>
+
+        <!-- FORM VIEW -->
+        <div id="quotes-form-view" style="display:none">
+          <div class="ph" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <button class="btn-sm" onclick="closeQuoteForm()">← Back</button>
+              <div class="ph-title" id="quotes-form-title">New Quote</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn-sm btn-exp" id="qf-save-btn" onclick="saveQuote('draft')">Save Draft</button>
+              <button class="btn-sm" id="qf-pdf-btn" onclick="downloadCurrentPdf()" style="display:none">⬇ Download PDF</button>
+            </div>
+          </div>
+
+          <div class="card qf-card">
+
+            <input type="hidden" id="qf-company" value="spm" />
+            <!-- ── Import from Enquiry ───────────────── -->
+            <div class="qf-import-bar" style="border-bottom:1px solid var(--bdr);margin-bottom:4px">
+              <input type="file" id="qf-import-file" accept=".xlsx,.pdf" style="display:none" onchange="handleEnquiryFile(this)" />
+              <button class="btn-sm" id="qf-import-btn" onclick="document.getElementById('qf-import-file').click()">↑ Import from Enquiry File</button>
+              <span style="font-size:12px;color:var(--t3)">Chevron (.xlsx) or NLNG RFx (.pdf)</span>
+            </div>
+            <div id="qf-import-ok" style="display:none;align-items:center;gap:8px;padding:10px 20px;background:#16a34a14;border-bottom:1px solid #16a34a33;color:#15803d;font-size:13px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span id="qf-import-msg">Imported successfully</span>
+              <button onclick="clearImportBanner()" style="background:none;border:none;cursor:pointer;margin-left:auto;color:inherit;font-size:16px;padding:0 4px;line-height:1">×</button>
+            </div>
+            <div id="qf-import-err" style="display:none;align-items:center;gap:8px;padding:10px 20px;background:#dc262614;border-bottom:1px solid #dc262633;color:#b91c1c;font-size:13px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span id="qf-import-err-msg">Error</span>
+              <button onclick="clearImportBanner()" style="background:none;border:none;cursor:pointer;margin-left:auto;color:inherit;font-size:16px;padding:0 4px;line-height:1">×</button>
+            </div>
+
+            <!-- ── Quote Details ───────────────────────── -->
+            <div class="qf-sec-hd">Quote Details</div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Client <em>*</em></span>
+                <select class="qf-inp" id="qf-client" onchange="onQuoteClientChange()">
+                  <option value="">Select client…</option>
+                  <option value="chevron">Chevron Nigeria Limited</option>
+                  <option value="nlng">NLNG</option>
+                  <option value="seplat">SEPLAT</option>
+                  <option value="exxon">ExxonMobil</option>
+                  <option value="total">TotalEnergies</option>
+                  <option value="others">Others</option>
+                </select>
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Quote #</span>
+                <input class="qf-inp" type="text" id="qf-quote-number" readonly placeholder="Auto-generated on save" />
+              </div>
+            </div>
+            <div class="qf-frow" id="qf-others-name-row" style="display:none">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Client Company Name</span>
+                <input class="qf-inp" type="text" id="qf-client-name" placeholder="e.g. Sahara Group Limited" oninput="onOtherClientNameInput()" />
+              </div>
+            </div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Reference REQ #</span>
+                <input class="qf-inp" type="text" id="qf-reference-po" placeholder="e.g. 0061XXXXXXXX" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Quote Date</span>
+                <input class="qf-inp" type="date" id="qf-quote-date" />
+              </div>
+            </div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Offer Validity (days)</span>
+                <input class="qf-inp" type="number" id="qf-validity-days" value="30" min="1" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Prepared By</span>
+                <input class="qf-inp" type="text" id="qf-prepared-by" placeholder="SPM contact name" />
+              </div>
+            </div>
+
+            <!-- ── Bill To ──────────────────────────────── -->
+            <div class="qf-sec-hd">Bill To (Recipient)</div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Recipient Name</span>
+                <input class="qf-inp" type="text" id="qf-recipient-name" placeholder="e.g. Abiodun Sina" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Department</span>
+                <input class="qf-inp" type="text" id="qf-recipient-dept" placeholder="Procurement Dept." />
+              </div>
+            </div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Company</span>
+                <input class="qf-inp" type="text" id="qf-recipient-company" placeholder="Auto-fills from client" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Email</span>
+                <input class="qf-inp" type="email" id="qf-recipient-email" />
+              </div>
+            </div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Tel</span>
+                <input class="qf-inp" type="text" id="qf-recipient-tel" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Subject</span>
+                <input class="qf-inp" type="text" id="qf-subject" placeholder="Quotation for…" />
+              </div>
+            </div>
+
+            <!-- ── Terms & Conditions ───────────────────── -->
+            <div class="qf-sec-hd">Terms &amp; Conditions</div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl"><button type="button" id="qf-eye-lead-time" class="qf-eye-btn" data-visible="1" onclick="toggleTcVisibility('lead-time')" title="Shown in PDF — click to hide">&#128065;</button>Lead Time</span>
+                <input class="qf-inp" type="text" id="qf-lead-time" placeholder="14 WEEKS (DDP Basis)" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl"><button type="button" id="qf-eye-delivery-dest" class="qf-eye-btn" data-visible="1" onclick="toggleTcVisibility('delivery-dest')" title="Shown in PDF — click to hide">&#128065;</button>Delivery Destination</span>
+                <input class="qf-inp" type="text" id="qf-delivery-dest" placeholder="Your Chevron Warri Warehouse" />
+              </div>
+            </div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl"><button type="button" id="qf-eye-country-import" class="qf-eye-btn" data-visible="1" onclick="toggleTcVisibility('country-import')" title="Shown in PDF — click to hide">&#128065;</button>Country of Import</span>
+                <input class="qf-inp" type="text" id="qf-country-import" placeholder="United States / United Kingdom" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl"><button type="button" id="qf-eye-shipping-mode" class="qf-eye-btn" data-visible="1" onclick="toggleTcVisibility('shipping-mode')" title="Shown in PDF — click to hide">&#128065;</button>Mode of Shipping</span>
+                <select class="qf-inp" id="qf-shipping-mode">
+                  <option value="Sea">Sea</option>
+                  <option value="Air">Air</option>
+                  <option value="Road">Road</option>
+                  <option value="DDP">DDP</option>
+                  <option value="Not Applicable">Not Applicable</option>
+                </select>
+              </div>
+            </div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl"><button type="button" id="qf-eye-manufacturer" class="qf-eye-btn" data-visible="1" onclick="toggleTcVisibility('manufacturer')" title="Shown in PDF — click to hide">&#128065;</button>Manufacturer</span>
+                <input class="qf-inp" type="text" id="qf-manufacturer" placeholder="e.g. Flexitallic" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl"><button type="button" id="qf-eye-weight" class="qf-eye-btn" data-visible="1" onclick="toggleTcVisibility('weight')" title="Shown in PDF — click to hide">&#128065;</button>Total Weight</span>
+                <input class="qf-inp" type="text" id="qf-weight" placeholder="e.g. 1,250 KGS" />
+              </div>
+            </div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl"><button type="button" id="qf-eye-currency" class="qf-eye-btn" data-visible="1" onclick="toggleTcVisibility('currency')" title="Shown in PDF — click to hide">&#128065;</button>Currency</span>
+                <select class="qf-inp" id="qf-currency" onchange="onCurrencyChange()">
+                  <option value="USD">USD – US Dollar ($)</option>
+                  <option value="GBP">GBP – British Pound (£)</option>
+                  <option value="NGN">NGN – Nigerian Naira (₦)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- ── Line Items ───────────────────────────── -->
+            <div class="qf-sec-hd" style="display:flex;align-items:center;justify-content:space-between">
+              <span>Line Items</span>
+              <div style="display:flex;gap:8px">
+                <button class="btn-sm" onclick="exportLineItemsXlsx()" title="Export line items to Excel">↓ Export .xlsx</button>
+                <input type="file" id="qf-price-import-file" accept=".xls,.xlsx" style="display:none" onchange="importLineItemPrices(this)" />
+                <button class="btn-sm" id="qf-price-import-btn" onclick="document.getElementById('qf-price-import-file').click()" title="Import prices from exported file">↑ Import Prices</button>
+                <button class="btn-sm" onclick="addQuoteRow()">+ Add Row</button>
+              </div>
+            </div>
+            <div class="qt-items-wrap">
+              <table id="quotes-items-table" class="qt-items-tbl" style="table-layout:fixed;width:100%">
+                <colgroup>
+                  <col style="width:3%">
+                  <col id="qf-col-desc" style="width:37%">
+                  <col id="qf-col-pno" class="nlng-col" style="width:0">
+                  <col style="width:7%">
+                  <col style="width:8%">
+                  <col style="width:15%">
+                  <col style="width:14%">
+                  <col style="width:13%">
+                  <col style="width:3%">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Item Description</th>
+                    <th class="nlng-col">Product No.</th>
+                    <th style="text-align:center">U.O.M</th>
+                    <th style="text-align:right">QTY</th>
+                    <th style="text-align:right" id="qf-hdr-unit-price">Unit Price ($)</th>
+                    <th>Tax</th>
+                    <th style="text-align:right" id="qf-hdr-total">Total ($)</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="quotes-items-body"></tbody>
+              </table>
+            </div>
+
+            <!-- ── Notes + Totals ───────────────────────── -->
+            <div class="qf-bottom-split">
+              <div class="qf-bottom-left">
+                <div style="padding:16px 20px">
+                  <div class="qf-lbl" style="margin-bottom:6px">Customer Notes</div>
+                  <textarea class="qf-inp" id="qf-notes" rows="4" placeholder="Looking forward to your business."></textarea>
+                </div>
+              </div>
+              <div class="qf-totals">
+                <div class="qf-tot-row">
+                  <span class="qf-tot-lbl">Sub Total</span>
+                  <span class="qf-tot-val" id="qf-sub-total">$0.00</span>
+                </div>
+                <div class="qf-tot-row">
+                  <label class="qf-tot-lbl">Discount&nbsp;
+                    <input class="qf-inp qf-inline-inp" type="number" id="qf-discount-pct" value="0" min="0" max="100" step="0.1" oninput="recalcTotals()" />&nbsp;%
+                  </label>
+                  <span class="qf-tot-val" id="qf-discount-amt">— $0.00</span>
+                </div>
+                <div class="qf-tot-row">
+                  <label class="qf-tot-lbl">
+                    <button type="button" id="qf-markup-eye" class="qf-eye-btn" data-visible="1" onclick="toggleMarkupVisibility()" title="Markup visible in PDF — click to hide">&#128065;</button>
+                    Markup&nbsp;
+                    <input class="qf-inp qf-inline-inp" type="number" id="qf-markup-pct" value="0" min="0" step="0.1" oninput="recalcTotals()" />&nbsp;%
+                  </label>
+                  <span class="qf-tot-val" id="qf-markup-amt">+ $0.00</span>
+                </div>
+                <div class="qf-tot-row">
+                  <label class="qf-tot-lbl">
+                    <button type="button" id="qf-vat-eye" class="qf-eye-btn" data-visible="1" onclick="toggleVatVisibility()" title="VAT visible in PDF — click to hide">&#128065;</button>
+                    VAT&nbsp;
+                    <input class="qf-inp qf-inline-inp" type="number" id="qf-vat-pct" value="0" min="0" max="100" step="0.1" oninput="recalcTotals()" />&nbsp;%
+                  </label>
+                  <span class="qf-tot-val" id="qf-vat-amt">+ $0.00</span>
+                </div>
+                <div class="qf-tot-row">
+                  <label class="qf-tot-lbl">Shipping Charges&nbsp;
+                    <input class="qf-inp qf-inline-inp" type="number" id="qf-shipping-charges" value="0" min="0" step="0.01" oninput="recalcTotals()" />
+                  </label>
+                  <span class="qf-tot-val" id="qf-shipping-val">$0.00</span>
+                </div>
+                <div class="qf-tot-row qf-grand">
+                  <span id="qf-grand-lbl">TOTAL ($)</span>
+                  <span id="qf-total">$0.00</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Action bar ───────────────────────────── -->
+            <div class="qf-actions">
+              <button class="btn-sm btn-exp" id="qf-save-btn2" onclick="saveQuote('draft')">Save Draft</button>
+              <button class="btn-sm" id="qf-pdf-btn2" onclick="downloadCurrentPdf()" style="display:none">⬇ Download PDF</button>
+              <button class="btn-sm" onclick="closeQuoteForm()" style="margin-left:auto">Cancel</button>
+            </div>
+
+          </div><!-- /qf-card -->
+        </div><!-- /quotes-form-view -->
+      </section>
+
+      <!-- ══════ PURCHASE ORDERS PAGE ══════ -->
+      <section class="page" id="page-purchase-orders">
+
+        <!-- LIST VIEW -->
+        <div id="po-list-view">
+          <div class="ph" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div>
+              <div class="ph-title">Purchase Orders</div>
+              <div class="ph-sub">Orders Special Piping raises on its suppliers</div>
+            </div>
+            <button class="btn-sm btn-exp" onclick="openPoForm(null)">+ New PO</button>
+          </div>
+          <div class="ot-bar" style="margin-bottom:12px">
+            <div class="srch">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input type="text" id="po-search" placeholder="Search PO number, vendor, client PO…" oninput="clearTimeout(this._dbt);this._dbt=setTimeout(filterPoList,150)" />
+            </div>
+          </div>
+          <div class="tw-wrap">
+            <div class="tw">
+              <table class="qt-tbl">
+                <thead>
+                  <tr>
+                    <th>PO #</th>
+                    <th>Vendor</th>
+                    <th>Client</th>
+                    <th>Client PO</th>
+                    <th style="text-align:right">Total</th>
+                    <th>Date</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="po-list-body">
+                  <tr><td colspan="7" style="text-align:center;padding:2.5rem;color:var(--t3)">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="pagination" id="po-pagination"></div>
+        </div>
+
+        <!-- FORM VIEW -->
+        <div id="po-form-view" style="display:none">
+          <div class="ph" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <button class="btn-sm" onclick="closePoForm()">← Back</button>
+              <div class="ph-title" id="po-form-title">New Purchase Order</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn-sm btn-exp" id="po-save-btn" onclick="savePo()">Save</button>
+              <button class="btn-sm" id="po-pdf-btn" onclick="downloadCurrentPoPdf()" style="display:none">⬇ Download PDF</button>
+            </div>
+          </div>
+
+          <div class="card qf-card">
+
+            <!-- ── Notices ───────────────────────────── -->
+            <!-- Errors belong on the page, not in a browser dialog: an alert
+                 covers the form, says nothing about which box is wrong, and is
+                 gone the moment it is dismissed. -->
+            <div id="po-ok" style="display:none;align-items:center;gap:8px;padding:10px 20px;background:#16a34a14;border-bottom:1px solid #16a34a33;color:#15803d;font-size:13px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+              <span id="po-ok-msg">Saved</span>
+              <button onclick="clearPoNotice()" aria-label="Dismiss" style="background:none;border:none;cursor:pointer;margin-left:auto;color:inherit;font-size:16px;padding:0 4px;line-height:1">×</button>
+            </div>
+            <div id="po-err" style="display:none;align-items:flex-start;gap:8px;padding:10px 20px;background:#dc262614;border-bottom:1px solid #dc262633;color:#b91c1c;font-size:13px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span id="po-err-msg">Error</span>
+              <button onclick="clearPoNotice()" aria-label="Dismiss" style="background:none;border:none;cursor:pointer;margin-left:auto;color:inherit;font-size:16px;padding:0 4px;line-height:1">×</button>
+            </div>
+
+            <!-- ── Order ─────────────────────────────── -->
+            <div class="qf-sec-hd">Order</div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">End client <em>*</em></span>
+                <select class="qf-inp" id="po-client" onchange="onPoClientChange()">
+                  <option value="">Select client…</option>
+                  <option value="chevron">Chevron Nigeria Limited</option>
+                  <option value="nlng">NLNG</option>
+                  <option value="seplat">SEPLAT</option>
+                  <option value="exxon">ExxonMobil</option>
+                  <option value="total">TotalEnergies</option>
+                  <option value="gca">GCA Energy</option>
+                  <option value="others">Others</option>
+                </select>
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Date</span>
+                <input class="qf-inp" type="date" id="po-date" />
+              </div>
+            </div>
+            <div class="qf-frow" id="po-client-name-row" style="display:none">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Client company name</span>
+                <input class="qf-inp" type="text" id="po-client-name" placeholder="e.g. Sahara Group Limited" oninput="renderPoNumber()" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl" style="flex:none">Code</span>
+                <span class="mono" id="po-client-code-hint" style="font-size:12px;color:var(--t3)">—</span>
+              </div>
+            </div>
+            <div class="qf-frow po-full">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">PO Number</span>
+                <input class="qf-inp mono" type="text" id="po-number" readonly title="Built from the client, the P.O. No. column below and the vendor" />
+              </div>
+            </div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Manager</span>
+                <input class="qf-inp" type="text" id="po-manager" placeholder="FELIX AKARUE" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Sales person</span>
+                <input class="qf-inp" type="text" id="po-sales-person" placeholder="IJALA STYLES ONOME" />
+              </div>
+            </div>
+
+            <!-- ── Vendor ────────────────────────────── -->
+            <div class="qf-sec-hd">Vendor</div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Saved vendor</span>
+                <select class="qf-inp" id="po-vendor-pick" onchange="applyPoVendor(this.value)">
+                  <option value="">Select a vendor…</option>
+                  <option value="__new">+ New supplier…</option>
+                </select>
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Company <em>*</em></span>
+                <input class="qf-inp" type="text" id="po-vendor-company" placeholder="Flexitallic" oninput="renderPoNumber()" />
+              </div>
+            </div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Contact</span>
+                <input class="qf-inp" type="text" id="po-vendor-name" placeholder="DANIEL" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Role</span>
+                <input class="qf-inp" type="text" id="po-vendor-role" placeholder="Sales" />
+              </div>
+            </div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Email</span>
+                <input class="qf-inp" type="text" id="po-vendor-email" placeholder="sales@vendor.com" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Address</span>
+                <input class="qf-inp" type="text" id="po-vendor-address" placeholder="4200 Revilo Rd, Winchester, KY 40391 USA" />
+              </div>
+            </div>
+
+            <!-- ── Shipping ──────────────────────────── -->
+            <div class="qf-sec-hd">Shipping</div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Terms</span>
+                <input class="qf-inp" type="text" id="po-shipping-terms" placeholder="EXW" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Method</span>
+                <input class="qf-inp" type="text" id="po-shipping-method" placeholder="Sea" />
+              </div>
+            </div>
+            <div class="qf-frow">
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Delivery date</span>
+                <input class="qf-inp" type="text" id="po-delivery-date" placeholder="4 weeks ARO" />
+              </div>
+              <div class="qf-fhalf">
+                <span class="qf-lbl">Currency</span>
+                <select class="qf-inp" id="po-currency" onchange="recalcPoTotals()">
+                  <option value="USD">USD ($)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="NGN">NGN (₦)</option>
+                </select>
+              </div>
+            </div>
+            <div class="qf-frow po-full">
+              <div class="qf-fhalf po-tall">
+                <span class="qf-lbl">Deliver to</span>
+                <textarea class="qf-inp" id="po-deliver-to" rows="2" placeholder="Special Piping Material c/o CARIGO LLC&#10;8600 Commerce Park Drive, Houston TX 77036"></textarea>
+              </div>
+            </div>
+
+            <!-- ── Line Items ────────────────────────── -->
+            <div class="qf-sec-hd" style="display:flex;align-items:center;justify-content:space-between">
+              <span>Line Items</span>
+              <button class="btn-sm" onclick="addPoRow()">+ Add Row</button>
+            </div>
+            <div class="qt-items-wrap">
+              <table id="po-items-table" class="qt-items-tbl" style="table-layout:fixed;width:100%">
+                <colgroup>
+                  <col style="width:4%">
+                  <col style="width:14%">
+                  <col style="width:12%">
+                  <col style="width:34%">
+                  <col style="width:8%">
+                  <col style="width:13%">
+                  <col style="width:12%">
+                  <col style="width:3%">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>P.O. No.</th>
+                    <th>Quote Ref.</th>
+                    <th>Description</th>
+                    <th style="text-align:right">Qty</th>
+                    <th style="text-align:right" id="po-hdr-unit">Unit Price ($)</th>
+                    <th style="text-align:right" id="po-hdr-total">Total ($)</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="po-items-body"></tbody>
+              </table>
+            </div>
+
+            <!-- ── Notes + Total ─────────────────────── -->
+            <div class="qf-bottom-split">
+              <div class="qf-bottom-left">
+                <div style="padding:16px 20px">
+                  <div class="qf-lbl" style="margin-bottom:6px">Notes to the vendor</div>
+                  <textarea class="qf-inp" id="po-notes" rows="4" placeholder="Please quote our P.O. number on all documents and packing lists."></textarea>
+                </div>
+              </div>
+              <div class="qf-totals">
+                <div class="qf-tot-row">
+                  <span class="qf-tot-lbl">Line items</span>
+                  <span class="qf-tot-val" id="po-line-count">0</span>
+                </div>
+                <div class="qf-tot-row">
+                  <span class="qf-tot-lbl">Currency</span>
+                  <span class="qf-tot-val" id="po-currency-lbl">USD</span>
+                </div>
+                <div class="qf-tot-row qf-grand">
+                  <span id="po-grand-lbl">TOTAL ($)</span>
+                  <span id="po-total">$0.00</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Action bar ────────────────────────── -->
+            <div class="qf-actions">
+              <button class="btn-sm btn-exp" id="po-save-btn2" onclick="savePo()">Save</button>
+              <button class="btn-sm" id="po-pdf-btn2" onclick="downloadCurrentPoPdf()" style="display:none">⬇ Download PDF</button>
+              <button class="btn-sm" onclick="closePoForm()" style="margin-left:auto">Cancel</button>
+            </div>
+
+          </div><!-- /qf-card -->
+        </div><!-- /po-form-view -->
+      </section>
+
+
+      <!-- ── Rich-text format toolbar (floats on selection) ── -->
+      <div id="qf-fmt-bar">
+        <button class="qfb-btn qfb-bold" onmousedown="event.preventDefault()" onclick="_fmtExec('bold')" title="Bold"><b>B</b></button>
+        <button class="qfb-btn" onmousedown="event.preventDefault()" onclick="_fmtExec('italic')" title="Italic"><i>I</i></button>
+        <span class="qfb-sep"></span>
+        <button class="qfb-clr" style="background:#1a1a1a" onmousedown="event.preventDefault()" onclick="_fmtColor('#1a1a1a')" title="Black"></button>
+        <button class="qfb-clr" style="background:#CC0000" onmousedown="event.preventDefault()" onclick="_fmtColor('#CC0000')" title="Red"></button>
+        <button class="qfb-clr" style="background:#0055BB" onmousedown="event.preventDefault()" onclick="_fmtColor('#0055BB')" title="Blue"></button>
+        <button class="qfb-clr" style="background:#CC6600" onmousedown="event.preventDefault()" onclick="_fmtColor('#CC6600')" title="Orange"></button>
+        <button class="qfb-clr" style="background:#006620" onmousedown="event.preventDefault()" onclick="_fmtColor('#006620')" title="Green"></button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════ REQ# / ENQ# EDIT MODAL ══════ -->
+<div class="cell-overlay hidden" id="edit-modal">
+  <div class="cell-box" style="max-width:360px">
+    <div class="cell-hd">
+      <span class="cell-col">Edit <span id="edit-col-label">REQ#</span></span>
+      <button class="cell-close" id="edit-close-btn" aria-label="Close">&#215;</button>
+    </div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px" id="edit-po-label"></div>
+    <input type="text" id="edit-req-input" class="fi" placeholder="e.g. REQ0612726" style="margin-bottom:10px" />
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" id="edit-save-btn" style="flex:1;height:36px;font-size:13px">Save</button>
+      <button class="btn-sec" id="edit-cancel-btn" style="flex:1;height:36px;font-size:13px">Cancel</button>
+    </div>
+    <div id="edit-error" style="font-size:12px;color:var(--crit);margin-top:8px;display:none"></div>
+  </div>
+</div>
+
+<!-- ══════ ADD USER MODAL ══════ -->
+<div class="cell-overlay hidden" id="add-user-modal">
+  <div class="cell-box" style="max-width:420px;width:100%">
+    <div class="cell-hd">
+      <span class="cell-col">Add team member</span>
+      <button class="cell-close" onclick="closeAddUserModal()" aria-label="Close">&#215;</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:4px;font-weight:500">Full name</div>
+        <input type="text" id="au-name" class="fi" placeholder="e.g. Jane Doe" style="margin-bottom:0" />
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:4px;font-weight:500">Role / Department</div>
+        <select id="au-role" class="fi" style="height:36px;margin-bottom:0" onchange="onAuRoleChange()">
+          <option value="">Select role…</option>
+          <option value="admin">Admin — full access</option>
+          <option value="procurement">Procurement — orders &amp; reports</option>
+          <option value="warehouse">Warehouse — stock &amp; dispatch</option>
+          <option value="expeditor">Expeditor — orders &amp; delays</option>
+          <option value="accounts">Accounts — dashboard &amp; reports</option>
+        </select>
+      </div>
+      <!-- Admin: manual email input; others: auto-filled dept email shown read-only -->
+      <div id="au-email-row">
+        <div style="font-size:11px;color:var(--t3);margin-bottom:4px;font-weight:500" id="au-email-lbl">Department email</div>
+        <div class="au-dept-email" id="au-dept-email-display" style="display:none"></div>
+        <input type="email" id="au-email" class="fi" placeholder="admin@specialpipingltd.com" style="margin-bottom:0;display:none" />
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:4px;font-weight:500">Password</div>
+        <input type="password" id="au-pw" class="fi" placeholder="Set a password for this account" style="margin-bottom:0" />
+      </div>
+      <div id="au-error" style="font-size:12px;color:var(--crit);display:none;padding:8px 10px;background:rgba(220,38,38,.07);border-radius:4px;border:1px solid rgba(220,38,38,.2)"></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn-primary" id="au-submit-btn" onclick="submitAddUser()" style="flex:1;height:36px;font-size:13px">Create account</button>
+        <button class="btn-sec" onclick="closeAddUserModal()" style="flex:1;height:36px;font-size:13px">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ RESET PASSWORD MODAL ══════ -->
+<div class="cell-overlay hidden" id="reset-pw-modal">
+  <div class="cell-box" style="max-width:380px;width:100%">
+    <div class="cell-hd">
+      <span class="cell-col">Reset password — <span id="rp-username"></span></span>
+      <button class="cell-close" onclick="closeResetPwModal()" aria-label="Close">&#215;</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:4px;font-weight:500">New password</div>
+        <input type="password" id="rp-pw" class="fi" placeholder="Enter new password" style="margin-bottom:0" />
+      </div>
+      <div id="rp-error" style="font-size:12px;color:var(--crit);display:none;padding:8px 10px;background:rgba(220,38,38,.07);border-radius:4px;border:1px solid rgba(220,38,38,.2)"></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn-primary" id="rp-submit-btn" onclick="submitResetPw()" style="flex:1;height:36px;font-size:13px">Set password</button>
+        <button class="btn-sec" onclick="closeResetPwModal()" style="flex:1;height:36px;font-size:13px">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ DELETE USER MODAL ══════ -->
+<div class="cell-overlay hidden" id="delete-user-modal">
+  <div class="cell-box" style="max-width:360px;width:100%">
+    <div class="cell-hd">
+      <span class="cell-col">Remove team member</span>
+      <button class="cell-close" onclick="closeDeleteUserModal()" aria-label="Close">&#215;</button>
+    </div>
+    <p style="font-size:13px;color:var(--t2);margin-bottom:16px">Remove <strong id="du-username"></strong> from the team? This cannot be undone.</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" id="du-confirm-btn" onclick="confirmDeleteUser()" style="flex:1;height:36px;font-size:13px;background:var(--crit)">Remove</button>
+      <button class="btn-sec" onclick="closeDeleteUserModal()" style="flex:1;height:36px;font-size:13px">Cancel</button>
+    </div>
+    <div id="du-error" style="font-size:12px;color:var(--crit);margin-top:8px;display:none"></div>
+  </div>
+</div>
+
+<!-- ══════ DELETE QUOTE MODAL ══════ -->
+<div class="cell-overlay hidden" id="delete-po-modal">
+  <div class="cell-box" style="max-width:380px;width:100%">
+    <div class="cell-hd">
+      <span class="cell-col">Delete Purchase Order</span>
+      <button class="cell-close" onclick="closeDeletePoModal()" aria-label="Close">&#215;</button>
+    </div>
+    <p style="font-size:13px;color:var(--t2);margin:0 0 16px">Are you sure you want to delete <strong id="dp-po-num"></strong>? This removes the order and its line items, and cannot be undone.</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" id="dp-confirm-btn" onclick="doDeletePo()" style="flex:1;height:36px;font-size:13px;background:var(--crit)">Delete</button>
+      <button class="btn-sec" onclick="closeDeletePoModal()" style="flex:1;height:36px;font-size:13px">Cancel</button>
+    </div>
+    <div id="dp-error" style="font-size:12px;color:var(--crit);margin-top:8px;display:none"></div>
+  </div>
+</div>
+
+<div class="cell-overlay hidden" id="delete-quote-modal">
+  <div class="cell-box" style="max-width:360px;width:100%">
+    <div class="cell-hd">
+      <span class="cell-col">Delete Quotation</span>
+      <button class="cell-close" onclick="closeDeleteQuoteModal()" aria-label="Close">&#215;</button>
+    </div>
+    <p style="font-size:13px;color:var(--t2);margin:0 0 16px">Are you sure you want to delete <strong id="dq-quote-num"></strong>? This cannot be undone.</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" id="dq-confirm-btn" onclick="doDeleteQuote()" style="flex:1;height:36px;font-size:13px;background:var(--crit)">Delete</button>
+      <button class="btn-sec" onclick="closeDeleteQuoteModal()" style="flex:1;height:36px;font-size:13px">Cancel</button>
+    </div>
+    <div id="dq-error" style="font-size:12px;color:var(--crit);margin-top:8px;display:none"></div>
+  </div>
+</div>
+
+<!-- ══════ COMPOSE MESSAGE MODAL ══════ -->
+<div class="cell-overlay hidden" id="compose-modal">
+  <div class="cell-box" style="max-width:560px;width:100%;max-height:88vh">
+    <div class="cell-hd">
+      <span class="cell-col">Send Message</span>
+      <button class="cell-close" onclick="closeCompose()" aria-label="Close">&#215;</button>
+    </div>
+    <!-- PO reference block (shown when opened from an order row) -->
+    <div id="compose-po-ref" class="cpo-ref" style="display:none">
+      <div class="cpo-ref-lbl">Referenced Order</div>
+      <div id="compose-po-fields"></div>
+      <!-- PDF attachment -->
+      <div id="compose-pdf-attach" class="pdf-attach" style="display:none">
+        <svg class="pdf-attach-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+        <span class="pdf-attach-name" id="compose-pdf-name">PO Document</span>
+        <a class="pdf-attach-dl" id="compose-pdf-link" href="" target="_blank" download>↓ Download</a>
+      </div>
+      <div id="compose-pdf-none" class="pdf-no-attach" style="display:none">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;vertical-align:middle"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+        No PDF stored for this order yet
+      </div>
+    </div>
+    <!-- Form fields -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:4px;font-weight:500">To</div>
+        <div class="to-sel" id="to-sel">
+          <div class="to-trigger" id="to-trigger" onclick="toggleToDrop(event)">
+            <span class="to-ph" id="to-ph">Select recipients…</span>
+          </div>
+          <div class="to-drop" id="to-drop">
+            <label class="to-opt"><input type="checkbox" value="warehouse" onchange="updateToChips()"><span class="to-opt-lbl"><span class="rbadge warehouse">Warehouse</span></span></label>
+            <label class="to-opt"><input type="checkbox" value="procurement" onchange="updateToChips()"><span class="to-opt-lbl"><span class="rbadge procurement">Procurement</span></span></label>
+            <label class="to-opt"><input type="checkbox" value="expeditor" onchange="updateToChips()"><span class="to-opt-lbl"><span class="rbadge expeditor">Expeditor</span></span></label>
+            <label class="to-opt"><input type="checkbox" value="accounts" onchange="updateToChips()"><span class="to-opt-lbl"><span class="rbadge accounts">Accounts</span></span></label>
+            <label class="to-opt"><input type="checkbox" value="admin" onchange="updateToChips()"><span class="to-opt-lbl"><span class="rbadge admin">Admin</span></span></label>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:4px;font-weight:500">Subject</div>
+        <input type="text" id="compose-subject" class="fi" placeholder="e.g. Availability check — PO 006XXXXXXX" style="margin-bottom:0" />
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:4px;font-weight:500">Message</div>
+        <textarea id="compose-body" class="fi" rows="5" placeholder="Add your message or notes here…" style="margin-bottom:0;resize:vertical;min-height:100px"></textarea>
+      </div>
+      <!-- File attachment -->
+      <div class="compose-attach-row">
+        <label class="compose-attach-btn" for="compose-file-input">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          Attach file
+        </label>
+        <input type="file" id="compose-file-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.txt" style="display:none" onchange="onComposeFileChosen(this)">
+        <div class="compose-attach-pill" id="compose-attach-pill" style="display:none">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span id="compose-attach-name"></span>
+          <button class="compose-attach-clear" onclick="clearComposeAttach()" aria-label="Remove attachment">&#215;</button>
+        </div>
+      </div>
+      <div id="compose-error" style="font-size:12px;color:var(--crit);display:none;padding:8px 10px;background:rgba(220,38,38,.07);border-radius:4px;border:1px solid rgba(220,38,38,.2)"></div>
+      <div style="display:flex;gap:8px;margin-top:2px">
+        <button class="btn-primary" id="compose-send-btn" onclick="sendMessage()" style="flex:2;height:38px;font-size:13px">Send Message</button>
+        <button class="btn-sec" onclick="closeCompose()" style="flex:1;height:38px;font-size:13px">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ CELL EXPAND MODAL ══════ -->
+<div class="cell-overlay hidden" id="cell-modal">
+  <div class="cell-box">
+    <div class="cell-hd">
+      <span class="cell-col" id="cell-col-name"></span>
+      <button class="cell-close" id="cell-close-btn" aria-label="Close">&#215;</button>
+    </div>
+    <div id="cell-val"></div>
+  </div>
+</div>
+
+
+<!-- ══════ EMAIL STORY DRAWER ══════ -->
+<div class="story-overlay" id="story-overlay" onclick="closeStoryDrawer()"></div>
+<div class="story-drawer" id="story-drawer" role="dialog" aria-modal="true" aria-labelledby="story-po-num">
+  <div class="story-hd">
+    <div style="min-width:0;flex:1">
+      <div class="story-po-label" id="story-po-label">PO Activity</div>
+      <div class="story-po-num" id="story-po-num">—</div>
+      <div class="story-po-desc" id="story-po-desc"></div>
+    </div>
+    <button class="story-close" onclick="closeStoryDrawer()" aria-label="Close story">&#215;</button>
+  </div>
+  <div class="story-meta-strip" id="story-meta-strip"></div>
+  <!-- Tab bar -->
+  <div class="drawer-tabs">
+    <button class="drawer-tab active" id="tab-activity" onclick="switchDrawerTab('activity')">Activity</button>
+    <button class="drawer-tab" id="tab-story" onclick="switchDrawerTab('story')">Story</button>
+  </div>
+  <!-- Activity panel -->
+  <div class="drawer-panel" id="panel-activity">
+    <div class="act-feed" id="act-feed">
+      <div class="act-loading">Loading activity…</div>
+    </div>
+    <div class="act-compose">
+      <div class="act-ta-wrap">
+        <div class="act-mention-drop" id="act-mention-drop" style="display:none"></div>
+        <textarea id="act-input" placeholder="Write a note… type @ to mention a role" rows="2" onkeydown="actInputKeydown(event)" oninput="actInputChanged(event)"></textarea>
+      </div>
+      <button class="act-send-btn" id="act-send" onclick="postActivity()">Send</button>
+    </div>
+  </div>
+  <!-- Story panel -->
+  <div class="drawer-panel drawer-panel-hidden" id="panel-story">
+    <div class="story-ai-card" id="story-ai-card" style="display:none">
+      <div class="ai-hd"><span class="ai-hd-dot"></span>AI Assistant</div>
+      <div class="ai-msgs" id="ai-msgs"></div>
+      <div class="ai-input-row">
+        <input id="ai-input" type="text" placeholder="Ask about this PO…" onkeydown="if(event.key==='Enter')sendStoryChat()">
+        <button class="ai-send" id="ai-send" onclick="sendStoryChat()">Send</button>
+      </div>
+    </div>
+    <div class="story-scroll" id="story-scroll">
+      <div class="se-loading">Loading email history…</div>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+<script src="inventory.js"></script>
+<script src="reports.js"></script>
+</body>
+</html>
