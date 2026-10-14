@@ -205,14 +205,14 @@ def _ocr_words_on_page(pdf_path: str, page_idx: int, scale: float = 2.0) -> list
         import pytesseract
         pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd()
 
-        doc = fitz.open(pdf_path)
-        if page_idx >= len(doc):
-            doc.close()
-            return []
-        page = doc[page_idx]
-        pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale))
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-        doc.close()
+        # See the note on the module: the page image is what costs, so the
+        # document is released before OCR starts rather than after it ends.
+        with fitz.open(pdf_path) as doc:
+            if page_idx >= len(doc):
+                return []
+            page = doc[page_idx]
+            pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale))
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
         data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
         tokens = []
@@ -342,11 +342,10 @@ def extract_from_ocr(pdf_path: str) -> dict:
         from PIL import Image
         import pytesseract
         pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd()
-        _doc = fitz.open(pdf_path)
-        _last = _doc[len(_doc) - 1]
-        _pix  = _last.get_pixmap(matrix=fitz.Matrix(2, 2))
-        _img  = Image.frombytes("RGB", [_pix.width, _pix.height], _pix.samples)
-        _doc.close()
+        with fitz.open(pdf_path) as _doc:
+            _last = _doc[len(_doc) - 1]
+            _pix  = _last.get_pixmap(matrix=fitz.Matrix(2, 2))
+            _img  = Image.frombytes("RGB", [_pix.width, _pix.height], _pix.samples)
         _last_txt = pytesseract.image_to_string(_img)
         _bm = re.search(
             r"Buyer\s+Contact\s+Details\s*:?\s*(.+?)\s+Telephone\s+Number",
@@ -654,14 +653,13 @@ def extract_pdf_with_pdfplumber(pdf_path: str) -> dict:
     if not req_raw:
         try:
             import fitz
-            doc = fitz.open(pdf_path)
             req_re = re.compile(r'Requisition:\s*([A-Z]{2,}\d{4,})', re.IGNORECASE)
-            for page in doc:
-                m = req_re.search(page.get_text())
-                if m:
-                    req_raw = m.group(1)
-                    break
-            doc.close()
+            with fitz.open(pdf_path) as doc:
+                for page in doc:
+                    m = req_re.search(page.get_text())
+                    if m:
+                        req_raw = m.group(1)
+                        break
         except Exception:
             pass
 
@@ -673,36 +671,46 @@ def extract_pdf_with_pdfplumber(pdf_path: str) -> dict:
             import pytesseract
             pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd()
             req_val_re = re.compile(r'^(REQ|RPRNGN)\d{4,}$', re.IGNORECASE)
-            doc = fitz.open(pdf_path)
-            for page in doc:
-                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                ocr = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
-                # Find x-centre of the "Requisition" column header
-                req_col_x0 = req_col_x1 = req_hdr_top = None
-                for i, word in enumerate(ocr["text"]):
-                    if word.strip().lower() == "requisition" and int(ocr["conf"][i]) > 40:
-                        req_col_x0 = ocr["left"][i]
-                        req_col_x1 = ocr["left"][i] + ocr["width"][i]
-                        req_hdr_top = ocr["top"][i]
-                        break
-                if req_col_x0 is None:
-                    continue
-                # Search below the header for a value in that x-band
-                for i, word in enumerate(ocr["text"]):
-                    w = word.strip()
-                    if (not w or int(ocr["conf"][i]) < 40
-                            or ocr["top"][i] <= req_hdr_top + 10):
+            # The most expensive loop in the worker: every page is rendered at
+            # 4x area into raw RGB before OCR, tens of MB a page, and the old
+            # close() sat after the loop inside the try — so an OCR failure on
+            # any page left the whole document mapped for the life of the
+            # process. Each page image is also dropped as soon as it has been
+            # read, instead of being held until the next one replaces it.
+            with fitz.open(pdf_path) as doc:
+                for page in doc:
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    try:
+                        ocr = pytesseract.image_to_data(
+                            img, output_type=pytesseract.Output.DICT)
+                    finally:
+                        img.close()
+                        pix = None
+                    # Find x-centre of the "Requisition" column header
+                    req_col_x0 = req_col_x1 = req_hdr_top = None
+                    for i, word in enumerate(ocr["text"]):
+                        if word.strip().lower() == "requisition" and int(ocr["conf"][i]) > 40:
+                            req_col_x0 = ocr["left"][i]
+                            req_col_x1 = ocr["left"][i] + ocr["width"][i]
+                            req_hdr_top = ocr["top"][i]
+                            break
+                    if req_col_x0 is None:
                         continue
-                    wx0 = ocr["left"][i]
-                    wx1 = wx0 + ocr["width"][i]
-                    overlap = min(wx1, req_col_x1) - max(wx0, req_col_x0)
-                    if overlap > 0 and req_val_re.match(w):
-                        req_raw = w
+                    # Search below the header for a value in that x-band
+                    for i, word in enumerate(ocr["text"]):
+                        w = word.strip()
+                        if (not w or int(ocr["conf"][i]) < 40
+                                or ocr["top"][i] <= req_hdr_top + 10):
+                            continue
+                        wx0 = ocr["left"][i]
+                        wx1 = wx0 + ocr["width"][i]
+                        overlap = min(wx1, req_col_x1) - max(wx0, req_col_x0)
+                        if overlap > 0 and req_val_re.match(w):
+                            req_raw = w
+                            break
+                    if req_raw:
                         break
-                if req_raw:
-                    break
-            doc.close()
         except Exception:
             pass
 

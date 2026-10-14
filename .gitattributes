@@ -1,0 +1,13 @@
+# Force LF in the repo and on checkout. Railway runs Linux, and a Dockerfile
+# or shell script that picks up CRLF from a Windows checkout fails in ways
+# that are hard to read (this bit us on the Dockerfile once already).
+* text=auto eol=lf
+
+# Binary assets git must not touch.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.ttf  binary
+*.pdf  binary
+*.xlsx binary
+*.xls  binary

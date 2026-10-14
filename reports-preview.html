@@ -1,0 +1,601 @@
+<title>SPM Analytics</title>
+<!-- Validated categorical palette: slots 1-6 adjacent-safe in both modes (tested 2026-08-18) -->
+<!-- Chevron bars: brand red (single series, no legend). NLNG bars: slot-1 blue. -->
+<!-- Contrast WARN on light surface for slots 2,3,4,5 — relief = legend + direct labels. -->
+<style>
+/* ─── Tokens ─────────────────────────────────── */
+:root {
+  --bg:    #f5f6fa; --s1:    #ffffff;  --s2:    #eef0f5;
+  --bdr:   #e0e3ed; --t1:    #1a1d27;  --t2:    #5a6070;  --t3:    #9399aa;
+  --brand: #c1121f;
+  --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a;
+  --c4: #eda100; --c5: #e87ba4; --c6: #008300;
+  --ok:   #0ca30c; --crit: #d03b3b; --warn: #fab219;
+  --grid: #e1e0d9; --axis: #c3c2b7; --muted: #898781;
+  --shadow: 0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.05);
+  --r: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1117; --s1: #181c27; --s2: #1e2235;
+    --bdr: #2a2f44; --t1: #e8eaf0; --t2: #8b90a4; --t3: #555b72;
+    --brand: #e53935;
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70;
+    --c4: #c98500; --c5: #d55181; --c6: #008300;
+    --ok: #22c55e; --crit: #ef4444; --warn: #f59e0b;
+    --grid: #2c2c2a; --axis: #383835;
+    --shadow: 0 2px 8px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1117; --s1: #181c27; --s2: #1e2235;
+  --bdr: #2a2f44; --t1: #e8eaf0; --t2: #8b90a4; --t3: #555b72;
+  --brand: #e53935;
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70;
+  --c4: #c98500; --c5: #d55181; --c6: #008300;
+  --ok: #22c55e; --crit: #ef4444; --warn: #f59e0b;
+  --grid: #2c2c2a; --axis: #383835;
+  --shadow: 0 2px 8px rgba(0,0,0,.45);
+}
+
+/* ─── Base ───────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg); color: var(--t1); font-size: 14px; line-height: 1.5;
+  padding: 20px; min-height: 100vh;
+}
+
+/* ─── Page header ────────────────────────────── */
+.ph { margin-bottom: 18px; }
+.ph h1 { font-size: 19px; font-weight: 700; letter-spacing: -.025em; }
+.ph p  { font-size: 11px; color: var(--t3); margin-top: 2px; }
+
+/* ─── Tabs ───────────────────────────────────── */
+.tabs { display: flex; gap: 6px; margin-bottom: 18px; }
+.tab {
+  padding: 5px 14px; border-radius: 20px; border: 1px solid var(--bdr);
+  background: var(--s1); color: var(--t2);
+  font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  cursor: pointer; transition: all .12s;
+}
+.tab.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.view { display: none; }
+.view.on { display: block; }
+
+/* ─── KPI row ────────────────────────────────── */
+.kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 12px; }
+.kpi {
+  background: var(--s1); border: 1px solid var(--bdr); border-radius: var(--r);
+  padding: 15px 16px 13px; box-shadow: var(--shadow);
+}
+.kpi-lbl {
+  font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--t3); margin-bottom: 7px;
+}
+.kpi-val { font-size: 28px; font-weight: 800; line-height: 1; color: var(--t1); margin-bottom: 6px; }
+.kpi-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; margin-bottom: 3px;
+}
+.up  { background: rgba(12,163,12,.1);  color: var(--ok); }
+.dn  { background: rgba(208,59,59,.1);  color: var(--crit); }
+.neu { background: var(--s2);           color: var(--t3); }
+.kpi-note { font-size: 10px; color: var(--t2); }
+
+/* ─── Chart rows ─────────────────────────────── */
+.chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.card {
+  background: var(--s1); border: 1px solid var(--bdr); border-radius: var(--r);
+  box-shadow: var(--shadow); padding: 16px;
+}
+.card-hd {
+  display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 13px;
+}
+.card-ttl { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--t2); }
+.card-sub { font-size: 10px; color: var(--t3); }
+
+/* ─── Donut ──────────────────────────────────── */
+.donut-wrap { display: flex; align-items: center; gap: 16px; }
+.donut-legend { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.leg-row { display: flex; align-items: center; justify-content: space-between; font-size: 11px; }
+.leg-l { display: flex; align-items: center; gap: 6px; color: var(--t2); }
+.leg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.leg-v { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--t1); }
+
+/* ─── SVG shared tokens ──────────────────────── */
+.grid-l  { stroke: var(--grid); stroke-width: 1; }
+.axis-l  { stroke: var(--axis); stroke-width: 1; }
+.ax-txt  { fill: var(--muted); font-size: 10px; font-family: inherit; }
+.bar-tip { fill: var(--t2); font-size: 10px; font-family: inherit; }
+.d-val   { fill: var(--t1); font-size: 20px; font-weight: 800; font-family: inherit; }
+.d-sub   { fill: var(--t3); font-size: 8px;  font-family: inherit; letter-spacing: .06em; }
+
+/* ─── Delivery performance ───────────────────── */
+.perf-rows { display: flex; flex-direction: column; gap: 11px; }
+.perf-hd { display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 5px; }
+.perf-status { display: flex; align-items: center; gap: 5px; font-weight: 600; }
+.perf-icon { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.perf-count { color: var(--t2); font-variant-numeric: tabular-nums; }
+.track { height: 7px; background: var(--s2); border-radius: 4px; overflow: hidden; }
+.fill  { height: 100%; border-radius: 4px; }
+.metrics { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--bdr); display: flex; flex-direction: column; gap: 7px; }
+.metric { display: flex; justify-content: space-between; font-size: 12px; }
+.metric-lbl { color: var(--t2); }
+.metric-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ─── Tooltip ────────────────────────────────── */
+#tt {
+  position: fixed; background: var(--s1); border: 1px solid var(--bdr);
+  border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.15);
+  padding: 7px 11px; font-size: 12px; color: var(--t1);
+  pointer-events: none; opacity: 0; transition: opacity .1s;
+  z-index: 999; white-space: nowrap;
+}
+#tt.on { opacity: 1; }
+#tt-lbl { color: var(--t2); font-size: 10px; margin-bottom: 2px; }
+#tt-val { font-weight: 700; }
+
+/* ─── Responsive ─────────────────────────────── */
+@media (max-width: 680px) {
+  .kpi-row { grid-template-columns: repeat(2,1fr); }
+  .chart-row { grid-template-columns: 1fr; }
+}
+</style>
+
+<!-- Tooltip -->
+<div id="tt"><div id="tt-lbl"></div><div id="tt-val"></div></div>
+
+<!-- Page -->
+<div class="ph">
+  <h1>Reports</h1>
+  <p>Order analytics by client · Representative data</p>
+</div>
+
+<div class="tabs">
+  <button class="tab on" onclick="sw('chevron')">Chevron</button>
+  <button class="tab"    onclick="sw('nlng')">NLNG</button>
+</div>
+
+<!-- ─── Chevron ─── -->
+<div id="v-chevron" class="view on">
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-lbl">Total POs</div>
+      <div class="kpi-val">124</div>
+      <div class="kpi-badge neu">All time</div>
+      <div class="kpi-note">Received from Chevron CNL</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">Active</div>
+      <div class="kpi-val">47</div>
+      <div class="kpi-badge up">↑ 38% vs Q3</div>
+      <div class="kpi-note">Orders in pipeline</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">Delivered</div>
+      <div class="kpi-val">71</div>
+      <div class="kpi-badge up">57% completion</div>
+      <div class="kpi-note">Fulfilled orders</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">OTD Score</div>
+      <div class="kpi-val" style="color:var(--warn)">78%</div>
+      <div class="kpi-badge dn">Target: 90%</div>
+      <div class="kpi-note">On-time delivery rate</div>
+    </div>
+  </div>
+
+  <div class="chart-row">
+    <div class="card">
+      <div class="card-hd"><span class="card-ttl">Pipeline Breakdown</span><span class="card-sub">Current snapshot</span></div>
+      <div class="donut-wrap">
+        <div id="d-chevron" style="flex-shrink:0"></div>
+        <div class="donut-legend" id="leg-chevron"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-ttl">Monthly Intake</span><span class="card-sub">POs received · 2026</span></div>
+      <div id="b-chevron" style="width:100%"></div>
+    </div>
+  </div>
+
+  <div class="chart-row">
+    <div class="card">
+      <div class="card-hd"><span class="card-ttl">Delivery Performance</span><span class="card-sub">Closed orders</span></div>
+      <div class="perf-rows">
+        <div>
+          <div class="perf-hd">
+            <span class="perf-status"><span class="perf-icon" style="background:var(--ok)"></span>On time</span>
+            <span class="perf-count">55 orders · 77%</span>
+          </div>
+          <div class="track"><div class="fill" style="width:77%;background:var(--ok)"></div></div>
+        </div>
+        <div>
+          <div class="perf-hd">
+            <span class="perf-status"><span class="perf-icon" style="background:var(--crit)"></span>Late</span>
+            <span class="perf-count">16 orders · 23%</span>
+          </div>
+          <div class="track"><div class="fill" style="width:23%;background:var(--crit)"></div></div>
+        </div>
+      </div>
+      <div class="metrics">
+        <div class="metric"><span class="metric-lbl">Avg days PO → delivery</span><span class="metric-val">94 days</span></div>
+        <div class="metric"><span class="metric-lbl">Avg days overdue (late only)</span><span class="metric-val" style="color:var(--warn)">18 days</span></div>
+        <div class="metric"><span class="metric-lbl">Fastest delivery</span><span class="metric-val" style="color:var(--ok)">31 days</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-ttl">Top Requesters</span><span class="card-sub">By PO count</span></div>
+      <div id="by-chevron"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── NLNG ─── -->
+<div id="v-nlng" class="view">
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-lbl">Total POs</div>
+      <div class="kpi-val">31</div>
+      <div class="kpi-badge neu">All time</div>
+      <div class="kpi-note">Received from NLNG</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">Active</div>
+      <div class="kpi-val">12</div>
+      <div class="kpi-badge up">↑ 39% vs Q3</div>
+      <div class="kpi-note">Orders in pipeline</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">Delivered</div>
+      <div class="kpi-val">19</div>
+      <div class="kpi-badge up">61% completion</div>
+      <div class="kpi-note">Fulfilled orders</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">OTD Score</div>
+      <div class="kpi-val" style="color:var(--crit)">68%</div>
+      <div class="kpi-badge dn">Target: 90%</div>
+      <div class="kpi-note">On-time delivery rate</div>
+    </div>
+  </div>
+
+  <div class="chart-row">
+    <div class="card">
+      <div class="card-hd"><span class="card-ttl">Pipeline Breakdown</span><span class="card-sub">Current snapshot</span></div>
+      <div class="donut-wrap">
+        <div id="d-nlng" style="flex-shrink:0"></div>
+        <div class="donut-legend" id="leg-nlng"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-ttl">Monthly Intake</span><span class="card-sub">POs received · 2026</span></div>
+      <div id="b-nlng" style="width:100%"></div>
+    </div>
+  </div>
+
+  <div class="chart-row">
+    <div class="card">
+      <div class="card-hd"><span class="card-ttl">Delivery Performance</span><span class="card-sub">Closed orders</span></div>
+      <div class="perf-rows">
+        <div>
+          <div class="perf-hd">
+            <span class="perf-status"><span class="perf-icon" style="background:var(--ok)"></span>On time</span>
+            <span class="perf-count">13 orders · 68%</span>
+          </div>
+          <div class="track"><div class="fill" style="width:68%;background:var(--ok)"></div></div>
+        </div>
+        <div>
+          <div class="perf-hd">
+            <span class="perf-status"><span class="perf-icon" style="background:var(--crit)"></span>Late</span>
+            <span class="perf-count">6 orders · 32%</span>
+          </div>
+          <div class="track"><div class="fill" style="width:32%;background:var(--crit)"></div></div>
+        </div>
+      </div>
+      <div class="metrics">
+        <div class="metric"><span class="metric-lbl">Avg days PO → delivery</span><span class="metric-val">112 days</span></div>
+        <div class="metric"><span class="metric-lbl">Avg days overdue (late only)</span><span class="metric-val" style="color:var(--warn)">24 days</span></div>
+        <div class="metric"><span class="metric-lbl">Fastest delivery</span><span class="metric-val" style="color:var(--ok)">44 days</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-ttl">Top Requesters</span><span class="card-sub">By PO count</span></div>
+      <div id="by-nlng"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─── Data ─────────────────────────────────────────────── */
+const PIPELINE_STAGES = [
+  { label: 'In Transit',  ck: '--c1' },
+  { label: 'At Supplier', ck: '--c2' },
+  { label: 'Dispatched',  ck: '--c3' },
+  { label: 'SO Ack\'d',   ck: '--c4' },
+  { label: 'Pending',     ck: '--c5' },
+  { label: 'Delivered',   ck: '--c6' },
+];
+
+const DATA = {
+  chevron: {
+    pipeline: [8, 18, 5, 10, 12, 71],
+    monthly: [
+      {m:'Jan',v:18},{m:'Feb',v:22},{m:'Mar',v:19},{m:'Apr',v:15},
+      {m:'May',v:11},{m:'Jun',v:8},{m:'Jul',v:14},{m:'Aug',v:17}
+    ],
+    buyers: [
+      {name:'Stella-Maris Onyeanusi',count:18},
+      {name:'Chika Obiji',count:14},
+      {name:'Kehinde Oguntuashe',count:11},
+      {name:'Unoma Okonkwo',count:9},
+      {name:'Precious N. Nwasi',count:8},
+    ],
+    barColor: 'var(--brand)',
+  },
+  nlng: {
+    pipeline: [2, 5, 1, 3, 2, 19],
+    monthly: [
+      {m:'Jan',v:4},{m:'Feb',v:6},{m:'Mar',v:5},{m:'Apr',v:4},
+      {m:'May',v:3},{m:'Jun',v:2},{m:'Jul',v:4},{m:'Aug',v:3}
+    ],
+    buyers: [
+      {name:'Agbami Plant',count:11},
+      {name:'Bonny LNG',count:8},
+      {name:'Train 6',count:7},
+      {name:'Utilities',count:5},
+    ],
+    barColor: 'var(--c1)',
+  },
+};
+
+/* ─── Tooltip ──────────────────────────────────────────── */
+const tt = document.getElementById('tt');
+const ttLbl = document.getElementById('tt-lbl');
+const ttVal = document.getElementById('tt-val');
+
+function showTip(e, label, val) {
+  ttLbl.textContent = label;
+  ttVal.textContent = val;
+  tt.classList.add('on');
+  moveTip(e);
+}
+function moveTip(e) {
+  const x = e.clientX + 14, y = e.clientY - 10;
+  tt.style.left = Math.min(x, window.innerWidth - tt.offsetWidth - 8) + 'px';
+  tt.style.top  = Math.max(y, 8) + 'px';
+}
+function hideTip() { tt.classList.remove('on'); }
+
+/* ─── Tab switch ───────────────────────────────────────── */
+function sw(client) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('v-' + client).classList.add('on');
+  event.currentTarget.classList.add('on');
+}
+
+/* ─── CSS var reader (for SVG inline style) ────────────── */
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/* ─── Donut ────────────────────────────────────────────── */
+function drawDonut(containerId, legendId, values) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const W = 190, cx = 95, cy = 95, R = 70, sw = 17;
+  const circ = 2 * Math.PI * R;
+  const total = values.reduce((s, v) => s + v, 0);
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${W}`);
+  svg.setAttribute('width', W); svg.setAttribute('height', W);
+  svg.style.minWidth = W + 'px';
+
+  // Background ring
+  const bg = document.createElementNS(ns, 'circle');
+  bg.setAttribute('cx', cx); bg.setAttribute('cy', cy); bg.setAttribute('r', R);
+  bg.setAttribute('fill', 'none'); bg.setAttribute('stroke-width', sw);
+  bg.style.stroke = cssVar('--s2');
+  svg.appendChild(bg);
+
+  // Segments (slot order 1-6, validated for circular adjacency)
+  let offset = circ / 4;
+  PIPELINE_STAGES.forEach((stage, i) => {
+    const v = values[i];
+    if (v === 0) { offset -= 0; return; }
+    const arc = (v / total) * circ;
+    const gap = total > 1 ? 1.8 : 0;
+    const c = document.createElementNS(ns, 'circle');
+    c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', R);
+    c.setAttribute('fill', 'none');
+    c.setAttribute('stroke-dasharray', `${arc - gap} ${circ - arc + gap}`);
+    c.setAttribute('stroke-dashoffset', offset);
+    c.setAttribute('stroke-width', sw);
+    c.setAttribute('stroke-linecap', 'butt');
+    c.style.stroke = cssVar(stage.ck);
+    c.style.cursor = 'pointer';
+    const pct = Math.round(v / total * 100);
+    c.addEventListener('mousemove', e => showTip(e, stage.label, `${v} orders · ${pct}%`));
+    c.addEventListener('mousemove', moveTip);
+    c.addEventListener('mouseleave', hideTip);
+    svg.appendChild(c);
+    offset -= arc;
+  });
+
+  // Center text
+  const g = document.createElementNS(ns, 'g');
+  const tv = document.createElementNS(ns, 'text');
+  tv.setAttribute('x', cx); tv.setAttribute('y', cy + 8);
+  tv.setAttribute('text-anchor', 'middle'); tv.setAttribute('class', 'd-val');
+  tv.textContent = total;
+  const tl = document.createElementNS(ns, 'text');
+  tl.setAttribute('x', cx); tl.setAttribute('y', cy + 22);
+  tl.setAttribute('text-anchor', 'middle'); tl.setAttribute('class', 'd-sub');
+  tl.textContent = 'TOTAL POs';
+  g.appendChild(tv); g.appendChild(tl);
+  svg.appendChild(g);
+
+  document.getElementById(containerId).appendChild(svg);
+
+  // Legend — identity channel (required for ≥2 series, per spec)
+  const leg = document.getElementById(legendId);
+  PIPELINE_STAGES.forEach((stage, i) => {
+    const v = values[i];
+    const row = document.createElement('div');
+    row.className = 'leg-row';
+    row.innerHTML = `
+      <span class="leg-l">
+        <span class="leg-dot" style="background:${cssVar(stage.ck)}"></span>
+        ${stage.label}
+      </span>
+      <span class="leg-v">${v}</span>`;
+    leg.appendChild(row);
+  });
+}
+
+/* ─── Monthly bar chart ────────────────────────────────── */
+function drawMonthly(containerId, months, color) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const VW = 380, VH = 160;
+  const ml = 28, mr = 6, mt = 10, mb = 24;
+  const pw = VW - ml - mr, ph = VH - mt - mb;
+  const maxV = Math.max(...months.map(m => m.v));
+  const topTick = Math.ceil(maxV / 5) * 5;
+
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${VW} ${VH}`);
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+  // Gridlines + Y labels
+  for (let t = 0; t <= topTick; t += 5) {
+    const y = mt + ph - (t / topTick) * ph;
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', ml); line.setAttribute('x2', ml + pw);
+    line.setAttribute('y1', y); line.setAttribute('y2', y);
+    line.setAttribute('class', t === 0 ? 'axis-l' : 'grid-l');
+    svg.appendChild(line);
+    if (t > 0) {
+      const lbl = document.createElementNS(ns, 'text');
+      lbl.setAttribute('x', ml - 4); lbl.setAttribute('y', y);
+      lbl.setAttribute('text-anchor', 'end'); lbl.setAttribute('dominant-baseline', 'central');
+      lbl.setAttribute('class', 'ax-txt');
+      lbl.setAttribute('font-variant-numeric', 'tabular-nums');
+      lbl.textContent = t;
+      svg.appendChild(lbl);
+    }
+  }
+
+  // Bars — single series, no legend needed
+  const slotW = pw / months.length;
+  const barW = Math.min(22, slotW * 0.52);
+  const resolvedColor = color;
+
+  months.forEach((m, i) => {
+    const x = ml + i * slotW + (slotW - barW) / 2;
+    const barH = Math.max((m.v / topTick) * ph, 2);
+    const y = mt + ph - barH;
+
+    const rect = document.createElementNS(ns, 'rect');
+    rect.setAttribute('x', x); rect.setAttribute('y', y);
+    rect.setAttribute('width', barW); rect.setAttribute('height', barH);
+    rect.setAttribute('rx', '3');
+    rect.style.fill = resolvedColor;
+    rect.style.opacity = '0.85';
+    rect.style.cursor = 'pointer';
+    rect.addEventListener('mousemove', e => showTip(e, m.m + ' 2026', `${m.v} POs received`));
+    rect.addEventListener('mousemove', moveTip);
+    rect.addEventListener('mouseleave', hideTip);
+    svg.appendChild(rect);
+
+    // Month label
+    const xl = document.createElementNS(ns, 'text');
+    xl.setAttribute('x', x + barW / 2); xl.setAttribute('y', mt + ph + 16);
+    xl.setAttribute('text-anchor', 'middle'); xl.setAttribute('class', 'ax-txt');
+    xl.textContent = m.m;
+    svg.appendChild(xl);
+
+    // Value label: max bar and last bar only (selective)
+    const isMax = m.v === maxV, isLast = i === months.length - 1;
+    if (isMax || isLast) {
+      const vl = document.createElementNS(ns, 'text');
+      vl.setAttribute('x', x + barW / 2); vl.setAttribute('y', y - 3);
+      vl.setAttribute('text-anchor', 'middle'); vl.setAttribute('class', 'bar-tip');
+      vl.setAttribute('font-weight', '700');
+      vl.textContent = m.v;
+      svg.appendChild(vl);
+    }
+  });
+
+  document.getElementById(containerId).appendChild(svg);
+}
+
+/* ─── Top buyers horizontal bars ──────────────────────── */
+function drawBuyers(containerId, buyers, color) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const rowH = 28, namePx = 128, countPx = 26, padR = 8;
+  const VW = 340, VH = rowH * buyers.length + 4;
+  const barArea = VW - namePx - countPx - padR;
+  const maxCount = buyers[0].count;
+
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${VW} ${VH}`);
+  svg.setAttribute('width', '100%');
+
+  buyers.forEach((b, i) => {
+    const y = i * rowH + 4;
+    const barW = (b.count / maxCount) * barArea;
+
+    // Track
+    const track = document.createElementNS(ns, 'rect');
+    track.setAttribute('x', namePx); track.setAttribute('y', y + 9);
+    track.setAttribute('width', barArea); track.setAttribute('height', 8);
+    track.setAttribute('rx', '4'); track.style.fill = 'var(--s2)';
+    svg.appendChild(track);
+
+    // Fill — single color all rows (sequential magnitude, same entity type)
+    const fill = document.createElementNS(ns, 'rect');
+    fill.setAttribute('x', namePx); fill.setAttribute('y', y + 9);
+    fill.setAttribute('width', barW); fill.setAttribute('height', 8);
+    fill.setAttribute('rx', '4'); fill.style.fill = color; fill.style.opacity = '0.85';
+    fill.style.cursor = 'pointer';
+    fill.addEventListener('mousemove', e => showTip(e, b.name, `${b.count} POs`));
+    fill.addEventListener('mousemove', moveTip);
+    fill.addEventListener('mouseleave', hideTip);
+    svg.appendChild(fill);
+
+    // Name
+    const name = document.createElementNS(ns, 'text');
+    name.setAttribute('x', namePx - 5); name.setAttribute('y', y + 17);
+    name.setAttribute('text-anchor', 'end'); name.setAttribute('dominant-baseline', 'central');
+    name.setAttribute('class', 'ax-txt');
+    const short = b.name.length > 18 ? b.name.slice(0, 17) + '…' : b.name;
+    name.textContent = short;
+    svg.appendChild(name);
+
+    // Count label — at bar end (direct label for the ranking story)
+    const cnt = document.createElementNS(ns, 'text');
+    cnt.setAttribute('x', namePx + barArea + 5); cnt.setAttribute('y', y + 17);
+    cnt.setAttribute('dominant-baseline', 'central');
+    cnt.setAttribute('class', 'bar-tip'); cnt.setAttribute('font-weight', '700');
+    cnt.setAttribute('font-variant-numeric', 'tabular-nums');
+    cnt.textContent = b.count;
+    svg.appendChild(cnt);
+  });
+
+  document.getElementById(containerId).appendChild(svg);
+}
+
+/* ─── Init ─────────────────────────────────────────────── */
+// Render after fonts/styles settle
+requestAnimationFrame(() => {
+  const cv = DATA.chevron, nv = DATA.nlng;
+  drawDonut('d-chevron', 'leg-chevron', cv.pipeline);
+  drawDonut('d-nlng',    'leg-nlng',    nv.pipeline);
+  drawMonthly('b-chevron', cv.monthly, cssVar('--brand'));
+  drawMonthly('b-nlng',    nv.monthly, cssVar('--c1'));
+  drawBuyers('by-chevron', cv.buyers, cssVar('--brand'));
+  drawBuyers('by-nlng',    nv.buyers, cssVar('--c1'));
+});
+</script>

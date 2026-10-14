@@ -1,0 +1,28 @@
+# Docker does NOT read .gitignore, so this has to repeat it. Without this file
+# `COPY . .` bakes the .env (service_role key — full database access), 650
+# customer PDFs and a 174MB venv straight into the image.
+.env
+.env.*
+.git
+.gitignore
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Customer documents and local attachments — never ship these.
+data/
+logs/
+archive/
+.claude/
+.pytest_cache/
+
+# Loose working documents from the project root.
+*.xlsx
+*.xls
+*.docx
+*.jpeg
+~$*
+
+# Keep data_fl/ — it holds the app's own logo, background and bundled font.

@@ -1,14 +1,15 @@
 """
 app.py — FastAPI server for SPMprocure360.
 
-Replaces server.py (BaseHTTPRequestHandler) with FastAPI + Gunicorn.
-All business logic is unchanged — only the routing layer changed.
+This is the only web server. An earlier BaseHTTPRequestHandler version was
+deleted once it had been dead for months; nothing imports from it.
 
 Local dev:
     uvicorn web.app:app --reload --port 8080
 
-Production (Railway):
-    gunicorn web.app:app --workers 3 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+Production (Railway): see the Procfile, which is the real start command.
+ONE worker, not three — UvicornWorker is async, so a single worker serves
+many requests at once, and three copies measured 270MB against 90MB.
 """
 
 import asyncio
