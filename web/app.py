@@ -1399,16 +1399,64 @@ def _get_saved_story(order_id: str, order_type: str) -> tuple[str, str]:
     costs a Gmail thread search and a model call, and for all 25 stories on file
     at the time this was added, not one PO had received an email since its story
     was written - so every one of those was being paid for twice.
+
+    A story is withheld once mail has arrived for the order since it was
+    written: the listeners record every email they recognise, so in the normal
+    case a reply lands in the emails table within one poll and the next person
+    to open the drawer gets a story that includes it, without having to ask.
+
+    That check is a floor, not a ceiling. The emails table holds only mail a
+    listener recognised, while the story reads the whole Gmail thread, so a
+    reply nobody parsed will not trigger it. Hence the date on screen and the
+    Regenerate button: three ways to avoid reading a stale story, none of them
+    relying on the other two.
     """
     try:
-        res = get_client().table("ai_memory").select("summary,updated_at") \
-                 .eq("order_id", order_id).eq("order_type", order_type).execute()
-        if res.data:
-            row = res.data[0]
-            return (row.get("summary") or "", str(row.get("updated_at") or ""))
+        db  = get_client()
+        res = db.table("ai_memory").select("summary,updated_at") \
+                .eq("order_id", order_id).eq("order_type", order_type).execute()
+        if not res.data:
+            return ("", "")
+        row     = res.data[0]
+        summary = row.get("summary") or ""
+        written = str(row.get("updated_at") or "")
+        if not summary:
+            return ("", "")
+
+        newest = _newest_email_at(db, order_id, order_type)
+        if newest and written and newest > written:
+            return ("", "")        # mail has landed since - write a new one
+        return (summary, written)
     except Exception as exc:
         print(f"  [warn] _get_saved_story: {exc}")
     return ("", "")
+
+
+def _newest_email_at(db, order_id: str, order_type: str) -> str:
+    """When the most recent recorded email for this order arrived, or "".
+
+    Compared against a saved story's date to decide whether the story has been
+    overtaken by events. Ordering and limiting server-side keeps this to one
+    row however long the thread is.
+
+    The undated rows have to be excluded explicitly. 222 of the 682 emails on
+    file carry no received_at, and Postgres sorts NULLs FIRST on a descending
+    order - so without the filter this returned the undated row, read it as "",
+    and the staleness check quietly never fired for any order holding even one
+    undated email. That was 21 of the 25 saved stories.
+    """
+    try:
+        col = "nlng_order_id" if order_type == "nlng" else "order_id"
+        res = db.table("emails").select("received_at").eq(col, order_id) \
+                .not_.is_("received_at", "null") \
+                .order("received_at", desc=True).limit(1).execute()
+        if res.data:
+            return str(res.data[0].get("received_at") or "")
+    except Exception as exc:
+        # A story slightly out of date beats no story at all, and the date on
+        # screen still tells the reader how old it is.
+        print(f"  [warn] _newest_email_at: {exc}")
+    return ""
 
 
 def _save_ai_memory(order_id: str, order_type: str, summary: str) -> None:

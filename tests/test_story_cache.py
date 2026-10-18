@@ -45,12 +45,39 @@ class _Q:
     def __init__(self, store, name):
         self.store, self.name = store, name
         self.rows = list(store.get(name, []))
+        self._excl_null = None
 
     def select(self, *a, **k):
         return self
 
     def eq(self, f, v):
         self.rows = [r for r in self.rows if str(r.get(f)) == str(v)]
+        return self
+
+    @property
+    def not_(self):
+        self._negate = True
+        return self
+
+    def is_(self, f, _null):
+        # Only reached via .not_.is_(f, "null") in this code.
+        if getattr(self, "_negate", False):
+            self.rows = [r for r in self.rows if r.get(f) is not None]
+            self._negate = False
+        else:
+            self.rows = [r for r in self.rows if r.get(f) is None]
+        return self
+
+    def order(self, field, desc=False):
+        # Postgres defaults: ASC puts NULLs LAST, DESC puts NULLs FIRST. The
+        # fake has to match, or the trap this file exists to guard against
+        # cannot be reproduced. A first attempt sorted NULLs last on DESC, and
+        # the test for the trap passed against the broken code - caught only by
+        # mutating the source and finding the suite did not notice.
+        nulls = [r for r in self.rows if r.get(field) is None]
+        vals = sorted((r for r in self.rows if r.get(field) is not None),
+                      key=lambda r: r.get(field), reverse=bool(desc))
+        self.rows = (nulls + vals) if desc else (vals + nulls)
         return self
 
     def limit(self, n):
@@ -65,8 +92,8 @@ class _Q:
         return r
 
 
-def _db_with(rows):
-    store = {"ai_memory": rows}
+def _db_with(rows, emails=None):
+    store = {"ai_memory": rows, "emails": emails or []}
     return type("C", (), {"table": staticmethod(lambda n: _Q(store, n))})()
 
 
@@ -109,6 +136,89 @@ def test_a_database_failure_does_not_take_the_story_down(monkeypatch):
 
     monkeypatch.setattr(app, "get_client", _boom)
     assert app._get_saved_story("o1", "chevron") == ("", "")
+
+
+# ── mail arriving after the story was written ───────────────────────────────
+
+def _story_and_mail(monkeypatch, written, mail_dates, order_type="chevron"):
+    app = _app()
+    col = "nlng_order_id" if order_type == "nlng" else "order_id"
+    rows = [{"order_id": "o1", "order_type": order_type,
+             "summary": "A story.", "updated_at": written}]
+    emails = [{col: "o1", "received_at": d} for d in mail_dates]
+    monkeypatch.setattr(app, "get_client", lambda: _db_with(rows, emails))
+    return app
+
+
+def test_mail_newer_than_the_story_withholds_it(monkeypatch):
+    """The reader should not be shown a story written before the newest reply
+    landed. Withholding it makes the next open regenerate, once."""
+    app = _story_and_mail(monkeypatch, "2026-09-01T10:00:00+00:00",
+                          ["2026-08-01T09:00:00", "2026-09-20T09:00:00"])
+    assert app._get_saved_story("o1", "chevron") == ("", "")
+
+
+def test_mail_older_than_the_story_serves_it(monkeypatch):
+    app = _story_and_mail(monkeypatch, "2026-09-01T10:00:00+00:00",
+                          ["2026-08-01T09:00:00", "2026-08-20T09:00:00"])
+    text, _ = app._get_saved_story("o1", "chevron")
+    assert text == "A story."
+
+
+def test_an_order_with_no_recorded_mail_still_serves(monkeypatch):
+    """No mail on file is not evidence the story is stale — it usually means
+    the listeners never recognised anything for this PO."""
+    app = _story_and_mail(monkeypatch, "2026-09-01T10:00:00+00:00", [])
+    text, _ = app._get_saved_story("o1", "chevron")
+    assert text == "A story."
+
+
+def test_an_undated_email_does_not_disable_the_whole_check(monkeypatch):
+    """The bug this is here for: 222 of 682 emails carry no received_at, and
+    Postgres sorts NULLs FIRST on a descending order. Without an explicit
+    filter the query returned the undated row, read it as "", and the staleness
+    check silently never fired — for 21 of the 25 saved stories."""
+    app = _story_and_mail(monkeypatch, "2026-09-01T10:00:00+00:00",
+                          [None, "2026-09-20T09:00:00"])
+    assert app._newest_email_at(app.get_client(), "o1", "chevron") \
+        == "2026-09-20T09:00:00"
+    assert app._get_saved_story("o1", "chevron") == ("", "")
+
+
+def test_only_undated_mail_reads_as_no_mail(monkeypatch):
+    app = _story_and_mail(monkeypatch, "2026-09-01T10:00:00+00:00", [None, None])
+    assert app._newest_email_at(app.get_client(), "o1", "chevron") == ""
+    text, _ = app._get_saved_story("o1", "chevron")
+    assert text == "A story."
+
+
+def test_nlng_orders_are_matched_on_their_own_column(monkeypatch):
+    """Chevron mail hangs off order_id, NLNG mail off nlng_order_id. Reading
+    the wrong column would make every NLNG story look permanently fresh."""
+    app = _story_and_mail(monkeypatch, "2026-09-01T10:00:00+00:00",
+                          ["2026-09-20T09:00:00"], order_type="nlng")
+    assert app._get_saved_story("o1", "nlng") == ("", "")
+
+
+def test_a_failed_mail_lookup_still_serves_the_story(monkeypatch):
+    """A story slightly out of date beats no story, and the date on screen
+    still tells the reader how old it is."""
+    app = _app()
+    rows = [{"order_id": "o1", "order_type": "chevron",
+             "summary": "A story.", "updated_at": "2026-09-01T10:00:00+00:00"}]
+
+    class _Broken(_Q):
+        def order(self, *a, **k):
+            raise Exception("statement timeout")
+
+    def _client():
+        store = {"ai_memory": rows, "emails": [{"order_id": "o1", "received_at": "2026-09-20"}]}
+        return type("C", (), {"table": staticmethod(
+            lambda n: (_Broken if n == "emails" else _Q)(store, n))})()
+
+    monkeypatch.setattr(app, "get_client", _client)
+    text, _ = app._get_saved_story("o1", "chevron")
+    assert text == "A story."
 
 
 def test_it_is_not_the_same_function_that_feeds_the_prompt():
