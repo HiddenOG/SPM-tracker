@@ -502,6 +502,79 @@ def test_a_dry_run_writes_nothing(monkeypatch):
     assert called == []
 
 
+# ── the sync table treats both order types as first class ───────────────────
+
+def test_the_stamp_always_names_the_order_type(monkeypatch):
+    """It must never be left to a column default. The two order tables have
+    independent id spaces, so a row defaulting to 'chevron' would stamp an NLNG
+    order as a Chevron one; the archiver then looks it up as nlng, finds
+    nothing, and re-walks that thread on every pass for ever."""
+    c, store = _client(email_thread_sync=[])
+    monkeypatch.setattr(ets, "get_client", lambda: c)
+    monkeypatch.setattr(ets, "fetch_thread", lambda po, so="", imap=None: _MAIL)
+    monkeypatch.setattr(ets.sync, "upsert_email", lambda **kw: None)
+
+    ets.sync_thread("n1", "nlng", "PO1")
+    ets.sync_thread("c1", "chevron", "PO2")
+    types = {r["order_id"]: r.get("order_type") for r in store["email_thread_sync"]}
+    assert types == {"n1": "nlng", "c1": "chevron"}
+
+
+def test_the_two_order_types_do_not_collide_on_the_same_id(monkeypatch):
+    """orders and nlng_orders are separate id spaces. The primary key is the
+    pair, so the same id under both types is two rows, not one overwriting the
+    other."""
+    c, store = _client(email_thread_sync=[])
+    monkeypatch.setattr(ets, "get_client", lambda: c)
+    monkeypatch.setattr(ets, "fetch_thread", lambda po, so="", imap=None: _MAIL)
+    monkeypatch.setattr(ets.sync, "upsert_email", lambda **kw: None)
+
+    ets.sync_thread("same-id", "chevron", "PO1")
+    ets.sync_thread("same-id", "nlng", "PO2")
+    assert len(store["email_thread_sync"]) == 2
+
+
+def test_the_migration_constrains_the_order_type():
+    """Rather than defaulting it. A missing or misspelled value should fail at
+    the insert, not quietly become 'chevron'."""
+    raw = (ROOT / "migrations" / "create_email_thread_sync.sql").read_text(encoding="utf-8")
+    # Comments only, stripped: the reason the default was removed is written
+    # out in the file, so a plain search finds its own explanation.
+    sql = "\n".join(l for l in raw.split("\n") if not l.lstrip().startswith("--"))
+    assert "check (order_type in ('chevron', 'nlng'))" in sql
+    assert "default 'chevron'" not in sql, sql
+    assert "primary key (order_id, order_type)" in sql
+
+
+def test_nlng_orders_are_queued_alongside_chevron(monkeypatch):
+    """due_orders walks both tables. Reading only `orders` would leave every
+    NLNG thread unsynced for ever, and nothing would say so."""
+    c, _ = _client(
+        orders=[{"id": "c1", "buyer_po_number": "PO1", "so_number": "",
+                 "overall_status": "ack"}],
+        nlng_orders=[{"id": "n1", "po_number": "4200093075", "so_number": "SO1",
+                      "overall_status": "ready_for_dispatch"}],
+        email_thread_sync=[])
+    monkeypatch.setattr(ets, "get_client", lambda: c)
+    due = {d["order_id"]: d["order_type"] for d in ets.due_orders(10)}
+    assert due == {"c1": "chevron", "n1": "nlng"}
+
+
+def test_the_nlng_po_column_is_read_not_the_chevron_one(monkeypatch):
+    """nlng_orders has po_number; orders has buyer_po_number. Reading the wrong
+    one yields no PO, and the order is skipped silently."""
+    c, _ = _client(
+        orders=[],
+        nlng_orders=[{"id": "n1", "po_number": "4200093075", "so_number": "SO1",
+                      "overall_status": "ack"}],
+        email_thread_sync=[])
+    monkeypatch.setattr(ets, "get_client", lambda: c)
+    due = ets.due_orders(10)
+    assert len(due) == 1
+    assert due[0]["po_number"] == "4200093075"
+    assert due[0]["so_number"] == "SO1"
+
+
 # ── the worker registration ─────────────────────────────────────────────────
 
 def test_the_worker_runs_it_as_a_thread():
