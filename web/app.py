@@ -1166,10 +1166,50 @@ def _fetch_gmail_emails(po_number: str, so_number: str = "") -> list:
         return []
 
 
-def _build_email_context(po_number: str, so_number: str = "") -> str:
+def _thread_for(order_id: str, order_type: str, po_number: str, so_number: str = "") -> list:
+    """This order's email thread: from the table, or from Gmail if it is empty.
+
+    The table is kept current by email_thread_sync, running as a worker thread,
+    so the normal case is a single indexed read instead of an IMAP login, a
+    thread search and a few hundred full message fetches.
+
+    The fallback is what makes that safe. An order the archiver has not reached
+    yet - a new one, or any of them before the backfill has run - still gets
+    its thread from Gmail, and is stored on the way past so the next telling is
+    a read. No order is ever left without a story because of where its mail
+    happens to live.
+    """
+    try:
+        import email_thread_sync as ets
+    except Exception as exc:
+        print(f"  [warn] email_thread_sync unavailable: {exc}")
+        return _fetch_gmail_emails(po_number, so_number)
+
+    try:
+        rows = ets.read_thread(order_id, order_type)
+    except Exception as exc:
+        print(f"  [warn] read_thread: {exc}")
+        rows = []
+    if rows:
+        return rows
+
+    emails = _fetch_gmail_emails(po_number, so_number)
+    if emails and order_id:
+        # Store it rather than throw it away - every message has just been
+        # fetched, so this costs nothing and the next telling reads the table.
+        threading.Thread(
+            target=ets.store_thread,
+            args=(order_id, order_type, emails),
+            daemon=True,
+        ).start()
+    return emails
+
+
+def _build_email_context(order_id: str, order_type: str,
+                         po_number: str, so_number: str = "") -> str:
     BODY_LIMIT  = 1_500
     CHAR_BUDGET = 15_000
-    emails = _fetch_gmail_emails(po_number, so_number)
+    emails = _thread_for(order_id, order_type, po_number, so_number)
     n = len(emails)
     if not n:
         return ""
@@ -1651,7 +1691,7 @@ def email_summarize(order_id: str, type: str = "chevron", fresh: int = 0,
             email_result  = [None]
             memory_result = [None]
             def _f_ctx():    ctx_result[0]    = _build_order_context(order_id, type)
-            def _f_emails(): email_result[0]  = _build_email_context(po_number, so_number)
+            def _f_emails(): email_result[0]  = _build_email_context(order_id, type, po_number, so_number)
             def _f_memory(): memory_result[0] = _load_ai_memory(order_id, type)
             t1 = threading.Thread(target=_f_ctx,    daemon=True)
             t2 = threading.Thread(target=_f_emails, daemon=True)
@@ -1744,7 +1784,7 @@ def email_chat(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
             email_result  = [None]
             memory_result = [None]
             def _f_ctx():    ctx_result[0]    = _build_order_context(order_id, order_type)
-            def _f_emails(): email_result[0]  = _build_email_context(po_number, so_number)
+            def _f_emails(): email_result[0]  = _build_email_context(order_id, order_type, po_number, so_number)
             def _f_memory(): memory_result[0] = _load_ai_memory(order_id, order_type)
             t1 = threading.Thread(target=_f_ctx,    daemon=True)
             t2 = threading.Thread(target=_f_emails, daemon=True)

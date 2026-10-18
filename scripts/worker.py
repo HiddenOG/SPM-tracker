@@ -24,6 +24,7 @@ from imap_listener          import run_forever as _run_imap
 from pdf_extractor          import run_forever as _run_pdf
 from ack_pdf_extractor      import run_forever as _run_ack_pdf
 from flexitallic_history_listener import run_forever as _run_flex_history
+from email_thread_sync         import run_forever as _run_thread_sync
 
 PARSERS = [
     ("gmail_ack_listener",     _run_gmail_ack),
@@ -35,6 +36,11 @@ PARSERS = [
     # Keeps the Suppliers page (scratch_flexitallic_history + client PO values)
     # current - it was built by one-off backfills and went stale without this.
     ("flexitallic_history",    _run_flex_history),
+    # Keeps each order's whole Gmail thread in the emails table, so the PO
+    # story is written from a database read instead of a live IMAP search. The
+    # listeners above only record mail they recognise - measured at a tenth to
+    # a quarter of a thread - which was too little to write a story from.
+    ("email_thread_sync",      _run_thread_sync),
 ]
 
 RESTART_DELAY = 30  # seconds before restarting a crashed parser
