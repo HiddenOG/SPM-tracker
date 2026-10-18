@@ -1388,6 +1388,29 @@ def _load_ai_memory(order_id: str, order_type: str) -> str:
         return ""
 
 
+def _get_saved_story(order_id: str, order_type: str) -> tuple[str, str]:
+    """The last story written for this order, and when. ("", "") if there is none.
+
+    Deliberately not _load_ai_memory: that one formats the summary together with
+    sibling-order context to be fed BACK into a prompt. This returns the story
+    itself, to be handed to the reader as it was written.
+
+    Worth having because a finished story was already paid for. Regenerating it
+    costs a Gmail thread search and a model call, and for all 25 stories on file
+    at the time this was added, not one PO had received an email since its story
+    was written - so every one of those was being paid for twice.
+    """
+    try:
+        res = get_client().table("ai_memory").select("summary,updated_at") \
+                 .eq("order_id", order_id).eq("order_type", order_type).execute()
+        if res.data:
+            row = res.data[0]
+            return (row.get("summary") or "", str(row.get("updated_at") or ""))
+    except Exception as exc:
+        print(f"  [warn] _get_saved_story: {exc}")
+    return ("", "")
+
+
 def _save_ai_memory(order_id: str, order_type: str, summary: str) -> None:
     try:
         get_client().table("ai_memory").upsert(
@@ -1531,7 +1554,30 @@ def get_emails(order_id: str, type: str = "chevron", user: dict = Depends(verify
 
 
 @app.get("/api/emails/summarize")
-def email_summarize(order_id: str, type: str = "chevron", user: dict = Depends(verify_jwt)):
+def email_summarize(order_id: str, type: str = "chevron", fresh: int = 0,
+                    user: dict = Depends(verify_jwt)):
+    # A story that has already been written is served as it stands: no Gmail
+    # search, no model call, nothing to wait for. It carries the date it was
+    # written so the reader can see its age and ask for a new one - the whole
+    # point of showing the age rather than quietly serving old text.
+    #
+    # "Has a new email arrived?" would be the obvious trigger for refreshing on
+    # its own, and it is deliberately NOT used: the emails table only holds mail
+    # a listener recognised, while the story reads the whole Gmail thread. A
+    # reply nobody parsed would leave the check saying nothing had changed. So
+    # the reader decides, from a date they can see.
+    if not fresh:
+        saved, saved_at = _get_saved_story(order_id, type)
+        if saved:
+            def _saved_gen():
+                yield f"data: {json.dumps({'saved_at': saved_at})}\n\n"
+                yield f"data: {json.dumps({'c': saved})}\n\n"
+                yield "data: [DONE]\n\n"
+            return StreamingResponse(_saved_gen(), media_type="text/event-stream",
+                                     headers=_sse_headers())
+
+    # Only writing a new story needs a model, so the key is checked here rather
+    # than on the way in - a saved story stays readable if the key is missing.
     if not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("GROQ_API_KEY"):
         raise HTTPException(status_code=503, detail="No AI key configured (ANTHROPIC_API_KEY or GROQ_API_KEY)")
 
@@ -1540,7 +1586,9 @@ def email_summarize(order_id: str, type: str = "chevron", user: dict = Depends(v
     if cached:
         cached_at, cached_text = cached
         if time.time() - cached_at < _SUMMARY_CACHE_TTL:
+            cached_iso = datetime.fromtimestamp(cached_at, timezone.utc).isoformat()
             def _cached_gen():
+                yield f"data: {json.dumps({'saved_at': cached_iso})}\n\n"
                 yield f"data: {json.dumps({'c': cached_text})}\n\n"
                 yield "data: [DONE]\n\n"
             return StreamingResponse(_cached_gen(), media_type="text/event-stream", headers=_sse_headers())
@@ -1599,6 +1647,9 @@ def email_summarize(order_id: str, type: str = "chevron", user: dict = Depends(v
             for chunk in _ai_stream([{"role": "user", "content": prompt}], max_tokens=1000):
                 yield f"data: {json.dumps({'c': chunk})}\n\n"
                 chunks.append(chunk)
+            # Sent after the text, not before: this story is being written now,
+            # so its date is now, and the footer updates once it is complete.
+            yield f"data: {json.dumps({'saved_at': datetime.now(timezone.utc).isoformat()})}\n\n"
             yield "data: [DONE]\n\n"
 
             if chunks:

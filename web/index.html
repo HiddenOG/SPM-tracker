@@ -1643,6 +1643,13 @@
     <div class="story-ai-card" id="story-ai-card" style="display:none">
       <div class="ai-hd"><span class="ai-hd-dot"></span>AI Assistant</div>
       <div class="ai-msgs" id="ai-msgs"></div>
+      <!-- Shows when the story on screen was written, and offers a new one.
+           A saved story costs nothing to serve, so this is what tells the
+           reader whether it is recent enough to trust. -->
+      <div class="ai-foot" id="ai-foot" style="display:none">
+        <span class="ai-foot-age" id="ai-foot-age"></span>
+        <button class="ai-regen" id="ai-regen" onclick="regenerateStory()">&#8635; Regenerate</button>
+      </div>
       <div class="ai-input-row">
         <input id="ai-input" type="text" placeholder="Ask about this PO…" onkeydown="if(event.key==='Enter')sendStoryChat()">
         <button class="ai-send" id="ai-send" onclick="sendStoryChat()">Send</button>

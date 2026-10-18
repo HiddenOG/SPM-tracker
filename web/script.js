@@ -3577,7 +3577,40 @@ var _storyOrderType = '';
 var _storyChatHistory = [];  // [{role,content}, ...]
 var _chatInflight = false;   // prevents double-sends
 
-function loadStorySummary(orderId, orderType) {
+// "25 Sept" for anything this year, "25 Sept 2025" otherwise, and "today" /
+// "yesterday" where that reads better than a date. The point of the line is to
+// let someone judge at a glance whether the story is recent enough to trust.
+function _storyAgeLabel(iso) {
+  if (!iso) return '';
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  var now  = new Date();
+  var days = Math.floor((now - d) / 86400000);
+  if (days <= 0) return 'Story written today';
+  if (days === 1) return 'Story written yesterday';
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var when = d.getDate() + ' ' + MON[d.getMonth()] +
+             (d.getFullYear() === now.getFullYear() ? '' : ' ' + d.getFullYear());
+  return 'Story as of ' + when + ' (' + days + ' days ago)';
+}
+
+function _setStoryAge(iso) {
+  var foot = document.getElementById('ai-foot');
+  var age  = document.getElementById('ai-foot-age');
+  if (!foot || !age) return;
+  var label = _storyAgeLabel(iso);
+  age.textContent = label;
+  foot.style.display = label ? 'flex' : 'none';
+}
+
+function regenerateStory() {
+  if (!_storyOrderId) return;
+  var btn = document.getElementById('ai-regen');
+  if (btn) btn.disabled = true;      // one at a time: each one costs a model call
+  loadStorySummary(_storyOrderId, _storyOrderType, true);
+}
+
+function loadStorySummary(orderId, orderType, fresh) {
   _storyOrderId   = orderId;
   _storyOrderType = orderType || 'chevron';
   _storyChatHistory = [];
@@ -3585,12 +3618,14 @@ function loadStorySummary(orderId, orderType) {
   var msgs = document.getElementById('ai-msgs');
   card.style.display = 'block';
   msgs.innerHTML = '<div class="ai-msg ai-msg-ai" id="ai-stream-out"></div>';
+  _setStoryAge('');
   document.getElementById('ai-input').disabled = true;
   document.getElementById('ai-send').disabled  = true;
 
   var full = '';
   var el   = document.getElementById('ai-stream-out');
-  var url  = '/api/emails/summarize?order_id=' + encodeURIComponent(orderId) + '&type=' + encodeURIComponent(_storyOrderType);
+  var url  = '/api/emails/summarize?order_id=' + encodeURIComponent(orderId) + '&type=' + encodeURIComponent(_storyOrderType)
+           + (fresh ? '&fresh=1' : '');
 
   fetch(url, {headers: _authHeader ? {Authorization: _authHeader} : {}})
     .then(function(r) {
@@ -3611,7 +3646,9 @@ function loadStorySummary(orderId, orderType) {
             if (d === '[DONE]') return;
             try {
               var parsed = JSON.parse(d);
-              if (parsed.status) {
+              if (parsed.saved_at) {
+                _setStoryAge(parsed.saved_at);
+              } else if (parsed.status) {
                 if (!full && el) {
                   el.innerHTML = '<div class="ai-status"><div class="ai-status-dots"><span></span><span></span><span></span></div>' + _esc(parsed.status) + '</div>';
                 }
@@ -3631,9 +3668,15 @@ function loadStorySummary(orderId, orderType) {
       _storyChatHistory.push({role:'assistant', content: full});
       document.getElementById('ai-input').disabled = false;
       document.getElementById('ai-send').disabled  = false;
+      var rb = document.getElementById('ai-regen');
+      if (rb) rb.disabled = false;
       document.getElementById('ai-input').focus();
     })
     .catch(function() {
+      // Re-enable before hiding: a failed regenerate must not leave the button
+      // dead if the reader opens the drawer again.
+      var rb = document.getElementById('ai-regen');
+      if (rb) rb.disabled = false;
       card.style.display = 'none';
     });
 }
