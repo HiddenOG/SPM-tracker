@@ -69,15 +69,140 @@ from mcp.server.mcpserver import MCPServer
 
 from db import get_client
 
-mcp = MCPServer(
-    name="spm",
-    instructions=(
-        "Read-only lookups over SPMprocure360: Chevron and NLNG orders, "
-        "quotations, stored email threads and counted stock. Nothing here "
-        "writes. Every tool caps its own output, so ask a narrow question "
-        "rather than expecting a full table."
-    ),
+_INSTRUCTIONS = (
+    "Read-only lookups over SPMprocure360: Chevron and NLNG orders, "
+    "quotations, stored email threads and counted stock. Nothing here "
+    "writes. Every tool caps its own output, so ask a narrow question "
+    "rather than expecting a full table."
 )
+
+# Which transport is decided here, before the tools are registered, because
+# authentication is a constructor argument. Building a second server for HTTP
+# and copying the tools onto it is the obvious alternative and the wrong one -
+# a tool added to one and not the other would be missing over HTTP and nothing
+# would say so.
+_HTTP = "--http" in sys.argv or os.environ.get("MCP_TRANSPORT") == "http"
+
+
+# Connector tokens carry aud="mcp", and that one claim separates them from
+# website logins in both directions, with no change to web/app.py:
+#
+#   a connector token on the website  -> InvalidAudienceError
+#   a login token on this server      -> MissingRequiredClaimError
+#
+# Which is what makes a long-lived connector token reasonable. claude.ai sends
+# a FIXED header on every request, so a 7-day login token would need re-pasting
+# every week; a year-long one would be alarming if it doubled as a login. It
+# does not. A leaked connector token reads through these tools and cannot sign
+# in as anybody, and disabling the account still shuts both off.
+MCP_AUDIENCE = "mcp"
+
+
+class SPMTokenVerifier:
+    """Accepts a token minted for this server by an active SPM account.
+
+    Deliberately a verifier, not a full OAuth authorization server. The docs
+    are clear that claude.ai accepts a fixed credential in a request header, so
+    the OAuth dance would be a day's work to replace one pasted string.
+
+    Mirrors verify_jwt in web/app.py, including the live account check: a token
+    stays cryptographically valid until it expires, so without looking the user
+    up, disabling an account would not actually shut the door.
+    """
+
+    async def verify_token(self, token: str):
+        from mcp.server.auth.provider import AccessToken
+
+        secret = os.environ.get("JWT_SECRET", "")
+        if not secret or not token:
+            return None
+        try:
+            import jwt as pyjwt
+            payload = pyjwt.decode(token, secret, algorithms=["HS256"],
+                                   audience=MCP_AUDIENCE)
+        except Exception:
+            # Includes a plain login token, which is missing the audience and
+            # is refused here on purpose.
+            return None
+
+        user_id = str(payload.get("sub") or "")
+        if not user_id:
+            return None
+        try:
+            res = get_client().table("users").select(
+                "id,role,is_active,email").eq("id", user_id).execute()
+        except Exception:
+            # Database unreachable. The web app lets a valid token through here
+            # so the site stays usable; this does not. A read-only lookup tool
+            # is not worth opening on an unverifiable account.
+            print("  [mcp] user lookup failed - refusing the token")
+            return None
+        if not res.data or not res.data[0].get("is_active"):
+            return None
+
+        row = res.data[0]
+        return AccessToken(
+            token=token,
+            client_id=row.get("email") or user_id,
+            # The live role, not the one in the token, so a demotion applies
+            # without waiting for the token to expire.
+            scopes=[f"role:{row.get('role') or 'user'}"],
+            expires_at=payload.get("exp"),
+            subject=user_id,
+        )
+
+
+
+
+def _build_server() -> MCPServer:
+    """One server, with a login required only when it is reachable over HTTP.
+
+    Over stdio there is nothing to authenticate: the client is a program on
+    this machine, started by whoever is already logged into it. Over HTTP the
+    address is public and SUPABASE_KEY reads everything, so a token is the
+    whole difference between a private tool and an open database.
+    """
+    if not _HTTP:
+        return MCPServer(name="spm", instructions=_INSTRUCTIONS)
+
+    from mcp.server.auth.settings import AuthSettings
+
+    base = os.environ.get("MCP_PUBLIC_URL", "").rstrip("/")
+    if not base:
+        raise SystemExit(
+            "MCP_PUBLIC_URL must be the server's public https address, e.g.\n"
+            "  https://spm-tracker.up.railway.app\n"
+            "It goes into the metadata a client reads to find out where to "
+            "authenticate, so a wrong value fails in a way that is hard to "
+            "diagnose from the client end.")
+    if not os.environ.get("JWT_SECRET"):
+        raise SystemExit("JWT_SECRET must be set, and must match the web "
+                         "app's - it is what connector tokens are signed with.")
+
+    return MCPServer(
+        name="spm",
+        instructions=_INSTRUCTIONS,
+        token_verifier=SPMTokenVerifier(),
+        auth=AuthSettings(
+            issuer_url=base,
+            resource_server_url=base,
+            required_scopes=[],
+            # Set explicitly, because leaving it unset warns and will flip to
+            # True in MCP 3.0. False is right here: SPMTokenVerifier checks the
+            # audience itself, requiring aud="mcp", which is what separates a
+            # connector token from a website login. Letting the middleware
+            # check instead would mean the audience had to be this server's
+            # URL, so moving or renaming the deployment would invalidate every
+            # token already pasted into a connector.
+            validate_token_resource=False,
+        ),
+    )
+
+
+# Built once, here, so every tool below registers on the one server whichever
+# transport is in use.
+mcp = _build_server()
+
 
 # Hard ceiling on every tool. A question whose honest answer is "most of the
 # database" should come back trimmed and say so, rather than returning
@@ -757,5 +882,87 @@ def stock_on_hand(text: str = "", limit: int = 30) -> str:
     return "\n".join(out)
 
 
+# ── running it over HTTP, for a browser client ───────────────────────────────
+#
+# Over stdio there is nothing to authenticate: the client is a program on this
+# machine, started by the person already logged into it. Over HTTP there is,
+# because the address is public and SUPABASE_KEY reads everything.
+#
+# Rather than invent a shared password, this accepts the SAME token the web app
+# issues when somebody signs in to SPMprocure360. So access follows the
+# accounts that already exist: an account that is disabled loses the server too,
+# and nobody gets in who could not already log in. There is no second set of
+# credentials to manage or leak.
+
+
+def _mint_token(email: str, days: int = 365) -> None:
+    """Print a connector token for one SPM account.
+
+        python scripts/mcp_server.py --token someone@example.com
+        python scripts/mcp_server.py --token someone@example.com --days 90
+
+    Paste the result into the connector's request headers on claude.ai as
+    `Authorization: Bearer <token>`.
+    """
+    import jwt as pyjwt
+
+    secret = os.environ.get("JWT_SECRET", "")
+    if not secret:
+        raise SystemExit("JWT_SECRET is not set - it must match the web app's, "
+                         "or the token this prints will not verify.")
+    try:
+        res = get_client().table("users").select(
+            "id,email,role,is_active").eq("email", email).execute()
+    except Exception as exc:
+        raise SystemExit(f"Could not read users: {exc}")
+    if not res.data:
+        raise SystemExit(f"No account with email {email!r}.")
+    user = res.data[0]
+    if not user.get("is_active"):
+        raise SystemExit(f"{email} is not an active account.")
+
+    token = pyjwt.encode(
+        {
+            "sub": user["id"],
+            "role": user.get("role") or "user",
+            "aud": MCP_AUDIENCE,
+            "exp": datetime.now(timezone.utc) + timedelta(days=days),
+        },
+        secret,
+        algorithm="HS256",
+    )
+    print()
+    print(f"Connector token for {user['email']} ({user.get('role')}), "
+          f"valid {days} days.")
+    print()
+    print(token)
+    print()
+    print("On claude.ai: Settings -> Connectors -> Add custom connector,")
+    print("  URL     : <your MCP_PUBLIC_URL>/mcp")
+    print("  Headers : Authorization: Bearer <the token above>")
+    print()
+    print("It reads through the tools in this file and cannot sign in to the")
+    print("website - the website refuses it. To revoke, disable the account.")
+
+
 if __name__ == "__main__":
-    mcp.run()
+    if "--token" in sys.argv:
+        i = sys.argv.index("--token")
+        if i + 1 >= len(sys.argv):
+            raise SystemExit("usage: --token <email> [--days N]")
+        days = 365
+        if "--days" in sys.argv:
+            days = int(sys.argv[sys.argv.index("--days") + 1])
+        _mint_token(sys.argv[i + 1], days)
+        sys.exit(0)
+
+    # stdio stays the default, so Claude Code keeps working unchanged. The
+    # server itself was already built for the right transport at import time,
+    # with the tools registered on it either way - there is no second instance
+    # to keep in step.
+    if _HTTP:
+        port = int(os.environ.get("PORT", "8081"))
+        print(f"[mcp] http on :{port}, token required", flush=True)
+        mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
+    else:
+        mcp.run()

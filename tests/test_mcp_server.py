@@ -721,8 +721,160 @@ def test_it_needs_no_anthropic_key():
     assert "import anthropic" not in src
 
 
-def test_the_sdk_is_not_in_the_deployed_requirements():
-    """Railway builds requirements.txt. The MCP SDK is a local-only tool and
-    would be installed into the production image for nothing."""
-    reqs = (ROOT / "requirements.txt").read_text(encoding="utf-8").lower()
-    assert "\nmcp" not in reqs and not reqs.startswith("mcp")
+def test_the_sdk_is_in_the_deployed_requirements():
+    """This asserted the opposite until the server got its own Railway service.
+
+    The reasoning was that the SDK is a laptop-only tool and has no business in
+    the production image. That held while the only client was Claude Code over
+    stdio. Once the Procfile gained an `mcp` process, it stopped holding:
+    Railway builds ONE image from requirements.txt and shares it across web,
+    worker and mcp, so keeping the SDK in a separate file would have left that
+    process unable to start.
+    """
+    reqs = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+    lines = [l.strip() for l in reqs.split("\n")
+             if l.strip() and not l.strip().startswith("#")]
+    assert any(l.lower().startswith("mcp") for l in lines), lines
+    # And the separate file is gone, so there is one place to look.
+    assert not (ROOT / "requirements-mcp.txt").exists()
+
+
+def test_the_procfile_runs_it_as_its_own_process():
+    """Its own service rather than mounted into the web app: a connector
+    lookup can sit for a minute or two on a Gmail fetch, and the site runs on a
+    single async worker, so sharing it would make the website slow for everyone
+    while one question was answered."""
+    proc = (ROOT / "Procfile").read_text(encoding="utf-8")
+    mcp_line = [l for l in proc.split("\n") if l.startswith("mcp:")]
+    assert len(mcp_line) == 1, proc
+    assert "--http" in mcp_line[0]
+    assert "mcp_server.py" in mcp_line[0]
+
+
+def test_http_mode_refuses_to_start_half_configured():
+    """Both of these fail from the client end in ways that are hard to
+    diagnose - a wrong public URL sends a client to the wrong place to
+    authenticate, and a missing secret makes every token unverifiable. Better
+    to refuse at boot with a message."""
+    src = (ROOT / "scripts" / "mcp_server.py").read_text(encoding="utf-8")
+    build = src.split("def _build_server")[1].split("\nmcp = ")[0]
+    assert "MCP_PUBLIC_URL" in build
+    assert "JWT_SECRET" in build
+    assert build.count("raise SystemExit") == 2
+
+
+# ── who the HTTP server lets in ─────────────────────────────────────────────
+
+def test_a_connector_token_cannot_log_into_the_website():
+    """The whole reason a connector token can be long-lived. claude.ai sends a
+    FIXED header on every request, so a 7-day login token would need
+    re-pasting weekly - and a year-long one would be alarming if it doubled as
+    a website login. The audience claim means it does not: the web app's
+    decode, which passes no audience, raises on it."""
+    import jwt as pyjwt
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    secret = "x" * 32
+    connector = pyjwt.encode(
+        {"sub": "u1", "role": "admin", "aud": M.MCP_AUDIENCE,
+         "exp": _dt.now(_tz.utc) + _td(days=365)}, secret, algorithm="HS256")
+    with pytest.raises(pyjwt.InvalidAudienceError):
+        pyjwt.decode(connector, secret, algorithms=["HS256"])
+
+
+def test_a_website_login_token_cannot_reach_the_mcp_server():
+    """The separation has to hold both ways, or the long expiry is the only
+    thing standing between a leaked login and the whole database."""
+    import jwt as pyjwt
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    secret = "x" * 32
+    login = pyjwt.encode({"sub": "u1", "role": "admin",
+                          "exp": _dt.now(_tz.utc) + _td(days=7)},
+                         secret, algorithm="HS256")
+    with pytest.raises(pyjwt.MissingRequiredClaimError):
+        pyjwt.decode(login, secret, algorithms=["HS256"],
+                     audience=M.MCP_AUDIENCE)
+
+
+def _verify(monkeypatch, token, users=None, raise_db=False):
+    import asyncio
+    monkeypatch.setenv("JWT_SECRET", "x" * 32)
+    if raise_db:
+        def _boom():
+            raise Exception("supabase unreachable")
+        monkeypatch.setattr(M, "get_client", _boom)
+    else:
+        monkeypatch.setattr(M, "get_client", lambda: _client(
+            users=users if users is not None else
+            [{"id": "u1", "email": "f@spm.com", "role": "admin", "is_active": True}]))
+    return asyncio.run(M.SPMTokenVerifier().verify_token(token))
+
+
+def _tok(**over):
+    import jwt as pyjwt
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    claims = {"sub": "u1", "role": "admin", "aud": M.MCP_AUDIENCE,
+              "exp": _dt.now(_tz.utc) + _td(days=1)}
+    claims.update(over.pop("claims", {}))
+    return pyjwt.encode(claims, over.pop("secret", "x" * 32), algorithm="HS256")
+
+
+def test_a_proper_connector_token_is_accepted(monkeypatch):
+    got = _verify(monkeypatch, _tok())
+    assert got is not None
+    assert got.subject == "u1"
+    assert "role:admin" in got.scopes
+
+
+def test_the_live_role_wins_over_the_one_in_the_token(monkeypatch):
+    """So a demotion applies immediately rather than when the token expires -
+    and with a year-long token, "when it expires" is no answer at all."""
+    got = _verify(monkeypatch, _tok(claims={"role": "admin"}),
+                  users=[{"id": "u1", "email": "f@spm.com",
+                          "role": "warehouse", "is_active": True}])
+    assert "role:warehouse" in got.scopes
+    assert "role:admin" not in got.scopes
+
+
+def test_a_disabled_account_loses_the_connector_too(monkeypatch):
+    """How you revoke a token. Without the live lookup, disabling somebody's
+    account would leave their connector working for up to a year."""
+    assert _verify(monkeypatch, _tok(),
+                   users=[{"id": "u1", "email": "f@spm.com",
+                           "role": "admin", "is_active": False}]) is None
+
+
+def test_an_account_that_no_longer_exists_is_refused(monkeypatch):
+    assert _verify(monkeypatch, _tok(), users=[]) is None
+
+
+def test_a_token_signed_with_the_wrong_secret_is_refused(monkeypatch):
+    assert _verify(monkeypatch, _tok(secret="y" * 32)) is None
+
+
+def test_an_expired_token_is_refused(monkeypatch):
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    assert _verify(monkeypatch, _tok(
+        claims={"exp": _dt.now(_tz.utc) - _td(days=1)})) is None
+
+
+def test_a_token_with_no_subject_is_refused(monkeypatch):
+    assert _verify(monkeypatch, _tok(claims={"sub": ""})) is None
+
+
+def test_an_unreachable_database_refuses_rather_than_waving_it_through(monkeypatch):
+    """web/app.py lets a valid token through when the database is down, so the
+    site stays usable. This does not: a read-only lookup tool is not worth
+    opening on an account nobody can verify."""
+    assert _verify(monkeypatch, _tok(), raise_db=True) is None
+
+
+def test_no_secret_configured_refuses_everything(monkeypatch):
+    import asyncio
+    monkeypatch.setenv("JWT_SECRET", "")
+    assert asyncio.run(M.SPMTokenVerifier().verify_token(_tok())) is None
+
+
+def test_an_empty_token_is_refused(monkeypatch):
+    import asyncio
+    monkeypatch.setenv("JWT_SECRET", "x" * 32)
+    assert asyncio.run(M.SPMTokenVerifier().verify_token("")) is None
