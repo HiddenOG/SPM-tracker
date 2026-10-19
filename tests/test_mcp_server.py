@@ -90,11 +90,11 @@ def _order(po, **kw):
 
 # ── where an order sits ─────────────────────────────────────────────────────
 
-def test_the_furthest_stage_reached_is_what_counts():
-    """Read from the end backwards. An order that has been dispatched has been
-    dispatched whether or not every earlier box is ticked - the auditor fills
-    those gaps in later, and a live call on PO 4200093075 found one: stock
-    check blank, but the SPM PO sent and the SO received."""
+def test_the_most_recent_stamp_is_what_counts():
+    """Not the furthest along a fixed sequence. A gap in the middle - which the
+    gap auditor fills in later - must not misreport progress; PO 4200093075 has
+    that shape, with the stock check blank but the SPM PO sent and the SO
+    received."""
     row = {"sent_to_warehouse_at": _ago(90),
            "stock_check_completed_at": None,          # the gap
            "spm_po_sent_at": _ago(60),
@@ -102,6 +102,41 @@ def test_the_furthest_stage_reached_is_what_counts():
     label, _, waited = M._where_it_sits(row, M._CHEVRON_STAGES)
     assert label == "supplier acknowledged (SO)"
     assert 54 <= waited <= 56
+
+
+def test_a_later_stamp_out_of_sequence_still_wins():
+    """The bug this replaced. Walking a fixed order backwards reported
+    PO 0061378648 as 220 days at "SPM PO sent to supplier" when its delivery
+    request had been stamped 74 days earlier, and PO 0061409193 as 171 days at
+    "stock check completed" when a delivery request came in 17 days before.
+    These stages do not happen in a strict order, so the latest stamp is the
+    only honest answer to "has this moved lately?"."""
+    row = {"spm_po_sent_at": _ago(220),
+           "delivery_requested_at": _ago(74)}
+    label, _, waited = M._where_it_sits(row, M._CHEVRON_STAGES)
+    assert label == "client requested delivery"
+    assert 73 <= waited <= 75
+
+
+def test_a_delivery_request_is_in_the_stage_list_at_all():
+    """It was missing from the first version, inherited from
+    _build_order_context which also omits it, and 34 orders carry that
+    status - so most of a reported "72 orders stuck" was that one gap."""
+    cols = [c for c, _ in M._CHEVRON_STAGES]
+    assert "delivery_requested_at" in cols
+
+
+def test_row_bookkeeping_is_not_mistaken_for_activity():
+    """created_at and updated_at say when the ROW was written, not when
+    anything happened. PO 0061367679 has created_at 2026-07-06, months after
+    its last real event, so counting it would hide a genuinely stale order."""
+    cols = [c for c, _ in M._CHEVRON_STAGES]
+    assert "created_at" not in cols
+    assert "updated_at" not in cols
+    row = {"spm_po_sent_at": _ago(235), "created_at": _ago(3),
+           "updated_at": _ago(1)}
+    _, _, waited = M._where_it_sits(row, M._CHEVRON_STAGES)
+    assert 234 <= waited <= 236
 
 
 def test_an_order_with_nothing_stamped_says_so():
@@ -359,15 +394,168 @@ def test_the_newest_mail_comes_first(monkeypatch):
 
 def test_no_mail_found_explains_the_coverage(monkeypatch):
     """Rather than implying the mail does not exist. Before an order has been
-    walked by the archiver, only what a listener recognised is here."""
+    walked, only what a listener recognised is stored, and the reply has to say
+    so or an answer gets built on a gap."""
     monkeypatch.setattr(M, "get_client", lambda: _client(emails=[]))
-    out = M.search_mail("anything")
-    assert "archiver" in out.lower()
+    out = M.search_mail(text="anything")
+    assert "email_thread_sync" in out
+    assert "refresh_order_mail" in out
+    assert "message(s) stored" in out
 
 
-def test_an_empty_search_is_refused(monkeypatch):
+def test_no_filters_returns_recent_mail_rather_than_refusing(monkeypatch):
+    """Changed deliberately. The first version demanded a search word, which
+    meant the only questions askable were the ones it had been built for. With
+    every filter optional, "what has come in lately" is a question too - and it
+    is how you see what the archive actually holds."""
+    monkeypatch.setattr(M, "get_client", lambda: _client(emails=[
+        {"message_id": "<a@x>", "subject": "Recent", "from_address": "f@x.com",
+         "to_address": "s@x.com", "received_at": "2026-10-16T08:00:00",
+         "direction": "in", "body_text": "hello", "order_id": "o1"}]))
+    out = M.search_mail()
+    assert "Recent" in out
+
+
+def test_filters_combine_with_and(monkeypatch):
+    """The point of making them general: any combination is a question. A
+    sender who did write, but not in that month, must not match."""
+    rows = [
+        {"message_id": "<a@x>", "subject": "A", "from_address": "penny@flexitallic.eu",
+         "to_address": "spm@x.com", "received_at": "2026-09-18T08:00:00",
+         "direction": "in", "body_text": "delay on the forwarder", "order_id": "o1"},
+        {"message_id": "<b@x>", "subject": "B", "from_address": "penny@flexitallic.eu",
+         "to_address": "spm@x.com", "received_at": "2026-06-01T08:00:00",
+         "direction": "in", "body_text": "delay on the forwarder", "order_id": "o1"},
+        {"message_id": "<c@x>", "subject": "C", "from_address": "dsv@x.com",
+         "to_address": "spm@x.com", "received_at": "2026-09-20T08:00:00",
+         "direction": "in", "body_text": "delay on the forwarder", "order_id": "o1"},
+    ]
+    monkeypatch.setattr(M, "get_client", lambda: _client(emails=rows))
+    out = M.search_mail(sender="flexitallic", text="delay",
+                        since="2026-09-01", until="2026-09-30")
+    assert "subject: A" in out or "] RECV A" in out
+    assert "] RECV B" not in out      # right sender, wrong month
+    assert "] RECV C" not in out      # right month, wrong sender
+
+
+def test_until_includes_the_whole_day_given(monkeypatch):
+    """until="2026-09-30" has to include the 30th. Comparing a full timestamp
+    against a bare date would silently drop that day."""
+    monkeypatch.setattr(M, "get_client", lambda: _client(emails=[
+        {"message_id": "<a@x>", "subject": "LastDay", "from_address": "f@x",
+         "to_address": "s@x", "received_at": "2026-09-30T23:30:00",
+         "direction": "in", "body_text": "x", "order_id": "o1"}]))
+    assert "LastDay" in M.search_mail(until="2026-09-30")
+
+
+def test_sent_and_received_can_be_told_apart(monkeypatch):
+    monkeypatch.setattr(M, "get_client", lambda: _client(emails=[
+        {"message_id": "<a@x>", "subject": "Ours", "from_address": "spm@x",
+         "to_address": "f@x", "received_at": "2026-09-01", "direction": "out",
+         "body_text": "x", "order_id": "o1"},
+        {"message_id": "<b@x>", "subject": "Theirs", "from_address": "f@x",
+         "to_address": "spm@x", "received_at": "2026-09-02", "direction": "in",
+         "body_text": "x", "order_id": "o1"}]))
+    assert "Ours" in M.search_mail(direction="out")
+    assert "Theirs" not in M.search_mail(direction="out")
+    assert "Theirs" in M.search_mail(direction="in")
+
+
+def test_a_message_id_is_printed_so_it_can_be_read_in_full(monkeypatch):
+    """search_mail returns excerpts; read_message needs the id to go deeper.
+    Without the id in the output the two tools cannot be combined."""
+    monkeypatch.setattr(M, "get_client", lambda: _client(emails=[
+        {"message_id": "<findme@x>", "subject": "S", "from_address": "f@x",
+         "to_address": "s@x", "received_at": "2026-09-01", "direction": "in",
+         "body_text": "x" * 900, "order_id": "o1"}]))
+    out = M.search_mail(text="x")
+    assert "<findme@x>" in out
+    assert "full_bodies" in out      # and says how to get the whole thing
+
+
+def test_full_bodies_returns_the_whole_message(monkeypatch):
+    monkeypatch.setattr(M, "get_client", lambda: _client(emails=[
+        {"message_id": "<a@x>", "subject": "S", "from_address": "f@x",
+         "to_address": "s@x", "received_at": "2026-09-01", "direction": "in",
+         "body_text": "START " + "y" * 800 + " END", "order_id": "o1"}]))
+    brief = M.search_mail(text="START")
+    whole = M.search_mail(text="START", full_bodies=True)
+    assert "END" not in brief
+    assert "END" in whole
+
+
+# ── reading a thread end to end ─────────────────────────────────────────────
+
+def _thread_client(order_po="4200093075", msgs=None):
+    return _client(
+        orders=[],
+        nlng_orders=[{"id": "n1", "po_number": order_po}],
+        emails=msgs or [])
+
+
+def test_a_thread_reads_oldest_first(monkeypatch):
+    """A conversation is read forwards. Newest-first is right for a search
+    result and wrong for following what happened."""
+    monkeypatch.setattr(M, "get_client", lambda: _thread_client(msgs=[
+        {"message_id": "<b@x>", "subject": "second", "from_address": "f@x",
+         "to_address": "s@x", "received_at": "2026-09-02", "direction": "in",
+         "body_text": "later", "nlng_order_id": "n1"},
+        {"message_id": "<a@x>", "subject": "first", "from_address": "f@x",
+         "to_address": "s@x", "received_at": "2026-09-01", "direction": "in",
+         "body_text": "earlier", "nlng_order_id": "n1"}]))
+    out = M.read_mail_thread("4200093075")
+    assert out.index("first") < out.index("second")
+
+
+def test_an_undated_message_is_not_read_as_the_latest(monkeypatch):
+    """It is of unknown age. Put last, it reads as the most recent thing that
+    happened - the same trap the archiver and the story both guard against."""
+    monkeypatch.setattr(M, "get_client", lambda: _thread_client(msgs=[
+        {"message_id": "<a@x>", "subject": "dated", "from_address": "f@x",
+         "to_address": "s@x", "received_at": "2026-09-01", "direction": "in",
+         "body_text": "x", "nlng_order_id": "n1"},
+        {"message_id": "<u@x>", "subject": "undated", "from_address": "f@x",
+         "to_address": "s@x", "received_at": None, "direction": "in",
+         "body_text": "x", "nlng_order_id": "n1"}]))
+    out = M.read_mail_thread("4200093075")
+    assert out.index("undated") < out.index("dated")
+
+
+def test_an_oversized_thread_says_what_it_cut(monkeypatch):
+    """A 41-message thread ran to 280 lines. Cutting silently would have an
+    answer built on a conversation that stopped early without saying so."""
+    msgs = [{"message_id": f"<m{i}@x>", "subject": f"msg{i}",
+             "from_address": "f@x", "to_address": "s@x",
+             "received_at": "2026-09-%02d" % (i + 1), "direction": "in",
+             "body_text": "z" * 4000, "nlng_order_id": "n1"}
+            for i in range(40)]
+    monkeypatch.setattr(M, "get_client", lambda: _thread_client(msgs=msgs))
+    out = M.read_mail_thread("4200093075")
+    assert "40 message(s)" in out
+    assert "showing the first" in out
+    assert "since=" in out          # and how to read on
+
+
+def test_a_thread_with_nothing_stored_points_at_the_refresh(monkeypatch):
+    monkeypatch.setattr(M, "get_client", lambda: _thread_client(msgs=[]))
+    out = M.read_mail_thread("4200093075")
+    assert "refresh_order_mail" in out
+
+
+def test_reading_one_message_gives_the_whole_body(monkeypatch):
+    monkeypatch.setattr(M, "get_client", lambda: _client(emails=[
+        {"message_id": "<a@x>", "subject": "S", "from_address": "f@x.com",
+         "to_address": "s@x.com", "received_at": "2026-09-01T10:00:00",
+         "direction": "out", "body_text": "START " + "y" * 2000 + " END",
+         "order_id": "o1"}]))
+    out = M.read_message("<a@x>")
+    assert "START" in out and "END" in out
+    assert "SENT by SPM" in out
+
+
+def test_an_unknown_message_id_says_so(monkeypatch):
     monkeypatch.setattr(M, "get_client", lambda: _client(emails=[]))
-    assert "search the mail for" in M.search_mail("")
+    assert "No stored message" in M.read_message("<nope@x>")
 
 
 # ── stock_on_hand ───────────────────────────────────────────────────────────
@@ -512,9 +700,10 @@ def test_every_tool_that_can_return_many_rows_caps_itself():
     own shape - one PO in, that order out - so a row cap would be noise."""
     src = (ROOT / "scripts" / "mcp_server.py").read_text(encoding="utf-8")
     bodies = src.split("@mcp.tool()")[1:]
-    assert len(bodies) == 7
+    assert len(bodies) == 9
     # Bounded by their own shape: one PO in, one order (or one sync) out.
-    bounded_by_shape = {"order_detail", "refresh_order_mail"}
+    bounded_by_shape = {"order_detail", "refresh_order_mail",
+                        "read_mail_thread", "read_message"}
     for b in bodies:
         name = b.split("def ", 1)[1].split("(", 1)[0]
         if name in bounded_by_shape:

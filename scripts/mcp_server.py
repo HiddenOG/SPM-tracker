@@ -87,15 +87,24 @@ MAX_ROWS = 60
 # The pipeline, in order, with the column that records each step. Used to work
 # out where an order has stopped: the last stamped stage is where it sits.
 _CHEVRON_STAGES = [
+    ("notification_received_at",      "PO notification received"),
     ("acknowledged_at",               "acknowledged on GEP"),
     ("sent_to_warehouse_at",          "sent to warehouse for stock check"),
     ("stock_check_completed_at",      "stock check completed"),
+    ("spm_po_drafted_at",             "SPM PO drafted"),
     ("spm_po_sent_at",                "SPM PO sent to supplier"),
     ("so_received_at",                "supplier acknowledged (SO)"),
+    ("so_sent_to_warehouse_at",       "SO forwarded to warehouse"),
     ("flex_dispatch_ready_at",        "supplier says packed and ready"),
     ("dispatch_instructions_sent_at", "dispatch instructions sent"),
     ("ready_for_dispatch_at",         "collection arranged"),
     ("dispatched_at",                 "dispatched"),
+    # Client-initiated and easy to miss: it was left out of the first version
+    # of this list, which inflated how long 34 orders looked stuck. It does not
+    # sit at a fixed point in the sequence - a client can chase delivery at
+    # several stages - which is part of why the most recent stamp is what
+    # counts here rather than a position in a list.
+    ("delivery_requested_at",         "client requested delivery"),
     ("delivered_at",                  "delivered"),
 ]
 # NLNG has no GEP acknowledgement step - the order arrives as a PDF.
@@ -136,16 +145,35 @@ def _days_since(iso: str) -> int | None:
 
 
 def _where_it_sits(row: dict, stages: list) -> tuple[str, str, int | None]:
-    """The furthest stage this order has reached, when, and days since.
+    """The order's most recent activity: what it was, when, and days since.
 
-    Read from the end backwards so a gap in the middle does not misreport
-    progress - the auditor fills those in later, and an order that has been
-    dispatched has been dispatched whether or not every earlier box is ticked.
+    The MOST RECENT stamp, not the furthest along a fixed sequence. An earlier
+    version walked the stage list backwards and took the last one reached,
+    which was wrong in a way that read as authoritative:
+
+        PO 0061378648 was reported as 220 days at "SPM PO sent to supplier",
+        when delivery_requested_at was stamped 2026-08-05 - about 74 days.
+        PO 0061409193 was reported as 171 days at "stock check completed",
+        when its delivery request came in on 2026-10-02, seventeen days before.
+
+    Two causes. delivery_requested_at was missing from the stage list
+    altogether, inherited from _build_order_context which also omits it, and 34
+    orders carry that status. And a fixed sequence cannot answer "has this
+    moved lately?" anyway: these stages do not happen in a strict order, so the
+    furthest one reached is not the latest thing that happened.
+
+    created_at and updated_at are deliberately excluded. They are row
+    bookkeeping, not activity - PO 0061367679 has created_at 2026-07-06, months
+    after its last real event, from when the row was written.
     """
-    for col, label in reversed(stages):
-        if row.get(col):
-            return label, _d(row[col]), _days_since(row[col])
-    return "nothing stamped yet", "—", None
+    best = None
+    for col, label in stages:
+        when = row.get(col)
+        if when and (best is None or str(when) > str(best[0])):
+            best = (when, label)
+    if best is None:
+        return "nothing stamped yet", "—", None
+    return best[1], _d(best[0]), _days_since(best[0])
 
 
 # ── orders ───────────────────────────────────────────────────────────────────
@@ -392,56 +420,235 @@ def search_quotes(text: str = "", client: str = "", since: str = "",
 
 # ── email ────────────────────────────────────────────────────────────────────
 
-@mcp.tool()
-def search_mail(text: str, limit: int = 15) -> str:
-    """Search the stored email threads by subject and body.
+# The mail tools below are deliberately general rather than one tool per
+# question. An earlier version had a single search that took only a word and
+# returned fixed excerpts, which meant only the questions it had been built for
+# could be asked. These three - filter, read a whole thread, read one message -
+# let any question about the correspondence be answered by combining them.
+#
+# A character budget rather than only a row count, because message bodies vary
+# from one line to forty. Whatever is cut is said out loud, so an answer is
+# never built on a thread that was silently truncated.
+_MAIL_CHARS = 60_000
 
-    Coverage depends on what the archiver has walked. email_thread_sync stores
-    each order's whole Gmail thread as stories are told and on its own
-    schedule, so this gets more complete over time; before an order has been
-    walked, only the mail a listener recognised is here.
+
+def _order_ids_for_po(db, po_number: str) -> list[tuple[str, str]]:
+    """[(order_id, order_type)] for a PO, trying leading-zero variants."""
+    found = []
+    po = (po_number or "").strip()
+    if not po:
+        return found
+    for table, otype, po_col in (("orders", "chevron", "buyer_po_number"),
+                                 ("nlng_orders", "nlng", "po_number")):
+        for cand in {po, po.lstrip("0"), po.zfill(10)}:
+            try:
+                res = db.table(table).select("id").eq(po_col, cand).execute()
+            except Exception:
+                continue
+            for r in res.data or []:
+                found.append((r["id"], otype))
+    return found
+
+
+def _mail_rows(db):
+    return db.table("emails").select(
+        "message_id,subject,from_address,to_address,received_at,direction,"
+        "body_text,order_id,nlng_order_id").execute().data or []
+
+
+def _coverage_note(total: int) -> str:
+    return (f"({total} message(s) stored. Threads are archived per order by "
+            f"email_thread_sync; an order it has not walked yet holds only the "
+            f"mail a listener recognised. refresh_order_mail(po) fetches one "
+            f"order's thread from Gmail now.)")
+
+
+@mcp.tool()
+def search_mail(text: str = "", sender: str = "", recipient: str = "",
+                subject: str = "", since: str = "", until: str = "",
+                direction: str = "", po_number: str = "",
+                limit: int = 20, full_bodies: bool = False) -> str:
+    """Search the stored email. Any combination of filters; all are optional.
+
+    Filters combine with AND. Give none and you get the most recent mail, which
+    is a reasonable way to see what the archive holds.
 
     Args:
-        text: words to look for.
+        text: words appearing anywhere in the subject or body.
+        sender: part of a from address or name, e.g. "flexitallic" or "penny".
+        recipient: part of a to address.
+        subject: words in the subject only.
+        since: ISO date, e.g. "2026-09-01".
+        until: ISO date.
+        direction: "in" for received, "out" for sent by SPM, blank for both.
+        po_number: limit to one order's thread.
         limit: most messages to return.
+        full_bodies: true returns whole message bodies rather than an excerpt
+            around the match. Use when you need to read what was actually said.
     """
-    needle = (text or "").strip()
-    if not needle:
-        return "What should I search the mail for?"
     db = get_client()
     try:
-        rows = db.table("emails").select(
-            "subject,from_address,received_at,direction,body_text,"
-            "order_id,nlng_order_id").execute().data or []
+        rows = _mail_rows(db)
     except Exception as exc:
         return f"Could not read emails: {exc}"
+    total = len(rows)
 
-    low = needle.lower()
-    hits = [r for r in rows
-            if low in (r.get("subject") or "").lower()
-            or low in (r.get("body_text") or "").lower()]
-    if not hits:
-        return (f"No stored mail mentions {needle!r}. "
-                f"({len(rows)} message(s) on file - an order the archiver has "
-                f"not walked yet will only have the mail a listener recognised.)")
+    if po_number:
+        ids = _order_ids_for_po(db, po_number)
+        if not ids:
+            return f"No order found with PO {po_number!r}."
+        keep = {i for i, _ in ids}
+        rows = [r for r in rows
+                if r.get("order_id") in keep or r.get("nlng_order_id") in keep]
 
-    # Undated first, matching how a thread is ordered everywhere else.
-    hits.sort(key=lambda r: r.get("received_at") or "", reverse=True)
-    shown = hits[:min(limit, MAX_ROWS)]
-    out = [f"{len(hits)} message(s) mention {needle!r}" +
-           (f" - showing {len(shown)}, newest first" if len(shown) < len(hits)
-            else ", newest first") + ":"]
-    for r in shown:
-        out.append("  [%s] %-4s %s" % (
-            _d(r.get("received_at")) if r.get("received_at") else "undated",
-            "SENT" if r.get("direction") == "out" else "RECV",
-            (r.get("subject") or "(no subject)")[:62]))
-        out.append("        from %s" % (r.get("from_address") or "?")[:62])
+    low = (text or "").strip().lower()
+    if low:
+        rows = [r for r in rows
+                if low in (r.get("subject") or "").lower()
+                or low in (r.get("body_text") or "").lower()]
+    if sender:
+        s = sender.lower()
+        rows = [r for r in rows if s in (r.get("from_address") or "").lower()]
+    if recipient:
+        t = recipient.lower()
+        rows = [r for r in rows if t in (r.get("to_address") or "").lower()]
+    if subject:
+        sj = subject.lower()
+        rows = [r for r in rows if sj in (r.get("subject") or "").lower()]
+    if since:
+        rows = [r for r in rows if str(r.get("received_at") or "") >= since]
+    if until:
+        # Inclusive of the whole day given, so until="2026-09-30" includes it.
+        rows = [r for r in rows if str(r.get("received_at") or "")[:10] <= until[:10]]
+    if direction in ("in", "out"):
+        rows = [r for r in rows if (r.get("direction") or "in") == direction]
+
+    if not rows:
+        return "Nothing stored matches those filters.\n" + _coverage_note(total)
+
+    rows.sort(key=lambda r: r.get("received_at") or "", reverse=True)
+    out, used, shown = [], 0, 0
+    for r in rows[:min(limit, MAX_ROWS)]:
         body = " ".join((r.get("body_text") or "").split())
-        at = body.lower().find(low)
-        if at >= 0:
-            out.append("        …%s…" % body[max(0, at - 70):at + 110])
-    return "\n".join(out)
+        if full_bodies:
+            chunk = body
+        elif low and low in body.lower():
+            at = body.lower().find(low)
+            chunk = "…" + body[max(0, at - 120):at + 260] + "…"
+        else:
+            chunk = body[:260] + ("…" if len(body) > 260 else "")
+        block = (
+            "  [%s] %-4s %s\n          from %s\n          to   %s\n          id   %s\n          %s"
+            % (_d(r.get("received_at")) if r.get("received_at") else "undated",
+               "SENT" if r.get("direction") == "out" else "RECV",
+               (r.get("subject") or "(no subject)")[:70],
+               (r.get("from_address") or "?")[:70],
+               (r.get("to_address") or "?")[:70],
+               r.get("message_id") or "?",
+               chunk))
+        if used + len(block) > _MAIL_CHARS and shown:
+            break
+        out.append(block)
+        used += len(block)
+        shown += 1
+
+    head = f"{len(rows)} message(s) match"
+    if shown < len(rows):
+        head += f" - showing {shown}, newest first (ask for more, or narrow the filters)"
+    else:
+        head += ", newest first"
+    tail = "" if full_bodies else \
+        "\n\nBodies are excerpts. Pass full_bodies=true, or use read_mail_thread, to read them in full."
+    return head + ":\n" + "\n\n".join(out) + tail
+
+
+@mcp.tool()
+def read_mail_thread(po_number: str, full_bodies: bool = True,
+                     since: str = "") -> str:
+    """One order's whole conversation, oldest first, for reading end to end.
+
+    This is the tool for "what actually happened on this order" - it returns
+    the correspondence itself rather than a summary, so the reasoning is done
+    on what people wrote.
+
+    Args:
+        po_number: the client PO number, with or without leading zeros.
+        full_bodies: whole bodies (default) or first lines only.
+        since: ISO date, to read only from a point onwards.
+    """
+    db = get_client()
+    ids = _order_ids_for_po(db, po_number)
+    if not ids:
+        return f"No order found with PO {po_number!r}."
+    keep = {i for i, _ in ids}
+    try:
+        rows = [r for r in _mail_rows(db)
+                if r.get("order_id") in keep or r.get("nlng_order_id") in keep]
+    except Exception as exc:
+        return f"Could not read emails: {exc}"
+    if since:
+        rows = [r for r in rows if str(r.get("received_at") or "") >= since]
+    if not rows:
+        return (f"No mail stored for PO {po_number}. "
+                f"Try refresh_order_mail({po_number!r}) to fetch it from Gmail.")
+
+    # Oldest first, undated ahead of dated: an undated message is of unknown
+    # age, and putting it last would read as the most recent thing that
+    # happened.
+    rows.sort(key=lambda r: r.get("received_at") or "")
+    out, used, shown = [], 0, 0
+    for r in rows:
+        body = " ".join((r.get("body_text") or "").split())
+        if not full_bodies:
+            body = body[:300] + ("…" if len(body) > 300 else "")
+        block = "  [%s] %s\n  from %s\n  subject: %s\n  %s" % (
+            _d(r.get("received_at")) if r.get("received_at") else "undated",
+            "SENT by SPM" if r.get("direction") == "out" else "RECEIVED",
+            (r.get("from_address") or "?")[:76],
+            (r.get("subject") or "(no subject)")[:76],
+            body)
+        if used + len(block) > _MAIL_CHARS and shown:
+            break
+        out.append(block)
+        used += len(block)
+        shown += 1
+
+    head = f"PO {po_number}: {len(rows)} message(s), oldest first"
+    if shown < len(rows):
+        head += (f" - showing the first {shown}. The rest were cut to stay "
+                 f"within a sensible size; pass since=<date> to read on from "
+                 f"where this stops")
+    return head + ":\n\n" + "\n\n---\n\n".join(out)
+
+
+@mcp.tool()
+def read_message(message_id: str) -> str:
+    """One message in full, by the id that search_mail prints.
+
+    Args:
+        message_id: the Message-ID, e.g. "<abc123@mail.gmail.com>".
+    """
+    mid = (message_id or "").strip()
+    if not mid:
+        return "Which message id? search_mail prints one for each result."
+    db = get_client()
+    try:
+        res = db.table("emails").select("*").eq("message_id", mid).execute()
+    except Exception as exc:
+        return f"Could not read emails: {exc}"
+    if not res.data:
+        return f"No stored message with id {mid!r}."
+    r = res.data[0]
+    return "\n".join([
+        f"date:      {r.get('received_at') or 'undated'}",
+        f"direction: {'SENT by SPM' if r.get('direction') == 'out' else 'RECEIVED'}",
+        f"from:      {r.get('from_address') or '?'}",
+        f"to:        {r.get('to_address') or '?'}",
+        f"subject:   {r.get('subject') or '(no subject)'}",
+        f"id:        {r.get('message_id')}",
+        "",
+        (r.get("body_text") or "(empty body)").strip(),
+    ])
 
 
 # ── stock ────────────────────────────────────────────────────────────────────
