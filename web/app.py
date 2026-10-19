@@ -1460,7 +1460,8 @@ def _load_ai_memory(order_id: str, order_type: str) -> str:
         return ""
 
 
-def _get_saved_story(order_id: str, order_type: str) -> tuple[str, str]:
+def _get_saved_story(order_id: str, order_type: str,
+                     po_number: str = "", so_number: str = "") -> tuple[str, str]:
     """The last story written for this order, and when. ("", "") if there is none.
 
     Deliberately not _load_ai_memory: that one formats the summary together with
@@ -1495,9 +1496,32 @@ def _get_saved_story(order_id: str, order_type: str) -> tuple[str, str]:
         if not summary:
             return ("", "")
 
+        # Free check first: mail a listener recognised, already on file.
         newest = _newest_email_at(db, order_id, order_type)
         if newest and written and newest > written:
             return ("", "")        # mail has landed since - write a new one
+
+        # Then ask Gmail, because the table cannot answer this on its own. It
+        # only holds what a listener recognised - a tenth to a quarter of a
+        # thread, measured - so a reply nobody parsed leaves the table looking
+        # unchanged and this story would keep being served while the email sat
+        # unread in Gmail. Nothing else in the system would notice.
+        #
+        # Cheap on purpose: latest_gmail_date asks for dates, not bodies, so it
+        # is a search plus a few bytes a message rather than the 80 seconds a
+        # 41-message thread takes to fetch in full.
+        if written and po_number:
+            try:
+                import email_thread_sync as ets
+                live = ets.latest_gmail_date(po_number, so_number)
+            except Exception as exc:
+                print(f"  [warn] latest_gmail_date: {exc}")
+                live = None
+            # None means "could not ask", never "nothing new". Serving the
+            # saved story is right in that case - it arrives with its date on
+            # screen and a Regenerate button, which is the honest fallback.
+            if live and live > written:
+                return ("", "")
         return (summary, written)
     except Exception as exc:
         print(f"  [warn] _get_saved_story: {exc}")
@@ -1676,18 +1700,23 @@ def get_emails(order_id: str, type: str = "chevron", user: dict = Depends(verify
 @app.get("/api/emails/summarize")
 def email_summarize(order_id: str, type: str = "chevron", fresh: int = 0,
                     user: dict = Depends(verify_jwt)):
-    # A story that has already been written is served as it stands: no Gmail
-    # search, no model call, nothing to wait for. It carries the date it was
-    # written so the reader can see its age and ask for a new one - the whole
-    # point of showing the age rather than quietly serving old text.
+    # Needed before the staleness check, which asks Gmail about this PO's
+    # thread. It used to sit below, and moving the check above it without
+    # moving this read UnboundLocalError on every non-fresh request.
+    po_number, so_number = _get_po_number(order_id, type)
+
+    # A story already written is served as it stands - no model call, and only
+    # a dates-only Gmail query to confirm nothing has arrived since. It carries
+    # the date it was written, so its age is on screen rather than implied.
     #
-    # "Has a new email arrived?" would be the obvious trigger for refreshing on
-    # its own, and it is deliberately NOT used: the emails table only holds mail
-    # a listener recognised, while the story reads the whole Gmail thread. A
-    # reply nobody parsed would leave the check saying nothing had changed. So
-    # the reader decides, from a date they can see.
+    # That Gmail query is the part that makes this honest. The emails table
+    # cannot answer "has new mail arrived?" by itself: it only holds what a
+    # listener recognised, a tenth to a quarter of a thread, so a reply nobody
+    # parsed leaves the table looking unchanged. Without asking Gmail, a saved
+    # story would keep being served while the email sat unread, and nothing in
+    # the system would notice.
     if not fresh:
-        saved, saved_at = _get_saved_story(order_id, type)
+        saved, saved_at = _get_saved_story(order_id, type, po_number, so_number)
         if saved:
             def _saved_gen():
                 yield f"data: {json.dumps({'saved_at': saved_at})}\n\n"
@@ -1712,8 +1741,6 @@ def email_summarize(order_id: str, type: str = "chevron", fresh: int = 0,
                 yield f"data: {json.dumps({'c': cached_text})}\n\n"
                 yield "data: [DONE]\n\n"
             return StreamingResponse(_cached_gen(), media_type="text/event-stream", headers=_sse_headers())
-
-    po_number, so_number = _get_po_number(order_id, type)
 
     def _gen():
         try:

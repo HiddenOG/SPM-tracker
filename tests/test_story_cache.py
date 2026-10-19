@@ -221,6 +221,111 @@ def test_a_failed_mail_lookup_still_serves_the_story(monkeypatch):
     assert text == "A story."
 
 
+# ── noticing mail that no listener caught ───────────────────────────────────
+# The gap that was put to me plainly: if the listeners miss an email and the
+# story reads the emails table, how would it ever know? It would not. The table
+# holds a tenth to a quarter of a thread, so a reply nobody parsed left it
+# looking unchanged and the saved story kept being served while the email sat
+# unread in Gmail. Nothing in the system would have noticed.
+#
+# So Gmail is asked, for dates only - measured at 4.0s against the 80s the same
+# thread takes to fetch in full.
+
+def _gmail_says(monkeypatch, written, live, table_newest=None):
+    app = _app()
+    rows = [{"order_id": "o1", "order_type": "chevron",
+             "summary": "A story.", "updated_at": written}]
+    emails = ([{"order_id": "o1", "received_at": table_newest}]
+              if table_newest else [])
+    monkeypatch.setattr(app, "get_client", lambda: _db_with(rows, emails))
+    import email_thread_sync as ets
+    monkeypatch.setattr(ets, "latest_gmail_date",
+                        lambda po, so="": live)
+    return app
+
+
+def test_gmail_newer_than_the_story_withholds_it(monkeypatch):
+    """Even with nothing newer in the table - which is the whole point."""
+    app = _gmail_says(monkeypatch, "2026-09-01T10:00:00+00:00",
+                      "2026-09-20T10:00:00+00:00")
+    assert app._get_saved_story("o1", "chevron", "PO1") == ("", "")
+
+
+def test_gmail_with_nothing_newer_serves_the_saved_story(monkeypatch):
+    app = _gmail_says(monkeypatch, "2026-09-21T10:00:00+00:00",
+                      "2026-09-20T10:00:00+00:00")
+    text, _ = app._get_saved_story("o1", "chevron", "PO1")
+    assert text == "A story."
+
+
+def test_gmail_being_unreachable_serves_the_story_rather_than_failing(monkeypatch):
+    """None means "could not ask", never "nothing new". The story arrives with
+    its date on screen and a Regenerate button, which is the honest fallback -
+    refusing to show anything would be worse."""
+    app = _gmail_says(monkeypatch, "2026-09-01T10:00:00+00:00", None)
+    text, _ = app._get_saved_story("o1", "chevron", "PO1")
+    assert text == "A story."
+
+
+def test_a_raising_gmail_check_also_serves_the_story(monkeypatch):
+    app = _app()
+    rows = [{"order_id": "o1", "order_type": "chevron",
+             "summary": "A story.", "updated_at": "2026-09-01T10:00:00+00:00"}]
+    monkeypatch.setattr(app, "get_client", lambda: _db_with(rows, []))
+    import email_thread_sync as ets
+
+    def _boom(po, so=""):
+        raise Exception("imap timeout")
+
+    monkeypatch.setattr(ets, "latest_gmail_date", _boom)
+    text, _ = app._get_saved_story("o1", "chevron", "PO1")
+    assert text == "A story."
+
+
+def test_gmail_is_not_asked_when_the_table_already_knows(monkeypatch):
+    """The free check runs first. Asking Gmail costs 4 seconds, so there is no
+    reason to when the answer is already on file."""
+    app = _app()
+    rows = [{"order_id": "o1", "order_type": "chevron",
+             "summary": "A story.", "updated_at": "2026-09-01T10:00:00+00:00"}]
+    emails = [{"order_id": "o1", "received_at": "2026-09-20T10:00:00"}]
+    monkeypatch.setattr(app, "get_client", lambda: _db_with(rows, emails))
+    import email_thread_sync as ets
+    asked = []
+    monkeypatch.setattr(ets, "latest_gmail_date",
+                        lambda po, so="": asked.append(po) or None)
+    assert app._get_saved_story("o1", "chevron", "PO1") == ("", "")
+    assert asked == []
+
+
+def test_gmail_is_not_asked_without_a_po_number(monkeypatch):
+    """There is nothing to search for, and the search would match the whole
+    mailbox rather than one thread."""
+    app = _app()
+    rows = [{"order_id": "o1", "order_type": "chevron",
+             "summary": "A story.", "updated_at": "2026-09-01T10:00:00+00:00"}]
+    monkeypatch.setattr(app, "get_client", lambda: _db_with(rows, []))
+    import email_thread_sync as ets
+    asked = []
+    monkeypatch.setattr(ets, "latest_gmail_date",
+                        lambda po, so="": asked.append(po) or "2026-09-20")
+    text, _ = app._get_saved_story("o1", "chevron", "")
+    assert text == "A story."
+    assert asked == []
+
+
+def test_the_po_number_is_worked_out_before_the_check_runs():
+    """It was not, briefly: the check was moved above the line that looks up
+    the PO number, which UnboundLocalError'd on every non-fresh request - every
+    story open. Caught before it shipped, but only just."""
+    src = (WEB / "app.py").read_text(encoding="utf-8")
+    body = src.split("def email_summarize")[1].split("\n@app.")[0]
+    assert body.index("_get_po_number(order_id, type)") < \
+        body.index("_get_saved_story(order_id, type, po_number")
+    # And only looked up once.
+    assert body.count("_get_po_number(order_id, type)") == 1
+
+
 def test_it_is_not_the_same_function_that_feeds_the_prompt():
     """_load_ai_memory mixes in sibling-order context because it is building
     prompt input. Serving that to a reader would show them another order's

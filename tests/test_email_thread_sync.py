@@ -223,6 +223,76 @@ def test_the_same_message_twice_is_stored_once():
     assert len(ets.fetch_thread("PO1", imap=imap)) == 1
 
 
+class _SeedThenThreadIMAP(_FakeIMAP):
+    """A seed search that finds less than the thread search does.
+
+    The plain fake returns every message whatever is asked, so dropping the
+    thread-widening step made no difference to it - which a mutation run caught:
+    removing the widening from fetch_thread passed unnoticed.
+
+    Here the X-GM-RAW search finds only the messages naming the PO, and the
+    X-GM-THRID search finds the whole conversation. That is the real shape, and
+    the gap between the two is the mail the listeners miss.
+    """
+
+    def __init__(self, seed_uids, thread_uids, messages, thrid=42):
+        super().__init__(messages, thrid=thrid)
+        self.seed_uids, self.thread_uids = seed_uids, thread_uids
+
+    def search(self, criteria):
+        flat = " ".join(str(c) for c in criteria)
+        if "X-GM-THRID" in flat:
+            return list(self.thread_uids)
+        return list(self.seed_uids)
+
+
+def test_a_reply_that_names_no_po_number_is_still_collected():
+    """The whole reason the archiver exists. A "Noted, thanks" reply quotes no
+    PO number, so the seed search cannot find it - only widening to the thread
+    does, and that is precisely the mail no listener recognises either."""
+    msgs = {
+        1: _rfc822("<names-po@x>", "f@x.com", "s@x.com", "Re: PO 0061365256",
+                   "quotes the number", "Thu, 01 Jan 2026 09:00:00 +0000"),
+        2: _rfc822("<quotes-nothing@x>", "f@x.com", "s@x.com", "Noted",
+                   "Noted, thanks.", "Fri, 02 Jan 2026 09:00:00 +0000"),
+        3: _rfc822("<also-nothing@x>", "f@x.com", "s@x.com", "RE:",
+                   "Will chase.", "Sat, 03 Jan 2026 09:00:00 +0000"),
+    }
+    imap = _SeedThenThreadIMAP(seed_uids=[1], thread_uids=[1, 2, 3], messages=msgs)
+    got = ets.fetch_thread("0061365256", imap=imap)
+    subjects = [e["subject"] for e in got]
+    assert len(got) == 3, subjects
+    assert "Noted" in subjects
+    assert "RE:" in subjects
+
+
+def test_the_newest_date_comes_from_the_widened_thread_too():
+    """Same gap on the cheap check: if the newest message in a thread happens
+    to be the one quoting nothing, a seed-only search reports an older date and
+    a stale story keeps being served."""
+    from datetime import datetime as _dt
+
+    class _Dated(_SeedThenThreadIMAP):
+        def __init__(self, dates):
+            super().__init__(seed_uids=[1], thread_uids=list(dates),
+                             messages={u: b"" for u in dates})
+            self.dates = dates
+
+        def fetch(self, uids, parts):
+            if "X-GM-THRID" in parts:
+                return {u: {b"X-GM-THRID": self.thrid} for u in uids}
+            if "INTERNALDATE" in parts:
+                return {u: {b"INTERNALDATE": self.dates[u]}
+                        for u in uids if u in self.dates}
+            return {}
+
+    got = ets.latest_gmail_date("PO1", imap=_Dated({
+        1: _dt(2026, 1, 1, tzinfo=timezone.utc),
+        2: _dt(2026, 9, 21, tzinfo=timezone.utc),   # newest, quotes nothing
+    }))
+    assert got.startswith("2026-09-21")
+
+
 def test_a_passed_in_connection_is_left_open():
     """A pass reuses one login across several orders, so fetch_thread must not
     log out a connection it was handed."""
@@ -378,6 +448,106 @@ def test_the_body_is_capped():
     imap = _FakeIMAP({1: _rfc822("<a@x>", "f@x.com", "s@x.com", "Big", "x" * 80_000,
                                  "Thu, 01 Jan 2026 09:00:00 +0000")})
     assert len(ets.fetch_thread("PO1", imap=imap)[0]["body_text"]) == 50_000
+
+
+# ── latest_gmail_date: the cheap "has anything arrived?" question ───────────
+# Tested through a fake IMAP for the same reason fetch_thread is: every other
+# test stubs it out, and a first mutation run proved the gap - pulling full
+# bodies instead of dates, and a failed query claiming "nothing new", both
+# passed unnoticed.
+
+class _DatedIMAP(_FakeIMAP):
+    """Serves INTERNALDATE, and records which parts were asked for."""
+
+    def __init__(self, dates, thrid=42):
+        super().__init__({u: b"" for u in dates}, thrid=thrid)
+        self.dates = dates
+        self.asked = []
+
+    def fetch(self, uids, parts):
+        self.asked.append(tuple(parts))
+        if "X-GM-THRID" in parts:
+            return {u: {b"X-GM-THRID": self.thrid} for u in uids}
+        if "INTERNALDATE" in parts:
+            return {u: {b"INTERNALDATE": self.dates[u]}
+                    for u in uids if u in self.dates}
+        return {}
+
+
+def test_the_newest_date_in_the_thread_is_returned():
+    from datetime import datetime as _dt
+    imap = _DatedIMAP({
+        1: _dt(2026, 9, 1, 9, 0, tzinfo=timezone.utc),
+        2: _dt(2026, 9, 21, 15, 39, 55, tzinfo=timezone.utc),
+        3: _dt(2026, 6, 30, 3, 28, tzinfo=timezone.utc),
+    })
+    got = ets.latest_gmail_date("4200093075", imap=imap)
+    assert got.startswith("2026-09-21T15:39:55")
+
+
+def test_it_asks_for_dates_not_bodies():
+    """This is what makes it cheap: 4 seconds against the 80 the same thread
+    takes to fetch in full. Asking for RFC822 here would quietly reintroduce
+    the whole cost on every story open."""
+    from datetime import datetime as _dt
+    imap = _DatedIMAP({1: _dt(2026, 9, 1, tzinfo=timezone.utc)})
+    ets.latest_gmail_date("PO1", imap=imap)
+    asked = [p for parts in imap.asked for p in parts]
+    assert "INTERNALDATE" in asked
+    assert "RFC822" not in asked
+
+
+def test_it_widens_to_the_whole_thread():
+    """A reply that quotes no PO number is exactly the mail the listeners miss,
+    so it must be counted here or the check has the same blind spot."""
+    from datetime import datetime as _dt
+    imap = _DatedIMAP({1: _dt(2026, 9, 1, tzinfo=timezone.utc)})
+    ets.latest_gmail_date("PO1", imap=imap)
+    assert any("X-GM-THRID" in parts for parts in imap.asked)
+
+
+def test_a_failed_search_says_it_does_not_know():
+    """None, never a date. A caller reads a date as "nothing newer than this"
+    and would serve a stale story for ever."""
+    assert ets.latest_gmail_date("PO1", imap=_FailingSearch({1: b"x"})) is None
+
+
+def test_a_failed_date_fetch_also_says_it_does_not_know():
+    class _NoDates(_DatedIMAP):
+        def fetch(self, uids, parts):
+            self.asked.append(tuple(parts))
+            if "X-GM-THRID" in parts:
+                return {u: {b"X-GM-THRID": self.thrid} for u in uids}
+            raise Exception("connection reset")
+
+    from datetime import datetime as _dt
+    assert ets.latest_gmail_date(
+        "PO1", imap=_NoDates({1: _dt(2026, 9, 1, tzinfo=timezone.utc)})) is None
+
+
+def test_a_thread_matching_nothing_says_it_does_not_know():
+    assert ets.latest_gmail_date("PO1", imap=_DatedIMAP({})) is None
+
+
+def test_gmail_not_configured_says_it_does_not_know(monkeypatch):
+    monkeypatch.setattr(ets, "open_imap", lambda: None)
+    assert ets.latest_gmail_date("PO1") is None
+
+
+def test_a_naive_date_is_treated_as_utc():
+    """IMAP servers vary. A naive datetime compared against a timezone-aware
+    story date raises, which would have surfaced as the whole check failing."""
+    from datetime import datetime as _dt
+    got = ets.latest_gmail_date("PO1", imap=_DatedIMAP({1: _dt(2026, 9, 1, 9, 0)}))
+    assert got is not None
+    assert got.endswith("+00:00")
+
+
+def test_a_handed_in_connection_is_not_logged_out():
+    from datetime import datetime as _dt
+    imap = _DatedIMAP({1: _dt(2026, 9, 1, tzinfo=timezone.utc)})
+    ets.latest_gmail_date("PO1", imap=imap)
+    assert imap.logged_out is False
 
 
 # ── store_thread ────────────────────────────────────────────────────────────

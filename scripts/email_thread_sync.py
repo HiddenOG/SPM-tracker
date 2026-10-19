@@ -274,6 +274,94 @@ def fetch_thread(po_number: str, so_number: str = "", imap=None) -> list[dict]:
 
 # ── the table ────────────────────────────────────────────────────────────────
 
+def latest_gmail_date(po_number: str, so_number: str = "", imap=None) -> str | None:
+    """When the newest message in this order's Gmail thread arrived, or None.
+
+    The cheap question. fetch_thread pulls every message in full - 80 seconds
+    for a 41-message thread, over 7 minutes for 145 - because a story has to be
+    written from the words. This only asks the server for dates, so it is a
+    search plus a few bytes per message: about 3 seconds on a warm connection.
+
+    It exists because nothing else can answer "has new mail arrived?" honestly.
+    The emails table only holds what a listener recognised - measured at a
+    tenth to a quarter of a thread - so a reply nobody parsed leaves the table
+    looking unchanged, and a saved story would keep being served while the
+    email sat unread in Gmail.
+
+    Returns None when Gmail cannot be reached or the thread is not found, which
+    callers must read as "do not know" rather than "nothing new".
+    """
+    own = imap is None
+    if own:
+        try:
+            imap = open_imap()
+        except Exception as exc:
+            print(f"  ⚠️  latest_gmail_date login: {exc}")
+            return None
+        if imap is None:
+            return None
+    try:
+        stripped = po_number.lstrip("0")
+        terms = [f'"{po_number}"']
+        if stripped and stripped != po_number:
+            terms.append(f'"{stripped}"')
+        if so_number:
+            terms.append(f'"{so_number}"')
+        try:
+            seed = set(imap.search(["X-GM-RAW", " OR ".join(terms)]))
+        except Exception as exc:
+            print(f"  ⚠️  latest_gmail_date search {po_number}: {exc}")
+            return None
+        if not seed:
+            return None
+
+        # Widen to the whole thread, the same as fetch_thread, so a reply that
+        # names nothing is still counted. Without this, the newest message in a
+        # thread could be missed precisely because it quoted no PO number.
+        uids = set(seed)
+        try:
+            thread_data = imap.fetch(list(seed), ["X-GM-THRID"])
+            tids = list({v[b"X-GM-THRID"] for v in thread_data.values()
+                         if b"X-GM-THRID" in v})
+            if tids:
+                try:
+                    uids.update(imap.search(_or_tree(
+                        [["X-GM-THRID", str(t)] for t in tids])))
+                except Exception:
+                    for t in tids:
+                        try:
+                            uids.update(imap.search(["X-GM-THRID", str(t)]))
+                        except Exception:
+                            pass
+        except Exception:
+            pass          # the seed alone is a usable answer
+
+        try:
+            # INTERNALDATE only - no RFC822, which is what makes this cheap.
+            dated = imap.fetch(list(uids), ["INTERNALDATE"])
+        except Exception as exc:
+            print(f"  ⚠️  latest_gmail_date dates {po_number}: {exc}")
+            return None
+        newest = None
+        for v in dated.values():
+            when = v.get(b"INTERNALDATE")
+            if when is None:
+                continue
+            if newest is None or when > newest:
+                newest = when
+        if newest is None:
+            return None
+        if newest.tzinfo is None:
+            newest = newest.replace(tzinfo=timezone.utc)
+        return newest.isoformat()
+    finally:
+        if own:
+            try:
+                imap.logout()
+            except Exception:
+                pass
+
+
 def store_thread(order_id: str, order_type: str, emails: list[dict]) -> int:
     """Write these emails against this order. Returns how many were written."""
     written = 0
