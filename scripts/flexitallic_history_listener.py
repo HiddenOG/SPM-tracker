@@ -1,4 +1,4 @@
-"""
+﻿"""
 flexitallic_history_listener.py - keep the Suppliers page current, live.
 
 The Flexitallic history and client PO values were built by one-off backfills,
@@ -63,6 +63,12 @@ AUDIT_SINCE = date(2024, 1, 1)
 
 _last_reconcile: datetime | None = None
 _last_audit: datetime | None = None
+
+# Paused by default (Oct 2026) while Gmail throttles the mailbox's IMAP access:
+# every acknowledgement is fetched whole, PDF included, and each worker restart
+# re-reads 14 days of them and sweeps every one since 2024. The Suppliers page
+# is hidden meanwhile. Set FLEX_HISTORY_ENABLED=1 to switch it back on.
+ENABLED = os.environ.get("FLEX_HISTORY_ENABLED", "0").strip().lower() in ("1", "true", "yes")
 
 
 def _seed_cursor(imap, uidvalidity: int) -> None:
@@ -259,6 +265,11 @@ def audit(fix: bool = True) -> dict[str, dict]:
 
 def run_forever() -> None:
     global _last_reconcile, _last_audit
+    if not ENABLED:
+        # Idle rather than return: the worker restarts any parser that returns.
+        print("📦 Flexitallic history listener paused (FLEX_HISTORY_ENABLED is not set) - no Gmail access.", flush=True)
+        while True:
+            time.sleep(3600)
     interval = int(os.environ.get("CHECK_INTERVAL_SECONDS", 600))
     print(f"📦 Flexitallic history listener started. Checking every {interval}s.")
     consecutive_errors = 0

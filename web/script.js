@@ -442,9 +442,12 @@ function startPolling() {
 function toggleFunnelLabel(el) { el.classList.toggle('tapped'); }
 
 // ── Role-based access ─────────────────────────────────────────────────────────
+// 'suppliers' is left out on purpose while its listener is paused (Oct 2026,
+// Gmail IMAP throttling) - see FLEX_HISTORY_ENABLED. Put it back after
+// 'orders' for admin and procurement to show the page again.
 var ROLE_PAGES = {
-  admin:       ['dashboard','orders','suppliers','delays','reports','quotes','purchase-orders','stock','products','settings','team','messages'],
-  procurement: ['dashboard','orders','suppliers','delays','reports','quotes','purchase-orders','stock','products','settings','messages'],
+  admin:       ['dashboard','orders','delays','reports','quotes','purchase-orders','stock','products','settings','team','messages'],
+  procurement: ['dashboard','orders','delays','reports','quotes','purchase-orders','stock','products','settings','messages'],
   expeditor:   ['dashboard','orders','delays','stock','products','settings','messages'],
   // The warehouse is who actually walks the shelves and counts, so stock is
   // theirs before it is anyone else's.
