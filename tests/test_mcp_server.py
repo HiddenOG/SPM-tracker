@@ -586,11 +586,41 @@ def test_stock_can_be_filtered_by_description(monkeypatch):
 # ── read-only, and that is the security boundary ────────────────────────────
 
 def _server_code() -> str:
+    """The module's executable code: no comments, no docstrings.
+
+    Docstrings have to go too. Three tests in this file have now been written
+    that searched for a forbidden pattern and found it in the very docstring
+    explaining why it is forbidden - passing or failing for the wrong reason
+    either way. Stripping them here means a search hits real code or nothing.
+    """
+    import ast
+
     src = (ROOT / "scripts" / "mcp_server.py").read_text(encoding="utf-8")
-    # Comments out, and sys.path.insert is not a database call.
-    return "\n".join(l for l in src.split("\n")
-                     if not l.lstrip().startswith("#")
-                     and "sys.path.insert" not in l)
+    tree = ast.parse(src)
+    doc_lines: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.FunctionDef,
+                                 ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        body = getattr(node, "body", None)
+        if not body:
+            continue
+        first = body[0]
+        if (isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)):
+            doc_lines.update(range(first.lineno, (first.end_lineno or first.lineno) + 1))
+
+    out = []
+    for n, line in enumerate(src.split("\n"), start=1):
+        if n in doc_lines:
+            continue
+        if line.lstrip().startswith("#"):
+            continue
+        if "sys.path.insert" in line:      # not a database call
+            continue
+        out.append(line)
+    return "\n".join(out)
 
 
 def test_nothing_here_writes_to_the_database_directly():
@@ -752,15 +782,62 @@ def test_the_procfile_runs_it_as_its_own_process():
 
 
 def test_http_mode_refuses_to_start_half_configured():
-    """Both of these fail from the client end in ways that are hard to
-    diagnose - a wrong public URL sends a client to the wrong place to
-    authenticate, and a missing secret makes every token unverifiable. Better
-    to refuse at boot with a message."""
+    """Both fail from the client end in ways that are hard to diagnose, so the
+    service refuses at boot with a message instead.
+
+    The check moved from _build_server to _http_app when the SDK's auth was
+    dropped - see the next test for why."""
     src = (ROOT / "scripts" / "mcp_server.py").read_text(encoding="utf-8")
+    body = src.split("def _http_app")[1].split("\ndef ")[0]
+    assert "MCP_PUBLIC_URL" in body
+    assert "JWT_SECRET" in body
+    assert body.count("raise SystemExit") == 2
+
+
+def test_the_server_does_not_advertise_oauth():
+    """The bug a real client found, and nothing local would have.
+
+    Configuring the SDK's AuthSettings / token_verifier turns the server into
+    an OAuth resource server: its 401 carries a WWW-Authenticate pointing at
+    /.well-known/oauth-protected-resource. claude.ai reads that, concludes the
+    server speaks OAuth, tries to register as a client, and fails - because
+    nothing here issues tokens:
+
+        "Couldn't register with SPM's sign-in service. You can try again, or
+         add an OAuth Client ID in the connector settings."
+
+    It never offers the request-header option, because the server said it did
+    not need one. The token check is plain middleware now, and the 401 it
+    returns carries no WWW-Authenticate at all. That absence is the feature:
+    it leaves the client nothing to negotiate, so it sends the fixed header it
+    was configured with."""
+    src = (ROOT / "scripts" / "mcp_server.py").read_text(encoding="utf-8")
+    code = _server_code()
+    assert "AuthSettings" not in code
+    assert "token_verifier=" not in code
+    assert "WWW-Authenticate" not in code
+    # The server itself is built plain; auth is wrapped around it.
     build = src.split("def _build_server")[1].split("\nmcp = ")[0]
-    assert "MCP_PUBLIC_URL" in build
-    assert "JWT_SECRET" in build
-    assert build.count("raise SystemExit") == 2
+    assert "MCPServer(name=\"spm\", instructions=_INSTRUCTIONS)" in build
+
+
+def test_the_token_gate_wraps_the_app_rather_than_the_sdk():
+    """Starlette takes middleware through add_middleware; the
+    @app.middleware("http") decorator is FastAPI's and raises AttributeError
+    on this app, which is how the first attempt failed."""
+    body = _server_code().split("def _http_app")[1].split("\ndef ")[0]
+    assert "add_middleware" in body
+    assert '@app.middleware' not in body
+    assert "BaseHTTPMiddleware" in body
+
+
+def test_health_answers_without_a_token():
+    """So Railway can tell the service is alive without holding a credential.
+    Everything else needs one."""
+    src = (ROOT / "scripts" / "mcp_server.py").read_text(encoding="utf-8")
+    body = src.split("def _http_app")[1].split("\ndef ")[0]
+    assert '"/health"' in body
+    assert "401" in body
 
 
 # ── who the HTTP server lets in ─────────────────────────────────────────────

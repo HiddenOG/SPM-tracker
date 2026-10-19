@@ -155,48 +155,24 @@ class SPMTokenVerifier:
 
 
 def _build_server() -> MCPServer:
-    """One server, with a login required only when it is reachable over HTTP.
+    """The server. Authentication is NOT configured through the SDK here.
 
-    Over stdio there is nothing to authenticate: the client is a program on
-    this machine, started by whoever is already logged into it. Over HTTP the
-    address is public and SUPABASE_KEY reads everything, so a token is the
-    whole difference between a private tool and an open database.
+    It was, via AuthSettings and token_verifier, and that was wrong in a way
+    only a real client showed. Those settings make the server advertise OAuth:
+    its 401 carries a WWW-Authenticate pointing at
+    /.well-known/oauth-protected-resource. claude.ai reads that, concludes the
+    server speaks OAuth, and tries to register as a client - which fails,
+    because nothing here issues tokens:
+
+        "Couldn't register with SPM's sign-in service. You can try again, or
+         add an OAuth Client ID in the connector settings."
+
+    It never offers the request-header option, because the server said it did
+    not need one. So the token check moved to plain middleware (see
+    _http_app): a 401 with no OAuth hint, which is what a client needs to see
+    before it will just send the header it was given.
     """
-    if not _HTTP:
-        return MCPServer(name="spm", instructions=_INSTRUCTIONS)
-
-    from mcp.server.auth.settings import AuthSettings
-
-    base = os.environ.get("MCP_PUBLIC_URL", "").rstrip("/")
-    if not base:
-        raise SystemExit(
-            "MCP_PUBLIC_URL must be the server's public https address, e.g.\n"
-            "  https://spm-tracker.up.railway.app\n"
-            "It goes into the metadata a client reads to find out where to "
-            "authenticate, so a wrong value fails in a way that is hard to "
-            "diagnose from the client end.")
-    if not os.environ.get("JWT_SECRET"):
-        raise SystemExit("JWT_SECRET must be set, and must match the web "
-                         "app's - it is what connector tokens are signed with.")
-
-    return MCPServer(
-        name="spm",
-        instructions=_INSTRUCTIONS,
-        token_verifier=SPMTokenVerifier(),
-        auth=AuthSettings(
-            issuer_url=base,
-            resource_server_url=base,
-            required_scopes=[],
-            # Set explicitly, because leaving it unset warns and will flip to
-            # True in MCP 3.0. False is right here: SPMTokenVerifier checks the
-            # audience itself, requiring aud="mcp", which is what separates a
-            # connector token from a website login. Letting the middleware
-            # check instead would mean the audience had to be this server's
-            # URL, so moving or renaming the deployment would invalidate every
-            # token already pasted into a connector.
-            validate_token_resource=False,
-        ),
-    )
+    return MCPServer(name="spm", instructions=_INSTRUCTIONS)
 
 
 # Built once, here, so every tool below registers on the one server whichever
@@ -895,6 +871,59 @@ def stock_on_hand(text: str = "", limit: int = 30) -> str:
 # credentials to manage or leak.
 
 
+def _http_app():
+    """The MCP app with a bearer-token gate in front of it.
+
+    Deliberately hand-rolled rather than the SDK's auth, because the SDK's
+    turns the server into an OAuth resource server and a client then tries to
+    register with an authorization server that does not exist. All that is
+    wanted here is: read one header, verify it, refuse plainly.
+
+    The 401 carries no WWW-Authenticate pointing anywhere. That absence is the
+    point - it leaves a client with nothing to negotiate, so it sends the fixed
+    header it was configured with instead of starting a sign-in dance.
+    """
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import JSONResponse
+
+    base = os.environ.get("MCP_PUBLIC_URL", "").rstrip("/")
+    if not base:
+        raise SystemExit(
+            "MCP_PUBLIC_URL must be the service's public https address, e.g.\n"
+            "  https://bubbly-miracle-production-8a59.up.railway.app")
+    if not os.environ.get("JWT_SECRET"):
+        raise SystemExit(
+            "JWT_SECRET must be set, and must match the value the WEB service "
+            "uses - connector tokens are signed with it, and a different value "
+            "rejects every token with no clue as to why.")
+
+    app = mcp.streamable_http_app(host="0.0.0.0")
+    verifier = SPMTokenVerifier()
+
+    class _RequireToken(BaseHTTPMiddleware):
+        # Starlette takes middleware through add_middleware; the
+        # @app.middleware("http") decorator is FastAPI's, and this app is a
+        # plain Starlette one.
+        async def dispatch(self, request, call_next):
+            # The health path answers without a credential, so a platform can
+            # check the service is alive without holding one.
+            if request.url.path in ("/", "/health"):
+                return JSONResponse({"ok": True, "service": "spm-mcp"})
+
+            header = request.headers.get("Authorization", "")
+            token = header[7:].strip() if header.lower().startswith("bearer ") else ""
+            if not token or await verifier.verify_token(token) is None:
+                return JSONResponse(
+                    {"error": "unauthorized",
+                     "detail": "Send Authorization: Bearer <token>. Mint one "
+                               "with scripts/mcp_server.py --token <email>."},
+                    status_code=401)
+            return await call_next(request)
+
+    app.add_middleware(_RequireToken)
+    return app
+
+
 def _mint_token(email: str, days: int = 365) -> None:
     """Print a connector token for one SPM account.
 
@@ -961,8 +990,11 @@ if __name__ == "__main__":
     # with the tools registered on it either way - there is no second instance
     # to keep in step.
     if _HTTP:
+        import uvicorn
         port = int(os.environ.get("PORT", "8081"))
-        print(f"[mcp] http on :{port}, token required", flush=True)
-        mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
+        print(f"[mcp] http on :{port}, bearer token required", flush=True)
+        # Served directly rather than through mcp.run(), so the token check
+        # wraps the app and no OAuth is advertised.
+        uvicorn.run(_http_app(), host="0.0.0.0", port=port, log_level="info")
     else:
         mcp.run()
