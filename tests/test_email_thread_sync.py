@@ -1023,8 +1023,24 @@ def test_the_archiver_is_off_by_default(monkeypatch):
 def test_switched_off_it_idles_rather_than_returning():
     """worker.py runs each listener in `while True: fn()`, so returning would
     be called straight back and spin."""
-    src = (ROOT / "scripts" / "email_thread_sync.py").read_text(encoding="utf-8")
-    body = src.split("def run_forever")[1].split("\ndef ")[0]
-    off = body.split("if not ENABLED:")[1].split("print(f\"[thread_sync] started")[0]
-    assert "time.sleep" in off
-    assert "return" not in off.split("while True")[1] if "while True" in off else False
+    import threading
+    calls = []
+    done = threading.Event()
+
+    def fake_sleep(secs):
+        calls.append(secs)
+        if len(calls) >= 3:
+            done.set()
+            raise SystemExit      # end the idle loop once it has proved it idles
+
+    orig_enabled, orig_sleep = ets.ENABLED, ets.time.sleep
+    ets.ENABLED = False
+    ets.time.sleep = fake_sleep
+    try:
+        with pytest.raises(SystemExit):
+            ets.run_forever()
+    finally:
+        ets.ENABLED, ets.time.sleep = orig_enabled, orig_sleep
+    # It slept, repeatedly, and never did a pass.
+    assert done.is_set()
+    assert all(s >= 60 for s in calls)
