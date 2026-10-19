@@ -82,6 +82,20 @@ _SKIP_SUBJECTS = ("SPM CNL Purchase Orders",)
 # would eventually be spent re-reading threads that cannot change.
 _TERMINAL_STATUSES = {"delivered", "cancelled"}
 
+# Gmail logins to this mailbox were measured at 27.9 seconds, against what was
+# a 30 second timeout. That is close enough that an ordinary login was
+# occasionally timing out, and the timeout surfaced as "this PO has no mail".
+IMAP_TIMEOUT = int(os.environ.get("THREAD_SYNC_IMAP_TIMEOUT", "90"))
+
+
+class ThreadSyncFailed(Exception):
+    """Gmail could not be asked - as distinct from asked and having no mail.
+
+    The difference decides whether the order is stamped as walked. Stamping a
+    failure means not trying again for six hours, and a thread that was never
+    read looking exactly like a thread with nothing in it.
+    """
+
 
 # ── Gmail ────────────────────────────────────────────────────────────────────
 
@@ -99,7 +113,8 @@ def open_imap():
     pw = os.environ.get("GMAIL_APP_PASSWORD", "")
     if not addr or not pw:
         return None
-    imap = IMAPClient("imap.gmail.com", port=993, use_uid=True, ssl=True, timeout=30)
+    imap = IMAPClient("imap.gmail.com", port=993, use_uid=True, ssl=True,
+                      timeout=IMAP_TIMEOUT)
     imap.login(addr, pw)
     imap.select_folder("[Gmail]/All Mail", readonly=True)
     return imap
@@ -162,7 +177,8 @@ def fetch_thread(po_number: str, so_number: str = "", imap=None) -> list[dict]:
     if own:
         imap = open_imap()
         if imap is None:
-            return []
+            raise ThreadSyncFailed("Gmail is not configured "
+                                   "(GMAIL_EMAIL / GMAIL_APP_PASSWORD)")
     try:
         stripped = po_number.lstrip("0")
         terms = [f'"{po_number}"']
@@ -171,10 +187,18 @@ def fetch_thread(po_number: str, so_number: str = "", imap=None) -> list[dict]:
         if so_number:
             terms.append(f'"{so_number}"')
 
+        # A failed search is raised, not swallowed. It used to return an empty
+        # list, which sync_thread then recorded as a successful walk that found
+        # nothing - stamping the order as done and not trying again for six
+        # hours. A live run showed exactly that: a Chevron PO came back with 0
+        # emails after 416 seconds, was stamped email_count=0, and the three
+        # messages the listeners had already found were the only ones that
+        # would ever be there. "No mail" and "could not look" have to be told
+        # apart, because only one of them should stop us retrying.
         try:
             seed = set(imap.search(["X-GM-RAW", " OR ".join(terms)]))
-        except Exception:
-            seed = set()
+        except Exception as exc:
+            raise ThreadSyncFailed(f"search failed for {po_number}: {exc}") from exc
         if not seed:
             return []
 
@@ -197,8 +221,10 @@ def fetch_thread(po_number: str, so_number: str = "", imap=None) -> list[dict]:
 
         try:
             fetched = imap.fetch(list(uids), ["RFC822"])
-        except Exception:
-            return []
+        except Exception as exc:
+            # Same reasoning as the search above: a thread we could not read is
+            # not a thread with nothing in it, and must not be stamped as done.
+            raise ThreadSyncFailed(f"fetch failed for {po_number}: {exc}") from exc
 
         spm_sender = os.environ.get("SPM_SENDER", "specialpiping@gmail.com")
         seen: set[str] = set()
@@ -312,10 +338,17 @@ def _stamp(order_id: str, order_type: str, count: int) -> None:
 
 def sync_thread(order_id: str, order_type: str, po_number: str,
                 so_number: str = "", imap=None) -> int:
-    """Walk one order's thread and store it. Returns emails written."""
+    """Walk one order's thread and store it. Returns emails written.
+
+    Raises ThreadSyncFailed when Gmail could not be asked, and stamps nothing
+    in that case, so the order comes round again on the next pass. An empty
+    thread IS stamped - the search worked and there is genuinely nothing to
+    find, and retrying that every pass would crowd out orders that do have
+    mail.
+    """
     if not po_number:
         return 0
-    emails = fetch_thread(po_number, so_number, imap=imap)
+    emails = fetch_thread(po_number, so_number, imap=imap)   # may raise
     if not emails:
         _stamp(order_id, order_type, 0)
         return 0
@@ -418,6 +451,7 @@ def run_pass(limit: int = BATCH_SIZE, dry_run: bool = False) -> int:
         return 0
 
     total = 0
+    failed = 0
     try:
         for o in due:
             try:
@@ -425,14 +459,23 @@ def run_pass(limit: int = BATCH_SIZE, dry_run: bool = False) -> int:
                                 o["po_number"], o["so_number"], imap=imap)
                 total += n
                 print(f"     {o['order_type']:7s} PO {o['po_number']}: {n} email(s)")
+            except ThreadSyncFailed as exc:
+                # Nothing stamped, so this order is first in line next pass.
+                failed += 1
+                print(f"     {o['order_type']:7s} PO {o['po_number']}: "
+                      f"NOT SYNCED - {exc}")
             except Exception as exc:
                 # One bad thread must not stop the pass; it comes round again.
+                failed += 1
                 print(f"     PO {o.get('po_number')}: failed ({exc})")
     finally:
         try:
             imap.logout()
         except Exception:
             pass
+    if failed:
+        print(f"  [thread_sync] {failed} of {len(due)} could not be read - "
+              f"they keep their place in the queue")
     return total
 
 

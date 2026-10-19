@@ -237,6 +237,95 @@ def test_a_thread_matching_nothing_is_an_empty_list():
     assert ets.fetch_thread("PO1", imap=imap) == []
 
 
+# ── "no mail" is not the same as "could not look" ───────────────────────────
+# The bug a live run exposed. A Chevron PO came back with 0 emails after 416
+# seconds and was stamped as walked with email_count=0 - so it would not be
+# tried again for six hours, and the three messages the listeners had already
+# found were all it would ever have. Run fresh, that same search returned 19
+# uids in 3.4 seconds: it had not found nothing, it had FAILED, and the failure
+# was swallowed into an empty list. Logins to this mailbox were measured at
+# 27.9 seconds against what was then a 30 second timeout.
+
+class _FailingSearch(_FakeIMAP):
+    def search(self, criteria):
+        raise Exception("socket timeout")
+
+
+class _FailingFetch(_FakeIMAP):
+    def fetch(self, uids, parts):
+        if "RFC822" in parts:
+            raise Exception("connection reset by peer")
+        return super().fetch(uids, parts)
+
+
+def test_a_failed_search_raises_rather_than_looking_empty():
+    with pytest.raises(ets.ThreadSyncFailed):
+        ets.fetch_thread("PO1", imap=_FailingSearch({1: b"x"}))
+
+
+def test_a_failed_message_fetch_raises_too():
+    body = _rfc822("<a@x>", "f@x.com", "s@x.com", "S", "b",
+                   "Thu, 01 Jan 2026 09:00:00 +0000")
+    with pytest.raises(ets.ThreadSyncFailed):
+        ets.fetch_thread("PO1", imap=_FailingFetch({1: body}))
+
+
+def test_gmail_not_configured_is_a_failure_not_an_empty_thread(monkeypatch):
+    monkeypatch.setattr(ets, "open_imap", lambda: None)
+    with pytest.raises(ets.ThreadSyncFailed):
+        ets.fetch_thread("PO1")
+
+
+def test_a_failed_sync_stamps_nothing(monkeypatch):
+    """So the order keeps its place at the front of the queue. Stamping it
+    would hide a thread that was never read behind a thread with no mail."""
+    c, store = _client(email_thread_sync=[])
+    monkeypatch.setattr(ets, "get_client", lambda: c)
+
+    def _boom(po, so="", imap=None):
+        raise ets.ThreadSyncFailed("search failed")
+
+    monkeypatch.setattr(ets, "fetch_thread", _boom)
+    with pytest.raises(ets.ThreadSyncFailed):
+        ets.sync_thread("o1", "chevron", "PO1")
+    assert store["email_thread_sync"] == []
+
+
+def test_a_genuinely_empty_thread_is_still_stamped(monkeypatch):
+    """The other half of the distinction. The search worked and there is
+    nothing to find, so retrying every pass would crowd out orders that do
+    have mail."""
+    c, store = _client(email_thread_sync=[])
+    monkeypatch.setattr(ets, "get_client", lambda: c)
+    monkeypatch.setattr(ets, "fetch_thread", lambda po, so="", imap=None: [])
+    assert ets.sync_thread("o1", "chevron", "PO1") == 0
+    assert store["email_thread_sync"][0]["email_count"] == 0
+
+
+def test_a_pass_counts_what_it_could_not_read(monkeypatch, capsys):
+    """And carries on. One unreadable thread costs that order, not the pass."""
+    c, _ = _orders_client([])
+    monkeypatch.setattr(ets, "get_client", lambda: c)
+    monkeypatch.setattr(ets, "open_imap", lambda: _FakeIMAP({}))
+
+    def _sync(oid, otype, po, so="", imap=None):
+        if oid == "o2":
+            raise ets.ThreadSyncFailed("socket timeout")
+        return 1
+
+    monkeypatch.setattr(ets, "sync_thread", _sync)
+    assert ets.run_pass(10) == 2
+    out = capsys.readouterr().out
+    assert "NOT SYNCED" in out
+    assert "keep their place in the queue" in out
+
+
+def test_the_imap_timeout_clears_the_measured_login_time():
+    """Logins were measured at 27.9s. A 30s timeout left no headroom, and the
+    timeout surfaced as "this PO has no mail"."""
+    assert ets.IMAP_TIMEOUT >= 60
+
+
 def test_a_missing_date_is_left_empty_never_guessed():
     """The bug this file found. sync.parse_email_date falls back to now(), and
     using it here stamped a dateless email with the moment it was fetched.
