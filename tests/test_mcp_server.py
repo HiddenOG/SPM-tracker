@@ -791,7 +791,10 @@ def test_http_mode_refuses_to_start_half_configured():
     body = src.split("def _http_app")[1].split("\ndef ")[0]
     assert "MCP_PUBLIC_URL" in body
     assert "JWT_SECRET" in body
-    assert body.count("raise SystemExit") == 2
+    # And the database: get_client() reads its variables lazily, so a service
+    # without them booted, passed /health, and refused every token.
+    assert "SUPABASE_URL" in body and "SUPABASE_KEY" in body
+    assert body.count("raise SystemExit") == 3
 
 
 def test_the_server_does_not_advertise_oauth():

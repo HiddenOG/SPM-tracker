@@ -896,6 +896,17 @@ def _http_app():
             "JWT_SECRET must be set, and must match the value the WEB service "
             "uses - connector tokens are signed with it, and a different value "
             "rejects every token with no clue as to why.")
+    # Checked here because get_client() only reads these when first used. A
+    # new Railway service inherits no variables from the others, and without
+    # these the service booted, answered /health, and then refused every token
+    # - the account lookup failed and looked exactly like a wrong secret.
+    missing = [v for v in ("SUPABASE_URL", "SUPABASE_KEY") if not os.environ.get(v)]
+    if missing:
+        raise SystemExit(
+            f"{' and '.join(missing)} must be set on this service. A Railway "
+            f"service does not inherit variables from the web or worker "
+            f"services - copy them across. Without them every token is refused, "
+            f"because the account it belongs to cannot be looked up.")
 
     app = mcp.streamable_http_app(host="0.0.0.0")
     verifier = SPMTokenVerifier()
