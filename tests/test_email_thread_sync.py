@@ -1002,3 +1002,29 @@ def test_the_story_and_the_chat_both_pass_the_order_through():
     for line in calls:
         assert "order_id" in line
         assert "po_number" in line
+
+
+# ── the archiver is off unless switched on ──────────────────────────────────
+
+def test_the_archiver_is_off_by_default(monkeypatch):
+    """It got the mailbox throttled. Within a day it pulled about 10,000
+    messages as full RFC822 with attachments - tens of GB against Gmail's
+    ~2.5 GB a day - and the order listeners read the same mailbox, so the
+    pipeline slowed with it. Off unless THREAD_SYNC_ENABLED says otherwise."""
+    import importlib
+    monkeypatch.delenv("THREAD_SYNC_ENABLED", raising=False)
+    mod = importlib.reload(ets)
+    try:
+        assert mod.ENABLED is False
+    finally:
+        importlib.reload(ets)
+
+
+def test_switched_off_it_idles_rather_than_returning():
+    """worker.py runs each listener in `while True: fn()`, so returning would
+    be called straight back and spin."""
+    src = (ROOT / "scripts" / "email_thread_sync.py").read_text(encoding="utf-8")
+    body = src.split("def run_forever")[1].split("\ndef ")[0]
+    off = body.split("if not ENABLED:")[1].split("print(f\"[thread_sync] started")[0]
+    assert "time.sleep" in off
+    assert "return" not in off.split("while True")[1] if "while True" in off else False

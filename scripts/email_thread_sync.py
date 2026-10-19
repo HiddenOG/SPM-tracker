@@ -567,7 +567,28 @@ def run_pass(limit: int = BATCH_SIZE, dry_run: bool = False) -> int:
     return total
 
 
+# OFF unless switched on. Within a day of first deploying, this walked all 199
+# orders and pulled about 10,000 messages as full RFC822 - attachments
+# included, at roughly 3 MB apiece - which is far past the ~2.5 GB a day Gmail
+# allows over IMAP. Gmail answered by throttling the whole mailbox
+# ("[THROTTLED]", and a 12-second no-op), and that mailbox is the one every
+# order listener reads, so the pipeline slowed down with it. Every order had
+# already been walked once by then, so turning this off lost nothing. It stays
+# off until the fetch downloads text parts only and skips messages already
+# stored; set THREAD_SYNC_ENABLED=1 to run it.
+ENABLED = os.environ.get("THREAD_SYNC_ENABLED", "0").strip().lower() in ("1", "true", "yes")
+
+
 def run_forever() -> None:
+    if not ENABLED:
+        print("[thread_sync] off (THREAD_SYNC_ENABLED is not set) - not walking "
+              "threads. It pulled full messages with attachments and got the "
+              "mailbox throttled; see the note above ENABLED.", flush=True)
+        # Sit idle rather than return. worker.py runs each listener in
+        # `while True: fn()`, so a return is called straight back - a tight
+        # loop printing this message for ever.
+        while True:
+            time.sleep(3600)
     print(f"[thread_sync] started - {BATCH_SIZE} orders per pass, "
           f"re-walk after {SYNC_INTERVAL_HOURS}h, "
           f"every {CHECK_INTERVAL_SECONDS}s", flush=True)
