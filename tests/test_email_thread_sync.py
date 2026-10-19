@@ -730,6 +730,82 @@ def test_a_gmail_fallback_stores_what_it_fetched(monkeypatch):
     assert stored == [("o1", "chevron", 2)]
 
 
+# ── writing a story looks at Gmail; reading a stored thread does not ────────
+# The hole that was spotted on review. A story is only ever written when none
+# exists, when mail has arrived since the last one, or when somebody presses
+# Regenerate - all three mean "go and look". Preferring the table
+# unconditionally meant a story rebuilt BECAUSE new mail arrived was built from
+# the thread as it stood before that mail, and would say nothing had happened
+# while the email sat in Gmail.
+
+def test_a_refresh_goes_to_gmail_even_when_the_table_has_a_thread(monkeypatch):
+    app = _app()
+    gmail = []
+    monkeypatch.setattr(app, "_fetch_gmail_emails",
+                        lambda po, so="": gmail.append(po) or _MAIL)
+    monkeypatch.setattr(ets, "read_thread", lambda oid, ot: [{"subject": "stale"}])
+    monkeypatch.setattr(ets, "store_thread", lambda *a, **k: None)
+    got = app._thread_for("o1", "chevron", "PO1", refresh=True)
+    assert gmail == ["PO1"]
+    assert [e["subject"] for e in got] == ["Re: PO", "Re: PO"]
+    assert "stale" not in str(got)
+
+
+def test_a_refresh_stores_what_it_fetched(monkeypatch):
+    """So the follow-up chat, which reads the table, sees the new mail too."""
+    app = _app()
+    stored = []
+    monkeypatch.setattr(app, "_fetch_gmail_emails", lambda po, so="": _MAIL)
+    monkeypatch.setattr(ets, "read_thread", lambda oid, ot: [])
+    monkeypatch.setattr(ets, "store_thread",
+                        lambda oid, ot, mail: stored.append((oid, len(mail))))
+    app._thread_for("o1", "chevron", "PO1", refresh=True)
+    for _ in range(50):
+        if stored:
+            break
+        import time as _t
+        _t.sleep(0.02)
+    assert stored == [("o1", 2)]
+
+
+def test_a_refresh_that_cannot_reach_gmail_uses_what_is_stored(monkeypatch):
+    """A thread that is slightly behind beats no story at all, and the date on
+    screen still tells the reader how old the story is."""
+    app = _app()
+    monkeypatch.setattr(app, "_fetch_gmail_emails", lambda po, so="": [])
+    monkeypatch.setattr(ets, "read_thread", lambda oid, ot: [{"subject": "stored"}])
+    got = app._thread_for("o1", "chevron", "PO1", refresh=True)
+    assert [e["subject"] for e in got] == ["stored"]
+
+
+def test_without_refresh_the_table_still_answers(monkeypatch):
+    """The chat asks follow-up questions straight after the story, when the
+    table has just been brought up to date, so it should not pay for Gmail
+    again on every message."""
+    app = _app()
+    gmail = []
+    monkeypatch.setattr(app, "_fetch_gmail_emails",
+                        lambda po, so="": gmail.append(po) or _MAIL)
+    monkeypatch.setattr(ets, "read_thread", lambda oid, ot: [{"subject": "stored"}])
+    got = app._thread_for("o1", "chevron", "PO1")
+    assert gmail == []
+    assert [e["subject"] for e in got] == ["stored"]
+
+
+def test_the_story_refreshes_and_the_chat_does_not():
+    """Which call site passes refresh is the whole behaviour, and it is easy to
+    get backwards: summarize WRITES a story, chat only asks about one."""
+    src = (ROOT / "web" / "app.py").read_text(encoding="utf-8")
+    calls = [l for l in src.split("\n")
+             if "_build_email_context(" in l
+             and not l.lstrip().startswith("def _build_email_context")]
+    assert len(calls) == 2
+    summarize = [l for l in calls if "order_id, type," in l]
+    chat = [l for l in calls if "order_id, order_type," in l]
+    assert len(summarize) == 1 and "refresh=True" in summarize[0]
+    assert len(chat) == 1 and "refresh=True" not in chat[0]
+
+
 def test_a_broken_archiver_falls_back_rather_than_failing(monkeypatch):
     app = _app()
 

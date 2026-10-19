@@ -1166,7 +1166,8 @@ def _fetch_gmail_emails(po_number: str, so_number: str = "") -> list:
         return []
 
 
-def _thread_for(order_id: str, order_type: str, po_number: str, so_number: str = "") -> list:
+def _thread_for(order_id: str, order_type: str, po_number: str,
+                so_number: str = "", refresh: bool = False) -> list:
     """This order's email thread: from the table, or from Gmail if it is empty.
 
     The table is kept current by email_thread_sync, running as a worker thread,
@@ -1178,12 +1179,49 @@ def _thread_for(order_id: str, order_type: str, po_number: str, so_number: str =
     its thread from Gmail, and is stored on the way past so the next telling is
     a read. No order is ever left without a story because of where its mail
     happens to live.
+
+    `refresh` is the important half. WRITING a story goes to Gmail; READING a
+    stored thread does not.
+
+    A story is only ever written for one of three reasons: none has been
+    written yet, mail has arrived since the last one, or somebody pressed
+    Regenerate. All three mean "go and look". An earlier version preferred the
+    table unconditionally, so a story rebuilt because new mail had arrived was
+    built from the thread as it stood BEFORE that mail - the new message
+    reached the table only if a listener recognised it, or when the background
+    walk next came round, up to six hours later. The story would say nothing
+    had happened while the email sat in Gmail.
+
+    With refresh, the table is a cache of a conversation rather than the
+    record of it, and the background walk stops being needed for correctness -
+    it only warms orders nobody has opened yet.
     """
     try:
         import email_thread_sync as ets
     except Exception as exc:
         print(f"  [warn] email_thread_sync unavailable: {exc}")
         return _fetch_gmail_emails(po_number, so_number)
+
+    def _store(emails):
+        if emails and order_id:
+            # Every message has just been fetched, so keeping them costs
+            # nothing and the next read of this thread comes from the table.
+            threading.Thread(target=ets.store_thread,
+                             args=(order_id, order_type, emails),
+                             daemon=True).start()
+
+    if refresh:
+        emails = _fetch_gmail_emails(po_number, so_number)
+        if emails:
+            _store(emails)
+            return emails
+        # Gmail had nothing to say, or could not be reached. A thread already
+        # stored is better than no story at all.
+        try:
+            return ets.read_thread(order_id, order_type)
+        except Exception as exc:
+            print(f"  [warn] read_thread: {exc}")
+            return []
 
     try:
         rows = ets.read_thread(order_id, order_type)
@@ -1194,22 +1232,16 @@ def _thread_for(order_id: str, order_type: str, po_number: str, so_number: str =
         return rows
 
     emails = _fetch_gmail_emails(po_number, so_number)
-    if emails and order_id:
-        # Store it rather than throw it away - every message has just been
-        # fetched, so this costs nothing and the next telling reads the table.
-        threading.Thread(
-            target=ets.store_thread,
-            args=(order_id, order_type, emails),
-            daemon=True,
-        ).start()
+    _store(emails)
     return emails
 
 
 def _build_email_context(order_id: str, order_type: str,
-                         po_number: str, so_number: str = "") -> str:
+                         po_number: str, so_number: str = "",
+                         refresh: bool = False) -> str:
     BODY_LIMIT  = 1_500
     CHAR_BUDGET = 15_000
-    emails = _thread_for(order_id, order_type, po_number, so_number)
+    emails = _thread_for(order_id, order_type, po_number, so_number, refresh=refresh)
     n = len(emails)
     if not n:
         return ""
@@ -1691,7 +1723,7 @@ def email_summarize(order_id: str, type: str = "chevron", fresh: int = 0,
             email_result  = [None]
             memory_result = [None]
             def _f_ctx():    ctx_result[0]    = _build_order_context(order_id, type)
-            def _f_emails(): email_result[0]  = _build_email_context(order_id, type, po_number, so_number)
+            def _f_emails(): email_result[0]  = _build_email_context(order_id, type, po_number, so_number, refresh=True)
             def _f_memory(): memory_result[0] = _load_ai_memory(order_id, type)
             t1 = threading.Thread(target=_f_ctx,    daemon=True)
             t2 = threading.Thread(target=_f_emails, daemon=True)
