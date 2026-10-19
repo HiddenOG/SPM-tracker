@@ -397,16 +397,104 @@ def test_stock_can_be_filtered_by_description(monkeypatch):
 
 # ── read-only, and that is the security boundary ────────────────────────────
 
-def test_no_tool_can_write(monkeypatch):
-    """SUPABASE_KEY is the service_role key, so it bypasses every row-level
-    rule. The absence of a write path is the boundary, not a convention - a
-    disabled one would be one edit away from live."""
+def _server_code() -> str:
     src = (ROOT / "scripts" / "mcp_server.py").read_text(encoding="utf-8")
-    code = "\n".join(l for l in src.split("\n")
+    # Comments out, and sys.path.insert is not a database call.
+    return "\n".join(l for l in src.split("\n")
                      if not l.lstrip().startswith("#")
-                     and "sys.path.insert" not in l)   # not a database call
+                     and "sys.path.insert" not in l)
+
+
+def test_nothing_here_writes_to_the_database_directly():
+    """SUPABASE_KEY is the service_role key and bypasses every row-level rule,
+    so the write surface is the boundary rather than a convention.
+
+    This file performs no write of its own at all. The one write that happens
+    through it - refresh_order_mail appending fetched mail - goes through
+    email_thread_sync, which is tested separately and can only reach the emails
+    and email_thread_sync tables. Nothing can touch an order, a quotation, a
+    line item, a stock count or a user."""
+    code = _server_code()
     for forbidden in (".insert(", ".update(", ".upsert(", ".delete(", ".rpc("):
         assert forbidden not in code, forbidden
+
+
+def test_the_only_table_this_file_names_for_writing_is_none():
+    """Every .table(...) call here is followed by .select(...). If a future
+    edit chains a mutation onto one, this fails."""
+    import re
+    code = _server_code()
+    for call in re.finditer(r'\.table\("(\w+)"\)(\s*\\?\s*\.?\s*\w*)', code):
+        table, nxt = call.group(1), call.group(2)
+        assert "select" in nxt or nxt.strip() in ("", "\\"), (table, nxt)
+
+
+def test_the_one_write_path_is_delegated_and_named(monkeypatch):
+    """refresh_order_mail must not grow its own writing code. It calls
+    sync_thread, whose writes are bounded and tested in
+    test_email_thread_sync.py."""
+    src = (ROOT / "scripts" / "mcp_server.py").read_text(encoding="utf-8")
+    body = src.split("def refresh_order_mail")[1].split("\n@mcp.tool()")[0]
+    assert "ets.sync_thread(" in body
+    for forbidden in (".insert(", ".update(", ".upsert(", ".delete("):
+        assert forbidden not in body, forbidden
+
+
+def test_a_gmail_failure_is_reported_not_swallowed(monkeypatch):
+    """The silent version of this was a real bug: a failed search reported as
+    "0 emails" and stamped the order as walked, so a thread nobody had read
+    looked exactly like a thread with nothing in it."""
+    import email_thread_sync as ets
+    monkeypatch.setattr(M, "get_client", lambda: _client(
+        orders=[_order("0061488314")], nlng_orders=[]))
+    monkeypatch.setattr(ets, "read_thread", lambda oid, ot: [])
+
+    def _boom(*a, **k):
+        raise ets.ThreadSyncFailed("search failed: socket timeout")
+
+    monkeypatch.setattr(ets, "sync_thread", _boom)
+    out = M.refresh_order_mail("0061488314")
+    assert "could not be read" in out
+    assert "try again" in out
+    assert "socket timeout" in out
+
+
+def test_a_refresh_reports_what_it_gained(monkeypatch):
+    import email_thread_sync as ets
+    monkeypatch.setattr(M, "get_client", lambda: _client(
+        orders=[_order("0061488314")], nlng_orders=[]))
+    counts = iter([3, 22])      # before, after
+    monkeypatch.setattr(ets, "read_thread", lambda oid, ot: [None] * next(counts))
+    monkeypatch.setattr(ets, "sync_thread", lambda *a, **k: 22)
+    out = M.refresh_order_mail("0061488314")
+    assert "3 -> 22" in out
+    assert "+19 new" in out
+
+
+def test_a_refresh_on_an_unknown_po_says_so(monkeypatch):
+    monkeypatch.setattr(M, "get_client",
+                        lambda: _client(orders=[], nlng_orders=[]))
+    assert "No order found" in M.refresh_order_mail("9999999999")
+
+
+def test_the_refresh_tool_warns_that_it_is_slow():
+    """Its own measurements: a 28 second login and a 7 minute thread. Somebody
+    reaching for it in a chat should know before they wait."""
+    src = (ROOT / "scripts" / "mcp_server.py").read_text(encoding="utf-8")
+    doc = src.split("def refresh_order_mail")[1].split('"""')[1]
+    assert "SLOW" in doc
+    assert "minute" in doc.lower()
+
+
+def test_there_is_no_free_text_gmail_search():
+    """The mailbox holds everything; the emails table holds order
+    correspondence. And Gmail caps simultaneous IMAP connections - the worker
+    already holds several, and ad-hoc searches competing for them would break
+    the pipeline listeners."""
+    code = _server_code()
+    assert "X-GM-RAW" not in code
+    assert "fetch_thread(" not in code     # only sync_thread, which is per-order
+    assert "open_imap" not in code
 
 
 def test_there_is_no_run_any_sql_tool():
@@ -424,8 +512,9 @@ def test_every_tool_that_can_return_many_rows_caps_itself():
     own shape - one PO in, that order out - so a row cap would be noise."""
     src = (ROOT / "scripts" / "mcp_server.py").read_text(encoding="utf-8")
     bodies = src.split("@mcp.tool()")[1:]
-    assert len(bodies) == 6
-    bounded_by_shape = {"order_detail"}
+    assert len(bodies) == 7
+    # Bounded by their own shape: one PO in, one order (or one sync) out.
+    bounded_by_shape = {"order_detail", "refresh_order_mail"}
     for b in bodies:
         name = b.split("def ", 1)[1].split("(", 1)[0]
         if name in bounded_by_shape:

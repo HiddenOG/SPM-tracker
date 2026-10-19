@@ -20,12 +20,24 @@ Safety
 ------
 SUPABASE_KEY is the service_role key. It bypasses every row-level rule in the
 database, so a server holding it could read all 96 quotations, every price and
-every customer. Three rules keep that in bounds:
+every customer. What keeps that in bounds:
 
-  * Read-only. Nothing here writes, updates or deletes. There is no code path
-    to a mutation, not a disabled one.
+  * Nothing here can change business data. No tool writes, updates or deletes
+    an order, a quotation, a line item, a stock count or a user, and there is
+    no delete and no rpc anywhere in the file.
+
+    One exception, stated plainly because it is the only one:
+    refresh_order_mail appends the Gmail thread it fetched to the emails table
+    for one order, and records that the thread was walked. That is the same
+    write email_thread_sync makes on its own schedule, it only ever adds mail
+    that already exists in Gmail, and it cannot reach any other table. Every
+    other tool is strictly read-only.
+
   * Narrow. Each tool answers one shape of question. There is no
-    "run this SQL" tool, which would hand the whole database over in one step.
+    "run this SQL" tool, which would hand the whole database over in one step,
+    and no free-text Gmail search - the mailbox holds everything, while the
+    emails table holds order correspondence.
+
   * Local. It speaks over stdio to a client on this machine. It opens no port
     and must not be exposed to the internet while it holds that key.
 
@@ -433,6 +445,72 @@ def search_mail(text: str, limit: int = 15) -> str:
 
 
 # ── stock ────────────────────────────────────────────────────────────────────
+
+@mcp.tool()
+def refresh_order_mail(po_number: str) -> str:
+    """Fetch one order's Gmail thread now, for when the archive looks thin.
+
+    SLOW - expect 30 seconds to several minutes. A login to this mailbox was
+    measured at 28 seconds and a 145-message thread took over 7 minutes. Use it
+    when search_mail or order_detail looks short on an order, not routinely:
+    email_thread_sync walks every order on its own schedule and the table is
+    the fast path.
+
+    Bounded to one order on purpose. There is no free-text Gmail search here,
+    because the mailbox holds everything while the emails table holds order
+    correspondence, and because Gmail caps simultaneous IMAP connections - the
+    worker already holds several, and ad-hoc searches competing for them would
+    break the pipeline listeners, which matter more than a lookup.
+
+    Args:
+        po_number: the client PO number, with or without leading zeros.
+    """
+    po = (po_number or "").strip()
+    if not po:
+        return "Which PO number?"
+    try:
+        import email_thread_sync as ets
+    except Exception as exc:
+        return f"The archiver is unavailable: {exc}"
+
+    db = get_client()
+    for table, otype, po_col in (("orders", "chevron", "buyer_po_number"),
+                                 ("nlng_orders", "nlng", "po_number")):
+        row = None
+        for cand in (po, po.lstrip("0"), po.zfill(10)):
+            try:
+                res = db.table(table).select(f"id,{po_col},so_number").eq(po_col, cand).execute()
+            except Exception as exc:
+                return f"Could not read {table}: {exc}"
+            if res.data:
+                row = res.data[0]
+                break
+        if not row:
+            continue
+
+        before = len(ets.read_thread(row["id"], otype))
+        try:
+            written = ets.sync_thread(row["id"], otype, row.get(po_col) or "",
+                                      row.get("so_number") or "")
+        except ets.ThreadSyncFailed as exc:
+            # Said plainly, because the silent version of this was a real bug:
+            # a failed search once reported as "0 emails" and stamped the order
+            # as walked, so a thread nobody had read looked like a thread with
+            # nothing in it.
+            return (f"Gmail could not be read for PO {row.get(po_col)}: {exc}\n"
+                    f"Nothing was stamped, so the archiver will try again. "
+                    f"{before} message(s) already stored.")
+        except Exception as exc:
+            return f"Sync failed for PO {row.get(po_col)}: {exc}"
+
+        after = len(ets.read_thread(row["id"], otype))
+        return (f"{otype} PO {row.get(po_col)}: fetched {written} message(s) "
+                f"from Gmail.\nStored for this order: {before} -> {after} "
+                f"(+{after - before} new).\n"
+                f"search_mail and order_detail will now see them.")
+
+    return f"No order found with PO {po!r}."
+
 
 @mcp.tool()
 def stock_on_hand(text: str = "", limit: int = 30) -> str:
