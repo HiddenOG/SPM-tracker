@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SPMprocure360</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" /><link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="inventory.css" />
 </head>
@@ -20,6 +21,23 @@
     </div>
     <div class="welcome-tagline">Supply Chain Management Portal</div>
   </div>
+</div>
+
+<!-- ══════ SIGN-IN BACKDROP ══════
+     Moving shapes behind the department and sign-in screens: blurred glows
+     drifting, thin outlines (rings, gaskets, squares, triangles) floating and
+     turning. One layer for both screens, so the motion carries on between them.
+     Hidden once the app opens (_launchApp), shown again on sign-out. -->
+<div id="auth-bg" class="auth-bg" aria-hidden="true">
+  <span class="ab-blob b1"></span><span class="ab-blob b2"></span>
+  <span class="ab-blob b3"></span><span class="ab-blob b4"></span>
+  <span class="ab-shape ring s1"></span><span class="ab-shape gasket s2"></span>
+  <span class="ab-shape square s3"></span><span class="ab-shape tri s4"></span>
+  <span class="ab-shape ring s5"></span><span class="ab-shape plus s6"></span>
+  <span class="ab-shape square s7"></span><span class="ab-shape gasket s8"></span>
+  <span class="ab-shape tri s9"></span><span class="ab-shape plus s10"></span>
+  <span class="ab-shape ring s11"></span><span class="ab-shape square s12"></span>
+  <span class="ab-grid"></span>
 </div>
 
 <!-- ══════ DEPARTMENT ══════ -->
@@ -137,6 +155,10 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span>Dashboard</span>
     </div>
+    <div class="nav" data-p="ask" title="Opens in the new SPMprocure360">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/><path d="M8.5 11h5M11 8.5v5"/></svg>
+      <span>Ask</span>
+    </div>
     <div class="nav" data-p="orders">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
       <span>Orders</span>
@@ -154,10 +176,6 @@
       <div class="nav nav-child" data-p="stock">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
         <span>Stock</span>
-      </div>
-      <div class="nav nav-child" data-p="products">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 11l8 4 8-4"/><path d="M4 15l8 4 8-4"/></svg>
-        <span>Products</span>
       </div>
     </div>
     <div class="nav" data-p="delays">

@@ -14,6 +14,10 @@ venv/
 data/
 *.pdf
 
+# Front end: dependencies and the Vite build are made, not kept
+node_modules/
+frontend/dist/
+
 # Dev/test artifacts
 .pytest_cache/
 .claude/

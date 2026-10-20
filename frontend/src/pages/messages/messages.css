@@ -1,0 +1,78 @@
+/* Messages: the list on the left (320px, as the old page), the conversation
+   on the right, scrolling inside its own card. On a phone they take turns. */
+.messages{max-width:none}
+.msg-layout{display:grid;grid-template-columns:340px minmax(0,1fr);gap:16px;align-items:start}
+
+.list-card{overflow:hidden}
+.list-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 14px;border-bottom:1px solid var(--line)}
+.messages .tabs{display:flex;gap:4px}
+.messages .tabs button{border:0;background:none;padding:13px 10px;font-size:13.5px;font-weight:600;color:var(--ink-3);border-bottom:2px solid transparent;margin-bottom:-1px}
+.messages .tabs button:hover{color:var(--ink)}
+.messages .tabs button.on{color:var(--accent-ink);border-bottom-color:var(--accent)}
+.list-count{padding:8px 16px 4px;font-size:12px;color:var(--ink-3);min-height:28px}
+.threads{list-style:none;margin:0;padding:0;max-height:calc(100vh - var(--bar-h) - 230px);overflow-y:auto}
+.empty-li{padding:40px 16px;text-align:center;color:var(--ink-3);font-size:13.5px}
+.t-row{position:relative;width:100%;display:flex;gap:11px;align-items:flex-start;text-align:left;padding:12px 16px;border:0;border-top:1px solid var(--line);background:none;color:var(--ink);transition:background .15s}
+.t-row:hover{background:var(--surface-2)}
+.t-row.on{background:var(--accent-soft)}
+.t-row.unread::before{content:'';position:absolute;left:6px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--accent)}
+.t-row.unread .t-subj{font-weight:700;color:var(--ink)}
+.av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:700;flex:none}
+.av.sm{width:24px;height:24px;font-size:9px}
+.t-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.t-from{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-3);text-transform:none}
+.t-n{min-width:18px;height:17px;padding:0 5px;border-radius:9px;border:1px solid var(--line-2);background:var(--surface-2);font:600 10px/15px var(--body);color:var(--ink-2);text-align:center}
+.t-subj{font-size:13.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t-prev{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t-row time{font-size:11px;color:var(--ink-3);white-space:nowrap;margin-top:2px}
+
+.compose-pane,.reply-pane{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.compose-pane label{display:flex;flex-direction:column;gap:4px}
+.compose-pane label span{font-size:12px;font-weight:500;color:var(--ink-3)}
+.compose-pane input,.compose-pane select,.compose-pane textarea,.reply-pane textarea{width:100%;padding:8px 11px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface);font-size:13.5px;color:var(--ink)}
+.compose-pane input,.compose-pane select{height:38px}
+.compose-pane textarea,.reply-pane textarea{resize:vertical;min-height:90px}
+.compose-pane :is(input,select,textarea):focus,.reply-pane textarea:focus{outline:0;border-color:var(--accent)}
+.pane-acts{display:flex;gap:8px}
+.attach-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.attach-btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:9px;border:1px dashed var(--line-2);background:var(--surface);color:var(--ink-2);font-size:12.5px}
+.attach-btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+.attach-pill{display:inline-flex;align-items:center;gap:6px;max-width:240px;height:28px;padding:0 6px 0 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-size:12.5px}
+.attach-pill span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attach-pill button{border:0;background:none;font-size:16px;line-height:1;color:var(--ink-3)}
+.attach-pill button:hover{color:var(--crit)}
+
+.read-card{display:flex;flex-direction:column;height:calc(100vh - var(--bar-h) - 150px);min-height:420px;overflow:hidden}
+.read-empty{margin:auto;color:var(--ink-3);font-size:13.5px}
+.read-hd{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.read-hd .back{display:none}
+.read-title{min-width:0}
+.read-title h2{margin:0;font:700 16px/1.3 var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.read-title p{margin:2px 0 0;font-size:12px;color:var(--ink-3)}
+.read-title a{color:var(--accent-ink);text-decoration:none;font-weight:500}
+.read-title a:hover{text-decoration:underline}
+.read-body{flex:1;min-height:0;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.center{text-align:center;padding:20px}
+.bubble{max-width:min(680px,92%);padding:11px 14px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line)}
+.bubble.mine{align-self:flex-end;background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 25%,transparent)}
+.bubble header{display:flex;align-items:center;gap:7px;margin-bottom:6px;flex-wrap:wrap}
+.bubble header b{font-size:12.5px}
+.bubble header time{margin-left:auto;font-size:11px;color:var(--ink-3)}
+.bubble p{margin:0;font-size:13.5px;line-height:1.6;color:var(--ink-2);white-space:pre-wrap;overflow-wrap:anywhere}
+.bubble-files{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.bubble-files a{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:8px;border:1px solid var(--accent);color:var(--accent-ink);font-size:12.5px;font-weight:600;text-decoration:none}
+.bubble-files a:hover{background:var(--accent-soft)}
+.rbadge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;text-transform:capitalize;background:var(--surface);color:var(--ink-2);border:1px solid var(--line)}
+.reply-bar{padding:10px 16px;border-top:1px solid var(--line)}
+.reply-pane{border-top:1px solid var(--line);border-bottom:0}
+.reply-to{font-size:12px;color:var(--ink-3)}
+.reply-to b{color:var(--ink-2);text-transform:capitalize}
+
+@media (max-width:900px){
+  .msg-layout{grid-template-columns:1fr}
+  .read-card{display:none}
+  .messages.reading .list-card{display:none}
+  .messages.reading .read-card{display:flex;height:calc(100vh - var(--bar-h) - 130px)}
+  .read-hd .back{display:grid}
+  .threads{max-height:none}
+}

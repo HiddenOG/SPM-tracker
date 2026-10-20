@@ -1,0 +1,97 @@
+/* Quotations: list, then the form (old .qt-* / .qf-* in style.css). */
+.quotes{max-width:1320px}
+.ph-co{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap}
+.qt-tbl .qn{font-size:12.5px;white-space:nowrap}
+.qt-tbl .subj{max-width:230px;overflow:hidden;text-overflow:ellipsis}
+.qt-tbl td{padding-left:11px;padding-right:11px}
+.qt-tbl th button{padding-left:11px;padding-right:11px}
+.qt-tbl td.acts{padding-right:14px}
+.qt-tbl .acts .btn.sm{padding:0 9px}
+/* Some references are whole descriptions; cap the column so Total and the buttons stay on screen. */
+.qt-tbl .ref{max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.qt-tbl .pill{text-transform:capitalize}
+.qt-tbl .acts{white-space:nowrap}
+.qt-tbl .acts .btn+.btn{margin-left:6px}
+.qt-tbl .acts .del:hover:not(:disabled){color:var(--crit);border-color:var(--crit);background:var(--crit-soft)}
+.ds-text{font-size:13.5px;color:var(--ink-2);margin:0}
+
+/* the form */
+.qf-title{display:flex;align-items:center;gap:12px}
+.qf-card{overflow:visible}
+.qf-import{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--line)}
+.muted.sm{font-size:12.5px}
+.qf-banner{display:flex;align-items:center;gap:10px;padding:10px 20px;font-size:13.5px;border-bottom:1px solid var(--line)}
+.qf-banner.ok{background:var(--ok-soft);color:var(--ok)}
+.qf-banner.bad{background:var(--crit-soft);color:var(--crit)}
+.qf-banner span{flex:1}
+.qf-banner button{border:0;background:none;color:inherit;font-size:18px;line-height:1}
+.qf-sec{display:flex;align-items:center;gap:10px;margin:0;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface-2);font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2)}
+.qf-sec:first-of-type{border-top:0}
+.qf-sec .hint{font-weight:400;letter-spacing:0;text-transform:none;color:var(--ink-3);font-size:12px}
+.qf-sec.row{justify-content:space-between;flex-wrap:wrap}
+.qf-sec.row h3{margin:0;font:inherit;display:flex;align-items:center;gap:8px}
+.qf-li-acts{display:flex;gap:6px;flex-wrap:wrap}
+.qf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 22px;padding:16px 20px 18px}
+.qf-f{display:flex;flex-direction:column;gap:5px;min-width:0}
+.qf-lbl{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--ink-2)}
+.qf-lbl em{color:var(--accent);font-style:normal}
+.qf-inp{height:38px;padding:0 11px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface);font-size:14px;color:var(--ink);width:100%;min-width:0}
+.qf-inp:focus{outline:0;border-color:var(--accent)}
+.qf-inp[readonly]{background:var(--surface-2);color:var(--ink-2)}
+.qf-f.wide{grid-column:1/-1}
+.qf-inp.ta{height:auto;min-height:60px;padding:9px 11px;resize:vertical;line-height:1.5}
+.qf-inp.ta.notes{min-height:110px}
+/* The box a notice is about (old .po-invalid). */
+.qf-inp.invalid{border-color:var(--crit);box-shadow:0 0 0 3px var(--crit-soft)}
+.code-hint{display:flex;align-items:center;height:38px;font-size:13px;color:var(--ink-3)}
+.qt-tbl .po-num{max-width:330px;overflow:hidden;text-overflow:ellipsis}
+.eye{width:24px;height:22px;display:inline-grid;place-items:center;border:0;border-radius:6px;background:none;color:var(--ok);padding:0}
+.eye:hover{background:var(--surface-2)}
+.eye.off{color:var(--ink-3);opacity:.6}
+
+.qf-items-wrap{overflow-x:auto;padding:0 12px 4px}
+.qf-items{width:100%;min-width:760px;table-layout:fixed;border-collapse:collapse;font-size:13px}
+.qf-items th{padding:9px 6px;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);text-align:left;border-bottom:1px solid var(--line-2)}
+.qf-items td{padding:4px;border-bottom:1px solid var(--line);vertical-align:top}
+.qf-items .c{text-align:center}
+.qf-items .r{text-align:right}
+.qf-items .no{color:var(--ink-3);padding-top:12px}
+.qf-items .tot{padding-top:12px;white-space:nowrap}
+.qf-cell{width:100%;height:34px;padding:0 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:13px;color:var(--ink);min-width:0}
+.qf-cell.r{text-align:right}
+.qf-cell:focus{outline:0;border-color:var(--accent)}
+.row-del{width:26px;height:26px;margin-top:4px;border:0;border-radius:7px;background:none;color:var(--ink-3);font-size:17px;line-height:1}
+.row-del:hover{background:var(--crit-soft);color:var(--crit)}
+
+.qf-ce{min-height:34px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:13px;line-height:1.5;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;outline:0}
+.qf-ce:focus{border-color:var(--accent)}
+.qf-ce:empty::before{content:attr(data-ph);color:var(--ink-3)}
+.qf-ce.notes{min-height:110px;padding:10px 12px}
+
+.qf-bottom{display:grid;grid-template-columns:minmax(0,1fr) 380px;border-top:1px solid var(--line)}
+.qf-notes{display:flex;flex-direction:column;gap:6px;padding:16px 20px;border-right:1px solid var(--line)}
+.qf-totals{display:flex;flex-direction:column}
+.qf-totals>div{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 20px;border-bottom:1px solid var(--line);font-size:13.5px}
+.qf-totals label,.qf-totals>div>span{display:flex;align-items:center;gap:5px;color:var(--ink-2);flex-wrap:wrap}
+.qf-totals b{font-weight:500;white-space:nowrap}
+.qf-inline{width:64px;height:28px;padding:0 6px;border:1px solid var(--line-2);border-radius:7px;background:var(--surface);font-size:13px;text-align:right;color:var(--ink)}
+.qf-inline.wide{width:96px}
+.qf-inline:focus{outline:0;border-color:var(--accent)}
+.qf-totals .grand{border-bottom:0;background:var(--accent-soft)}
+.qf-totals .grand span,.qf-totals .grand b{font:700 16px var(--display);color:var(--accent-ink)}
+.qf-totals .grand b{font-family:var(--mono)}
+.qf-actions{display:flex;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid var(--line)}
+
+/* the format bar over a selection */
+.fmt-bar{position:fixed;z-index:70;display:flex;align-items:center;gap:3px;padding:4px;border-radius:10px;background:var(--surface);border:1px solid var(--line-2);box-shadow:var(--shadow)}
+.fmt-bar button{width:28px;height:26px;border:0;border-radius:6px;background:none;color:var(--ink);font-size:13px}
+.fmt-bar button:hover{background:var(--surface-2)}
+.fmt-bar .sep{width:1px;height:18px;background:var(--line-2);margin:0 3px}
+.fmt-bar .clr{width:18px;height:18px;border-radius:50%;margin:0 2px;box-shadow:0 0 0 1px var(--line-2)}
+.fmt-bar .clr:hover{transform:scale(1.15);background-clip:padding-box}
+
+@media (max-width:860px){
+  .qf-grid{grid-template-columns:1fr}
+  .qf-bottom{grid-template-columns:1fr}
+  .qf-notes{border-right:0;border-bottom:1px solid var(--line)}
+}

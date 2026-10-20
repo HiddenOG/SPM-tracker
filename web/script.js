@@ -445,14 +445,15 @@ function toggleFunnelLabel(el) { el.classList.toggle('tapped'); }
 // 'suppliers' is left out on purpose while its listener is paused (Oct 2026,
 // Gmail IMAP throttling) - see FLEX_HISTORY_ENABLED. Put it back after
 // 'orders' for admin and procurement to show the page again.
+// 'products' was removed from every role (Oct 2026): Inventory is Stock only.
 var ROLE_PAGES = {
-  admin:       ['dashboard','orders','delays','reports','quotes','purchase-orders','stock','products','settings','team','messages'],
-  procurement: ['dashboard','orders','delays','reports','quotes','purchase-orders','stock','products','settings','messages'],
-  expeditor:   ['dashboard','orders','delays','stock','products','settings','messages'],
+  admin:       ['dashboard','ask','orders','delays','reports','quotes','purchase-orders','stock','settings','team','messages'],
+  procurement: ['dashboard','ask','orders','delays','reports','quotes','purchase-orders','stock','settings','messages'],
+  expeditor:   ['dashboard','ask','orders','delays','stock','settings','messages'],
   // The warehouse is who actually walks the shelves and counts, so stock is
   // theirs before it is anyone else's.
-  warehouse:   ['dashboard','orders','delays','stock','products','settings','messages'],
-  accounts:    ['dashboard','orders','delays','reports','stock','settings','messages'],
+  warehouse:   ['dashboard','orders','delays','stock','settings','messages'],
+  accounts:    ['dashboard','ask','orders','delays','reports','stock','settings','messages'],
 };
 
 function applyRoleVisibility() {
@@ -4157,7 +4158,15 @@ function initSidebarResize() {
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
+// Pages rebuilt in the new app at /app. Opening one here goes there instead,
+// except while an admin is previewing another role, which only this app does.
+var NEW_APP_PAGES = ['dashboard', 'ask', 'orders', 'delays', 'stock', 'messages', 'reports', 'quotes', 'purchase-orders', 'team', 'settings'];
+
 function showPage(name) {
+  if (NEW_APP_PAGES.indexOf(name) !== -1 && !_realAdminRole) {
+    window.location.href = '/app/' + name;
+    return;
+  }
   document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
   document.querySelectorAll('.nav').forEach(function(v){ v.classList.remove('active'); });
   var pg = document.getElementById('page-' + name);
@@ -4356,7 +4365,10 @@ document.getElementById('edit-req-input').addEventListener('keydown', function(e
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 function _launchApp() {
-  ['screen-welcome','screen-department','screen-login'].forEach(function(id){
+  // Signed in with no particular page asked for: the dashboard now lives in
+  // the new app, so start there. A link like /#orders still opens here.
+  if (!window.location.hash) { window.location.replace('/app/dashboard'); return; }
+  ['screen-welcome','screen-department','screen-login','auth-bg'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -4397,6 +4409,19 @@ function _launchApp() {
   initSSE();
   startPolling();
   _initSW();
+  _openLinkedPage();
+}
+
+// The new app at /app links back here as /#orders, /#quotes and so on while
+// its pages are rebuilt one at a time. Open that page if this role may see it.
+function _openLinkedPage() {
+  var name = decodeURIComponent((window.location.hash || '').slice(1));
+  if (!name) return;
+  if (NEW_APP_PAGES.indexOf(name) !== -1) { window.location.replace('/app/' + name); return; }
+  var role = (_currentUser && _currentUser.role) || 'procurement';
+  var allowed = ROLE_PAGES[role] || ROLE_PAGES['procurement'];
+  if (allowed.indexOf(name) !== -1) showPage(name);
+  history.replaceState(null, '', window.location.pathname);
 }
 
 // ── Department → email mapping (mirrors server DEPT_EMAILS) ──────────────────
@@ -4554,6 +4579,8 @@ function logout() {
   var dept = document.getElementById('screen-department');
   if (app)  app.style.display  = 'none';
   if (dept) { dept.style.display = ''; dept.style.opacity = '1'; }
+  var authBg = document.getElementById('auth-bg');
+  if (authBg) authBg.style.display = '';
 }
 
 // Auto-launch if a valid token is already stored; otherwise show welcome

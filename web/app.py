@@ -551,6 +551,28 @@ def inventory_js():
                         headers=_FILE_HEADERS)
 
 
+# The new front end: a React app built by Vite from frontend/ into
+# frontend/dist, served under /app while pages move over from the old one.
+# Built files under assets/ carry a content hash in their names, so they can be
+# cached for good; every other path gets the page itself and the app's router
+# decides what to show.
+APP_DIST = ROOT / "frontend" / "dist"
+
+
+@app.get("/app")
+@app.get("/app/{path:path}")
+def new_app(path: str = ""):
+    if path.startswith("assets/"):
+        f = (APP_DIST / path).resolve()
+        if APP_DIST.resolve() not in f.parents or not f.is_file():
+            raise HTTPException(status_code=404)
+        return FileResponse(f, headers={**_FILE_HEADERS, "Cache-Control": "public, max-age=31536000, immutable"})
+    page = APP_DIST / "index.html"
+    if not page.is_file():
+        raise HTTPException(status_code=404, detail="The new front end has not been built (npm run build in frontend/).")
+    return FileResponse(page, media_type="text/html; charset=utf-8", headers=_FILE_HEADERS)
+
+
 @app.get("/reports.js")
 def reports_js():
     return FileResponse(WEB_DIR / "reports.js", media_type="application/javascript; charset=utf-8", headers=_FILE_HEADERS)
@@ -561,14 +583,26 @@ def sw_js():
     return FileResponse(WEB_DIR / "sw.js", media_type="application/javascript; charset=utf-8", headers=_FILE_HEADERS)
 
 
+# The logo and icons for the browser: small copies made from the full-size logo
+# (which the quotation PDFs still use) - 4KB instead of 450KB, so the sign-in
+# screen paints at once. Kept a week by the browser; rename the file to change it.
+WEB_IMG = ROOT / "data_fl" / "web"
+_IMG_CACHE = {"Cache-Control": "public, max-age=604800"}
+
+
 @app.get("/logo.png")
 def logo():
-    return FileResponse(ROOT / "data_fl" / "Gemini_Generated_Image_z6jc3vz6jc3vz6jc.png", media_type="image/png")
+    return FileResponse(WEB_IMG / "logo-256.png", media_type="image/png", headers=_IMG_CACHE)
 
 
-@app.get("/bg.jpg")
-def bg():
-    return FileResponse(ROOT / "data_fl" / "spm4.jpg", media_type="image/jpeg")
+@app.get("/favicon.ico")
+def favicon():
+    return FileResponse(WEB_IMG / "favicon.ico", media_type="image/x-icon", headers=_IMG_CACHE)
+
+
+@app.get("/apple-touch-icon.png")
+def apple_touch_icon():
+    return FileResponse(WEB_IMG / "apple-touch-icon.png", media_type="image/png", headers=_IMG_CACHE)
 
 
 @app.get("/messages")
@@ -1697,6 +1731,16 @@ def get_emails(order_id: str, type: str = "chevron", user: dict = Depends(verify
         raise HTTPException(status_code=500, detail="Server error")
 
 
+# The same thread from the emails table, with no Gmail access at all. /api/emails
+# above walks the live thread and downloads every message whole, attachments
+# included, each time a story is opened - expensive against the mailbox's IMAP
+# allowance. The new app's order panel reads this instead.
+@app.get("/api/emails/stored")
+def get_stored_emails(order_id: str, type: str = "chevron", user: dict = Depends(verify_jwt)):
+    from email_thread_sync import read_thread
+    return _ok(read_thread(order_id, "nlng" if type == "nlng" else "chevron"))
+
+
 @app.get("/api/emails/summarize")
 def email_summarize(order_id: str, type: str = "chevron", fresh: int = 0,
                     user: dict = Depends(verify_jwt)):
@@ -1814,6 +1858,241 @@ def email_summarize(order_id: str, type: str = "chevron", fresh: int = 0,
                 yield "data: [DONE]\n\n"
             except Exception:
                 pass
+
+    return StreamingResponse(_gen(), media_type="text/event-stream", headers=_sse_headers())
+
+
+# Ask reads the whole inbox - every client, every price. It is open to every
+# role except the warehouse (Oct 2026: accounts and expeditor were added).
+# Enforced here as well as hidden in the sidebar, because hiding a menu item
+# stops nobody calling this.
+_ASK_ROLES = {"admin", "procurement", "accounts", "expeditor"}
+
+
+def _ask_guard(user: dict) -> None:
+    if (user or {}).get("role") not in _ASK_ROLES:
+        raise HTTPException(status_code=403, detail="SPM Ask is not available to this account.")
+
+
+_UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+
+def _ask_can_edit(chat: dict, user: dict) -> bool:
+    """Chats are shared for reading; renaming or deleting one is for whoever
+    started it, or an admin."""
+    return user.get("role") == "admin" or \
+        str(chat.get("created_by_id") or "") == str(user.get("sub") or "")
+
+
+def _ask_chat_owner_or_admin(chat_id: str, user: dict) -> None:
+    # A mangled link is not a uuid, and the database would throw on it.
+    res = get_client().table("ask_chats").select("id,created_by_id").eq("id", chat_id).execute() \
+        if _UUID_RE.match(chat_id) else None
+    if not res or not res.data:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if not _ask_can_edit(res.data[0], user):
+        raise HTTPException(status_code=403, detail="Only the person who started this chat, or an admin, can change it.")
+
+
+def _ask_title(question: str) -> str:
+    """A chat is named after its first question, cut at a word near 70 characters."""
+    q = re.sub(r"\s+", " ", question).strip()
+    if len(q) <= 70:
+        return q
+    cut = q[:70].rsplit(" ", 1)[0]
+    return (cut or q[:70]).rstrip(" ,.;:") + "…"
+
+
+@app.get("/api/ask/chats")
+def ask_chats(user: dict = Depends(verify_jwt)):
+    """Every Ask conversation, most recently active first. Shared by all Ask users."""
+    _ask_guard(user)
+    try:
+        res = get_client().table("ask_chats") \
+            .select("id,title,created_by_id,created_by_name,created_at,updated_at") \
+            .order("updated_at", desc=True).limit(500).execute()
+        rows = res.data or []
+        for r in rows:
+            r["can_edit"] = _ask_can_edit(r, user)
+        return _ok(rows)
+    except Exception as exc:
+        print(f"  [error] ask_chats: {exc}")
+        gap = _schema_gap(exc)
+        if gap:
+            raise HTTPException(status_code=503, detail=gap)
+        raise HTTPException(status_code=500, detail="Server error")
+
+
+@app.get("/api/ask/chats/{chat_id}")
+def ask_chat(chat_id: str, user: dict = Depends(verify_jwt)):
+    _ask_guard(user)
+    if not _UUID_RE.match(chat_id):
+        raise HTTPException(status_code=404, detail="Chat not found")
+    try:
+        res = get_client().table("ask_chats").select("*").eq("id", chat_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Chat not found")
+        chat = res.data[0]
+        chat["can_edit"] = _ask_can_edit(chat, user)
+        msgs = get_client().table("ask_messages") \
+            .select("id,role,content,sources,steps,secs,asked_by,created_at") \
+            .eq("chat_id", chat_id).order("created_at").execute()
+        chat["messages"] = msgs.data or []
+        return _ok(chat)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"  [error] ask_chat: {exc}")
+        gap = _schema_gap(exc)
+        if gap:
+            raise HTTPException(status_code=503, detail=gap)
+        raise HTTPException(status_code=500, detail="Server error")
+
+
+@app.patch("/api/ask/chats/{chat_id}")
+def rename_ask_chat(chat_id: str, body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
+    _ask_guard(user)
+    title = re.sub(r"\s+", " ", str(body.get("title") or "")).strip()[:120]
+    if not title:
+        raise HTTPException(status_code=400, detail="Give the chat a name.")
+    try:
+        _ask_chat_owner_or_admin(chat_id, user)
+        get_client().table("ask_chats").update({"title": title}).eq("id", chat_id).execute()
+        return _ok({"ok": True, "title": title})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"  [error] rename_ask_chat: {exc}")
+        raise HTTPException(status_code=500, detail="Server error")
+
+
+@app.delete("/api/ask/chats/{chat_id}")
+def delete_ask_chat(chat_id: str, user: dict = Depends(verify_jwt)):
+    _ask_guard(user)
+    try:
+        _ask_chat_owner_or_admin(chat_id, user)
+        get_client().table("ask_messages").delete().eq("chat_id", chat_id).execute()
+        get_client().table("ask_chats").delete().eq("id", chat_id).execute()
+        return _ok({"ok": True})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"  [error] delete_ask_chat: {exc}")
+        raise HTTPException(status_code=500, detail="Server error")
+
+
+class _AskRecord:
+    """Saving one exchange of a chat as it streams: the question before the
+    answer starts, the answer (with its steps and cited emails) once it is done.
+
+    Saving is never allowed to cost the answer. Each write is tried on its own;
+    a failure is printed and reported once as a 'saved' event, and the answer
+    carries on regardless.
+    """
+
+    def __init__(self, chat_id: str | None, question: str, user: dict):
+        self.chat_id, self.question, self.user = chat_id, question, user
+        self.text, self.steps, self.sources, self.secs = "", {}, [], None
+        self.problem: str | None = None
+
+    def _fail(self, where: str, exc: Exception) -> None:
+        print(f"  [warn] ask chat not saved ({where}): {exc}")
+        if not self.problem:
+            self.problem = _schema_gap(exc) or "This chat could not be saved, so it will not appear in the history."
+
+    def start(self) -> str | None:
+        try:
+            db = get_client()
+            if self.chat_id and not _UUID_RE.match(self.chat_id):
+                self.chat_id = None              # a mangled link: start a fresh one
+            if self.chat_id:
+                if not db.table("ask_chats").select("id").eq("id", self.chat_id).execute().data:
+                    self.chat_id = None          # a deleted chat: start a fresh one
+            if not self.chat_id:
+                res = db.table("ask_chats").insert({
+                    "title": _ask_title(self.question),
+                    "created_by_id": str(self.user.get("sub") or "") or None,
+                    "created_by_name": self.user.get("name") or self.user.get("email"),
+                }).execute()
+                self.chat_id = res.data[0]["id"]
+            db.table("ask_messages").insert({
+                "chat_id": self.chat_id, "role": "user", "content": self.question,
+                "asked_by": self.user.get("name") or self.user.get("email"),
+            }).execute()
+        except Exception as exc:
+            self._fail("question", exc)
+        return self.chat_id
+
+    def see(self, ev: dict) -> None:
+        t = ev.get("t")
+        if t == "text":
+            self.text += ev.get("d") or ""
+        elif t == "reset":
+            self.text = ""
+        elif t == "step" and ev.get("id"):
+            self.steps[ev["id"]] = {k: ev.get(k) for k in ("id", "label", "state", "detail", "secs")}
+        elif t == "sources":
+            self.sources = ev.get("items") or []
+        elif t == "done":
+            self.secs = ev.get("secs")
+
+    def finish(self) -> None:
+        if not self.chat_id or not self.text.strip():
+            return
+        try:
+            db = get_client()
+            db.table("ask_messages").insert({
+                "chat_id": self.chat_id, "role": "assistant", "content": self.text,
+                "sources": self.sources or None, "steps": list(self.steps.values()) or None,
+                "secs": self.secs,
+            }).execute()
+            db.table("ask_chats").update({"updated_at": datetime.now(timezone.utc).isoformat()}) \
+                .eq("id", self.chat_id).execute()
+        except Exception as exc:
+            self._fail("answer", exc)
+
+
+@app.post("/api/ask")
+def ask(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
+    """SPM Ask: answer a question from the whole inbox and the tracker.
+
+    Streams server-sent events from ask_agent.run - steps as they happen, the
+    answer as it is written, then the sources. Spending is not tracked here;
+    the monthly cap belongs on the API key, in the Anthropic Console.
+    """
+    _ask_guard(user)
+    question = str(body.get("question") or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Type a question first.")
+    if len(question) > 2000:
+        raise HTTPException(status_code=400,
+                            detail="That question is too long - keep it under 2,000 characters.")
+    scope = body.get("scope") if body.get("scope") in ("both", "mail", "tracker") else "both"
+    history = body.get("history") if isinstance(body.get("history"), list) else []
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise HTTPException(status_code=503, detail="No ANTHROPIC_API_KEY is configured.")
+
+    import ask_agent
+    chat_id = str(body.get("chat_id") or "").strip() or None
+
+    def _gen():
+        # The chat is saved as it goes (see _AskRecord); the first event says
+        # which chat this exchange belongs to, so the page can show it.
+        record = _AskRecord(chat_id, question, user)
+        cid = record.start()
+        if cid:
+            yield f"data: {json.dumps({'t': 'chat', 'id': cid})}\n\n"
+        try:
+            for ev in ask_agent.run(question, history, scope, user):
+                record.see(ev)
+                yield f"data: {json.dumps(ev, default=str)}\n\n"
+        except Exception as exc:
+            print(f"  [error] ask: {exc}")
+            yield f"data: {json.dumps({'t': 'error', 'message': 'Something went wrong on the server.'})}\n\n"
+        record.finish()
+        if record.problem:
+            yield f"data: {json.dumps({'t': 'saved', 'ok': False, 'message': record.problem})}\n\n"
+        yield "data: [DONE]\n\n"
 
     return StreamingResponse(_gen(), media_type="text/event-stream", headers=_sse_headers())
 
@@ -3969,6 +4248,8 @@ _TABLE_MIGRATIONS = {
     "stock_items":       "create_stock.sql",
     "stock_movements":   "create_stock.sql",
     "quotations":        "create_quotations.sql",
+    "ask_chats":         "create_ask_chats.sql",
+    "ask_messages":      "create_ask_chats.sql",
 }
 
 
@@ -4017,7 +4298,11 @@ def _schema_gap(exc: Exception) -> str | None:
     # PostgREST's "Could not find the table 'public.x' in the schema cache".
     # Reading the name out of BOTH matters — defaulting to a guess once told
     # somebody their spm_pos table was missing when it was stock_items.
+    # The table named after "Could not find", never the hint's guess: PostgREST
+    # adds "Perhaps you meant the table 'public.parked_emails'", and the hint can
+    # come first in the error text.
     missing = (re.search(r'relation "?([A-Za-z_][A-Za-z0-9_.]*)"? does not exist', text)
+               or re.search(r"Could not find the table '(?:public\.)?([A-Za-z_][A-Za-z0-9_]*)'", text)
                or re.search(r"table '(?:public\.)?([A-Za-z_][A-Za-z0-9_]*)'", text))
     if missing:
         table = missing.group(1).split(".")[-1]
@@ -4680,49 +4965,3 @@ def delete_stock_item(item_id: str, user: dict = Depends(verify_jwt)):
         raise HTTPException(status_code=500, detail="Server error")
 
 
-@app.get("/api/products")
-def list_products(user: dict = Depends(verify_jwt)):
-    """The parts catalogue, read live off the Flexitallic sales orders.
-
-    No table and no data entry: every line Flexitallic has ever despatched
-    carries a part code, a quantity, a unit and a price, so the catalogue is
-    just that history grouped by code. It cannot go stale, and it grows on its
-    own as new sales orders are acknowledged.
-    """
-    try:
-        res = get_client().table("so_line_items") \
-            .select("item_number,qty,uom,unit_price,despatch_date,so_number") \
-            .limit(10000).execute()
-
-        parts: dict[str, dict] = {}
-        for row in res.data or []:
-            code = (row.get("item_number") or "").strip().upper()
-            if not code:
-                continue
-            qty   = _num_or_none(row.get("qty")) or 0.0
-            price = _num_or_none(row.get("unit_price"))
-            when  = str(row.get("despatch_date") or "")
-
-            part = parts.setdefault(code, {
-                "part_code": code, "uom": row.get("uom") or "EA",
-                "times_ordered": 0, "total_qty": 0.0,
-                "last_price": None, "last_ordered": None, "last_so": None,
-            })
-            part["times_ordered"] += 1
-            part["total_qty"]     += qty
-            # "Last" means the most recent despatch, not the last row read —
-            # the rows come back in insert order, which is not date order.
-            if when and (part["last_ordered"] is None or when > part["last_ordered"]):
-                part["last_ordered"] = when
-                part["last_price"]   = price
-                part["last_so"]      = row.get("so_number")
-            elif part["last_price"] is None and price is not None:
-                part["last_price"] = price
-
-        out = sorted(parts.values(), key=lambda p: p["total_qty"], reverse=True)
-        for part in out:
-            part["total_qty"] = round(part["total_qty"], 3)
-        return _ok(out)
-    except Exception as exc:
-        print(f"  [error] list_products: {exc}")
-        raise HTTPException(status_code=500, detail="Server error")

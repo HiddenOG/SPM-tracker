@@ -1,0 +1,84 @@
+/*
+  SPMprocure360 design tokens - the approved Ask mockup, with SPM's red top
+  bar kept so the new pages still feel like the system staff know.
+
+  Three theme states, matching the old app's setting (spm_theme in
+  localStorage): "light" and "dark" stamp data-theme on <html>, "auto" stamps
+  nothing and the OS decides through prefers-color-scheme.
+*/
+:root{
+  --bg:#F3F5FA; --surface:#FFFFFF; --surface-2:#ECF0F7;
+  --line:rgba(15,26,46,.09); --line-2:rgba(15,26,46,.16);
+  --ink:#0F1A2E; --ink-2:#4A5D7C; --ink-3:#8696AF;
+  --accent:#8C1C1C; --accent-2:#A62626; --accent-soft:rgba(140,28,28,.075); --accent-ink:#7E1919; --on-accent:#FFFFFF;
+  --ok:#1A7840; --ok-soft:rgba(26,120,64,.10);
+  --warn:#9A5A15; --warn-soft:rgba(158,92,24,.11);
+  --crit:#B03030; --crit-soft:rgba(176,48,48,.09);
+  --info:#2563AF; --info-soft:rgba(37,99,175,.10);
+  /* report chart series (old style.css --ch1..--ch6) */
+  --pattern-ink:rgba(74,93,124,.072);
+  --ch1:#2a78d6; --ch2:#eb6834; --ch3:#1baf7a; --ch4:#eda100; --ch6:#008300;
+
+  --bar:#8C1C1C; --bar-ink:#FFFFFF; --bar-ink-2:rgba(255,255,255,.78); --bar-hover:rgba(255,255,255,.13); --bar-line:rgba(0,0,0,.15);
+  --rail:#2A0C10; --rail-ink:rgba(255,255,255,.88); --rail-ink-2:rgba(255,255,255,.55);
+  --rail-hover:rgba(255,255,255,.07); --rail-active:rgba(255,255,255,.13); --rail-line:rgba(255,255,255,.09);
+
+  --shadow:0 1px 2px rgba(15,26,46,.05),0 8px 24px -12px rgba(15,26,46,.18);
+  --display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --body:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'Cascadia Code',Consolas,monospace;
+
+  --bar-h:54px;
+  --rail-w:244px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  /* Claude's dark: near-black neutral greys, warm grey text */
+  --bg:#151515; --surface:#1E1E1D; --surface-2:#282826;
+  --line:rgba(255,255,255,.07); --line-2:rgba(255,255,255,.14);
+  --ink:#ECECE8; --ink-2:#A3A29D; --ink-3:#6F6E69;
+  --accent:#D4544E; --accent-2:#E36A64; --accent-soft:rgba(228,98,92,.14); --accent-ink:#F29690;
+  --ok:#4CC181; --ok-soft:rgba(76,193,129,.13); --warn:#E3A24F; --warn-soft:rgba(227,162,79,.14);
+  --crit:#F0716B; --crit-soft:rgba(240,113,107,.13);
+  --info:#8DB4EE; --info-soft:rgba(96,150,230,.15);
+  --pattern-ink:rgba(236,236,232,.035);
+  --ch1:#3987e5; --ch2:#d95926; --ch3:#199e70; --ch4:#c98500; --ch6:#008300;
+  --bar:#A8302B; --bar-line:rgba(0,0,0,.35);
+  --rail:#111111; --rail-hover:rgba(255,255,255,.06); --rail-active:rgba(255,255,255,.10); --rail-line:rgba(255,255,255,.07);
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -14px rgba(0,0,0,.6);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  /* Claude's dark: near-black neutral greys, warm grey text */
+  --bg:#151515; --surface:#1E1E1D; --surface-2:#282826;
+  --line:rgba(255,255,255,.07); --line-2:rgba(255,255,255,.14);
+  --ink:#ECECE8; --ink-2:#A3A29D; --ink-3:#6F6E69;
+  --accent:#D4544E; --accent-2:#E36A64; --accent-soft:rgba(228,98,92,.14); --accent-ink:#F29690;
+  --ok:#4CC181; --ok-soft:rgba(76,193,129,.13); --warn:#E3A24F; --warn-soft:rgba(227,162,79,.14);
+  --crit:#F0716B; --crit-soft:rgba(240,113,107,.13);
+  --info:#8DB4EE; --info-soft:rgba(96,150,230,.15);
+  --pattern-ink:rgba(236,236,232,.035);
+  --ch1:#3987e5; --ch2:#d95926; --ch3:#199e70; --ch4:#c98500; --ch6:#008300;
+  --bar:#A8302B; --bar-line:rgba(0,0,0,.35);
+  --rail:#111111; --rail-hover:rgba(255,255,255,.06); --rail-active:rgba(255,255,255,.10); --rail-line:rgba(255,255,255,.07);
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -14px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+svg{display:block;flex:none}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}

@@ -1,5 +1,5 @@
 """
-test_stock.py — the stock register and the parts catalogue.
+test_stock.py — the stock register.
 
 Stock is a MANUAL register, not a calculated balance, and the reason is in the
 data: of 154 warehouse replies on file none carry a count. They say "Completely
@@ -7,9 +7,8 @@ delivered" or "PO not in stock" in prose. So the number starts from what
 somebody physically counts, and every change is logged so the figure on screen
 can still be explained a month later.
 
-The catalogue is the opposite — nothing is typed at all. Every line Flexitallic
-has despatched carries a part code, a quantity, a unit and a price, so the
-catalogue is that history grouped by code.
+The Products catalogue that used to sit beside it was removed (Oct 2026):
+Inventory is Stock only.
 """
 import os
 import sys
@@ -101,16 +100,25 @@ def test_index_holds_the_sidebar_entry_and_nothing_else():
     has to sit in the right place among the others."""
     index = (WEB / "index.html").read_text(encoding="utf-8")
     assert 'data-p="stock"' in index
-    assert 'data-p="products"' in index
+    assert 'data-p="products"' not in index        # Products was removed
     assert 'id="page-stock"' not in index          # the page itself is in the fragment
     assert 'id="stock-form-modal"' not in index
 
 
 def test_the_fragment_carries_the_pages_and_the_modals():
     fragment = (WEB / "inventory.html").read_text(encoding="utf-8")
-    for probe in ('id="page-stock"', 'id="page-products"',
-                  'id="stock-form-modal"', 'id="delete-stock-modal"'):
+    for probe in ('id="page-stock"', 'id="stock-form-modal"', 'id="delete-stock-modal"'):
         assert probe in fragment, probe
+
+
+def test_products_is_gone_everywhere():
+    """Removed on purpose: no page, no script, no endpoint left behind."""
+    fragment = (WEB / "inventory.html").read_text(encoding="utf-8")
+    script = (WEB / "inventory.js").read_text(encoding="utf-8")
+    app = (WEB / "app.py").read_text(encoding="utf-8")
+    assert 'id="page-products"' not in fragment
+    assert "loadProducts" not in script and "_products" not in script
+    assert "/api/products" not in app
 
 
 def test_every_handler_the_fragment_calls_exists_in_the_script():
@@ -141,12 +149,6 @@ def test_the_dropped_fields_are_gone_everywhere():
         assert gone not in frag, gone
 
 
-def test_products_still_has_its_own_part_code():
-    """The catalogue's code is Flexitallic's, not a field anyone types."""
-    js = (WEB / "inventory.js").read_text(encoding="utf-8")
-    assert "esc(p.part_code)" in js
-
-
 def test_every_table_header_matches_the_row_the_script_renders():
     """Part code and location came out of the form but the headers were missed,
     leaving an 8-column header over 6-column rows. Nothing complained — the
@@ -156,8 +158,7 @@ def test_every_table_header_matches_the_row_the_script_renders():
     script   = (WEB / "inventory.js").read_text(encoding="utf-8")
 
     sections = {
-        "page-stock":    ('id="page-products"', "function (x) {"),
-        "page-products": ("STOCK ITEM MODAL",   "function (p) {"),
+        "page-stock": ("STOCK ITEM MODAL", "function (x) {"),
     }
     for section, (next_marker, row_marker) in sections.items():
         a = fragment.index('id="%s"' % section)
@@ -178,7 +179,7 @@ def test_the_stock_table_shows_only_what_is_counted():
     import re
     fragment = (WEB / "inventory.html").read_text(encoding="utf-8")
     a = fragment.index('id="page-stock"')
-    b = fragment.index('id="page-products"', a)
+    b = fragment.index("STOCK ITEM MODAL", a)
     labels = [re.sub(r"<[^>]*>", "", h).strip()
               for h in re.findall(r"<th[^>]*>.*?</th>", fragment[a:b])]
     assert labels == ["ID", "Description", "Qty", "Unit", "Value", "Last counted", ""]
@@ -255,7 +256,6 @@ def test_every_css_class_the_pages_use_is_actually_defined():
 def test_the_summary_cards_sit_in_the_grid_that_spreads_them():
     frag = (WEB / "inventory.html").read_text(encoding="utf-8")
     assert 'class="kpi-grid" id="stock-kpis"' in frag
-    assert 'class="kpi-grid" id="products-kpis"' in frag
 
 
 def test_postgres_and_postgrest_word_a_missing_column_differently():
@@ -290,7 +290,7 @@ def test_the_lists_page_at_the_same_size_as_the_rest_of_the_app():
     inventory = (WEB / "inventory.js").read_text(encoding="utf-8")
     script    = (WEB / "script.js").read_text(encoding="utf-8")
     sizes = {
-        "stock/products":  re.search(r"var PER_PAGE\s*=\s*(\d+)", inventory).group(1),
+        "stock":           re.search(r"var PER_PAGE\s*=\s*(\d+)", inventory).group(1),
         "orders":          re.search(r"^var PER_PAGE\s*=\s*(\d+)", script, re.M).group(1),
         "quotes":          re.search(r"var _QT_PER_PAGE\s*=\s*(\d+)", script).group(1),
         "purchase orders": re.search(r"var _PO_PER_PAGE\s*=\s*(\d+)", script).group(1),
@@ -303,11 +303,10 @@ def test_the_stock_table_scrolls_like_every_other_table():
     and the max-height that makes it scroll inside its frame."""
     frag = (WEB / "inventory.html").read_text(encoding="utf-8")
     a = frag.index('id="page-stock"')
-    b = frag.index('id="page-products"', a)
-    for section in (frag[a:b], frag[b:]):
-        assert 'class="tw-wrap"' in section
-        assert 'class="tw"' in section
-        assert 'class="qt-tbl"' in section
+    section = frag[a:frag.index("STOCK ITEM MODAL", a)]
+    assert 'class="tw-wrap"' in section
+    assert 'class="tw"' in section
+    assert 'class="qt-tbl"' in section
 
 
 # ── the things that would lose a warehouse count ─────────────────────────────

@@ -1,0 +1,174 @@
+/* Shell: SPM's red bar across the top, the dark oxblood menu down the left,
+   pages in the remaining column. The bar's menu button folds the menu to icons
+   on a wide screen; under 960px the menu is a drawer it slides in. */
+.shell{min-height:100vh;--rail-cur:var(--rail-w)}
+.shell.mini{--rail-cur:68px}
+
+.bar{position:sticky;top:0;z-index:30;height:calc(var(--bar-h) + env(safe-area-inset-top,0px));
+  padding-top:env(safe-area-inset-top,0px);
+  padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));
+  display:flex;align-items:center;gap:12px;background:var(--bar);color:var(--bar-ink);border-bottom:1px solid var(--bar-line)}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.mark{width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.16);color:#fff;display:grid;place-items:center;flex:none}
+.brand b{font:700 17px/1.1 var(--display);letter-spacing:-.01em;white-space:nowrap}
+
+.bell{position:relative}
+.bell .bar-btn{position:relative}
+.pip{position:absolute;top:3px;right:2px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#fff;color:var(--bar);
+  font:700 10px/17px var(--body);text-align:center;box-shadow:0 0 0 2px var(--bar)}
+.bell-panel{position:absolute;right:-44px;top:calc(100% + 8px);width:min(360px,calc(100vw - 24px));max-height:min(560px,calc(100vh - 90px));
+  display:flex;flex-direction:column;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);animation:fade .15s ease both;overflow:hidden}
+.bell-hd{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--line);font:700 15px var(--display)}
+.bell-hd span{font:600 11px var(--body);background:var(--accent-soft);color:var(--accent-ink);padding:2px 7px;border-radius:9px}
+.bell-body{overflow-y:auto;padding:6px 8px 10px}
+.bell-empty{margin:0;padding:24px 10px;text-align:center;color:var(--ink-3);font-size:13.5px}
+.bell-lbl{padding:10px 8px 5px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.bell-it{display:flex;flex-direction:column;gap:1px;padding:8px 10px 8px 13px;border-radius:10px;text-decoration:none;position:relative}
+.bell-it::before{content:'';position:absolute;left:3px;top:11px;width:4px;height:4px;border-radius:50%;background:var(--ink-3)}
+.bell-it.crit::before{background:var(--crit)}
+.bell-it.warn::before{background:var(--warn)}
+.bell-it.info::before{background:var(--accent)}
+a.bell-it:hover{background:var(--surface-2)}
+.bell-it b{font:500 13.5px var(--mono);letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bell-it small{font-size:12.5px;color:var(--ink-3)}
+.bar-sp{flex:1}
+.bar-btn{width:38px;height:38px;border-radius:10px;border:0;background:transparent;color:var(--bar-ink);display:grid;place-items:center}
+.bar-btn:hover{background:var(--bar-hover)}
+.menu-btn{margin-left:-6px}
+.bar-link{font-size:13px;color:var(--bar-ink-2);text-decoration:none;padding:6px 10px;border-radius:8px;white-space:nowrap}
+.bar-link:hover{background:var(--bar-hover);color:var(--bar-ink)}
+.acct{position:relative}
+.av{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.15);
+  color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center}
+.av:hover{background:rgba(255,255,255,.24)}
+.acct-menu{position:absolute;right:0;top:calc(100% + 8px);width:240px;background:var(--surface);color:var(--ink);
+  border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:8px;display:flex;flex-direction:column;gap:4px;animation:fade .15s ease both}
+.acct-who{padding:8px 10px 10px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.acct-who b{display:block;font-size:14px}
+.acct-who span{font-size:12px;color:var(--ink-3);text-transform:capitalize}
+.acct-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;font-size:13px;color:var(--ink-2)}
+.seg-mini{display:inline-flex;background:var(--surface-2);border-radius:9px;padding:2px}
+.seg-mini button{border:0;background:none;padding:4px 8px;border-radius:7px;font-size:12px;color:var(--ink-2)}
+.seg-mini button:hover{background:var(--surface);color:var(--ink)}
+.seg-mini button.on{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(15,26,46,.12)}
+
+/* "Previewing as …" (old .preview-bar): amber, across the top of the page */
+.preview-bar{position:sticky;top:var(--bar-h);z-index:25;display:flex;align-items:center;gap:10px;padding:9px 20px;
+  background:var(--warn-soft);color:var(--warn);border-bottom:1px solid var(--warn);font-size:13px;backdrop-filter:blur(6px)}
+.preview-bar span{flex:1;min-width:0}
+.preview-bar button{border:1px solid var(--warn);background:var(--surface);color:var(--warn);font-size:12.5px;font-weight:600;height:28px;padding:0 12px;border-radius:8px}
+.preview-bar button:hover{background:var(--warn);color:#fff}
+.acct-out{border:0;background:none;text-align:left;padding:9px 10px;border-radius:9px;font-size:13.5px;color:var(--crit)}
+.acct-out:hover{background:var(--crit-soft)}
+
+.rail{position:fixed;top:calc(var(--bar-h) + env(safe-area-inset-top,0px));bottom:0;left:0;width:var(--rail-cur);z-index:20;
+  background:var(--rail);color:var(--rail-ink);overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;gap:14px;
+  transition:width .2s ease;
+  padding-block:16px calc(16px + env(safe-area-inset-bottom,0px));
+  padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:12px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav-sec{padding:14px 11px 5px;font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--rail-ink-2)}
+.nav-sec:first-child{padding-top:2px}
+.nav a{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;color:var(--rail-ink-2);text-decoration:none;font-size:14px;transition:background .15s,color .15s}
+.nav a:hover{background:var(--rail-hover);color:var(--rail-ink)}
+.nav a.on{background:var(--rail-active);color:var(--rail-ink)}
+.nav a.on svg:first-child{color:#fff}
+.nav a span{flex:1;min-width:0}
+.nav .ext{opacity:.45}
+.nav-badge{min-width:20px;height:18px;padding:0 6px;border-radius:9px;background:#fff;color:var(--bar);font:700 10.5px/18px var(--body);text-align:center}
+.rail-note{margin:auto 6px 0;font-size:11.5px;line-height:1.45;color:var(--rail-ink-2)}
+
+/* On Ask: the pages at the top, the saved chats carrying on below them - the
+   menu scrolls down into them - set smaller and quieter than the page buttons
+   (like Claude's sidebar). */
+.shell.with-chats .rail{gap:6px}
+.nav-more{display:flex;align-items:center;gap:11px;padding:9px 11px;border:0;border-radius:10px;background:none;text-align:left;
+  color:var(--rail-ink-2);font-size:14px;transition:background .15s,color .15s}
+.nav-more:hover{background:var(--rail-hover);color:var(--rail-ink)}
+.nav-more span{flex:1;min-width:0}
+.nav-more svg{transition:transform .45s cubic-bezier(.22,.8,.24,1)}
+.nav-more.open svg{transform:rotate(-90deg)}
+
+/* The folded-away pages: the height eases open (grid rows 0fr -> 1fr), each
+   button drifts in a beat after the one above; closing runs it backwards. */
+.nav-rest{display:grid;grid-template-rows:0fr;transition:grid-template-rows .5s cubic-bezier(.22,.8,.24,1) .12s}
+.nav-rest.open{grid-template-rows:1fr;transition-delay:0s}
+.nav-rest > div{min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:2px}
+.nav-rest .nav-sec:first-child{padding-top:14px}
+.nav-rest a,.nav-rest .nav-sec{opacity:0;transform:translateY(-6px);
+  transition:opacity .22s ease,transform .22s ease,background .15s,color .15s;transition-delay:0s}
+.nav-rest.open a,.nav-rest.open .nav-sec{opacity:1;transform:none;
+  transition:opacity .38s ease,transform .38s cubic-bezier(.22,.8,.24,1),background .15s,color .15s;
+  transition-delay:calc(.08s + var(--i,0) * .035s),calc(.08s + var(--i,0) * .035s),0s,0s}
+@media (prefers-reduced-motion:reduce){ .nav-rest,.nav-rest a,.nav-rest .nav-sec,.nav-more svg{transition:none} }
+.rc-all{display:block;margin:4px 4px 0;padding:7px 12px;border-radius:8px;font-size:12.5px;color:var(--rail-ink-2);text-decoration:none}
+.rc-all:hover{background:var(--rail-hover);color:var(--rail-ink)}
+.rc-all.on{background:var(--rail-active);color:var(--rail-ink)}
+.shell.with-chats .nav{flex:none}
+.shell.with-chats .rail-note{display:none}
+.rail-chats{flex:none;display:flex;flex-direction:column;border-top:1px solid var(--rail-hover);padding-top:10px;margin:0 -4px}
+.rc-head{display:flex;align-items:center;justify-content:space-between;padding:2px 11px 6px 15px;font-size:10.5px;font-weight:600;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--rail-ink-2)}
+.rc-new{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:var(--rail-ink-2)}
+.rc-new:hover{background:var(--rail-hover);color:var(--rail-ink)}
+.rc-find{display:flex;align-items:center;gap:7px;height:30px;margin:0 6px 6px;padding:0 9px;border-radius:8px;background:var(--rail-hover);color:var(--rail-ink-2)}
+.rc-find input{flex:1;min-width:0;border:0;outline:0;background:none;font-size:12.5px;color:var(--rail-ink)}
+.rc-find input::placeholder{color:var(--rail-ink-2)}
+.rc-list{padding:0 4px 8px}
+.rail{scrollbar-width:thin;scrollbar-color:var(--rail-hover) transparent}
+.rc-note{margin:4px 11px;font-size:12px;line-height:1.5;color:var(--rail-ink-2)}
+
+.chat-row{position:relative;display:flex;flex-wrap:wrap;align-items:center;border-radius:8px}
+.chat-row a{flex:1;min-width:0;display:flex;align-items:center;gap:9px;padding:6px 10px 6px 12px;border-radius:8px;
+  color:var(--rail-ink-2);text-decoration:none;font-size:13px}
+.chat-row a i{width:5px;height:5px;border-radius:50%;border:1px solid currentColor;opacity:.7;flex:none}
+.chat-row a span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-row:hover,.chat-row.menu-open{background:var(--rail-hover)}
+.chat-row:hover a{color:var(--rail-ink)}
+.chat-row.on{background:var(--rail-active)}
+.chat-row.on a{color:var(--rail-ink)}
+.chat-row.on a i{background:currentColor;opacity:1}
+.chat-row .more{position:absolute;right:3px;top:3px;width:26px;height:26px;border-radius:7px;border:0;
+  display:grid;place-items:center;background:var(--rail-hover);color:var(--rail-ink);opacity:0;transition:opacity .12s}
+.chat-row:hover .more,.chat-row.menu-open .more,.chat-row .more:focus-visible{opacity:1}
+@media (hover:none){ .chat-row .more{opacity:.8;background:none} }
+/* Rename / Delete open in line under the chat, so the menu's edge never cuts them off */
+.row-menu{flex-basis:100%;display:flex;gap:4px;padding:2px 6px 6px 26px;animation:fade .12s ease both}
+.row-menu button{border:0;background:none;padding:5px 9px;border-radius:7px;font-size:12.5px;color:var(--rail-ink)}
+.row-menu button:hover{background:var(--rail-active)}
+.row-menu .danger{color:#ffb4ab}
+.row-err{flex-basis:100%;margin:0 6px 6px;padding:6px 9px;border-radius:7px;background:var(--crit-soft);color:var(--crit);font-size:12px}
+.chat-row.editing{padding:2px}
+.chat-row.editing input{width:100%;height:30px;padding:0 9px;border-radius:7px;border:1px solid var(--rail-ink-2);background:var(--rail-hover);
+  font-size:13px;color:var(--rail-ink);outline:0}
+
+/* folded: icons only, the label as a tooltip, section headings as thin rules */
+.shell.mini .nav a{justify-content:center;padding:10px 0;position:relative}
+.shell.mini .nav a span,.shell.mini .nav .ext,.shell.mini .rail-note{display:none}
+.shell.mini .nav-sec{padding:10px 8px 6px}
+.shell.mini .nav-sec span{display:block;height:1px;overflow:hidden;color:transparent;background:var(--rail-hover)}
+.shell.mini .nav-sec:first-child{display:none}
+.shell.mini .nav-badge{position:absolute;top:4px;right:6px;min-width:16px;height:15px;padding:0 4px;font-size:9.5px;line-height:15px}
+
+.main{margin-left:var(--rail-cur);min-width:0;min-height:calc(100vh - var(--bar-h));position:relative;isolation:isolate;transition:margin-left .2s ease}
+/* The faint trade motif behind every page - gaskets, flanges, cartons, POs.
+   A mask, so its colour and strength are theme tokens; fixed, so it stays put
+   while cards and tables scroll over it. Cards keep their solid surface. */
+.main::before{content:'';position:fixed;z-index:-1;top:var(--bar-h);right:0;bottom:0;left:var(--rail-cur);pointer-events:none;
+  background:var(--pattern-ink);
+  -webkit-mask:url('../styles/pattern.svg') 0 0/320px 240px repeat;mask:url('../styles/pattern.svg') 0 0/320px 240px repeat}
+.scrim{display:none}
+
+@media (prefers-reduced-motion:reduce){ .rail,.main{transition:none} }
+
+@media (max-width:960px){
+  .rail{transform:translateX(-102%);transition:transform .26s ease,box-shadow .26s ease;width:min(290px,84vw)}
+  .shell.open .rail{transform:none;box-shadow:0 0 40px rgba(0,0,0,.35)}
+  .scrim{display:block;position:fixed;inset:0;top:var(--bar-h);z-index:15;background:rgba(8,10,16,.45);opacity:0;pointer-events:none;transition:opacity .25s}
+  .shell.open .scrim{opacity:1;pointer-events:auto}
+  .main{margin-left:0}
+  .main::before{left:0}
+}
+@media (max-width:420px){
+  .brand b{font-size:15px}
+}

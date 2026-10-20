@@ -1,0 +1,93 @@
+/*
+  The rich-text rules for quote descriptions and notes, copied from
+  web/script.js (_ceClean and friends).
+
+  The PDF understands exactly four things: bold, italic, underline and colour,
+  plus line breaks. A paste from Word or Outlook arrives carrying font names,
+  point sizes and nested tables, and each shape broke the PDF a new way. So
+  everything is cleaned on the way in and again on the way out, and only
+  markup the PDF can render survives.
+*/
+
+export const esc = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** Decode entities first, or a saved "&amp;" becomes "&amp;amp;" on every save. */
+export function decode(s: string): string {
+  const d = document.createElement('div')
+  d.innerHTML = String(s)
+  return d.textContent || ''
+}
+
+/** A colour ReportLab can parse, or null. Black counts as no colour. */
+function colour(el: Element): string | null {
+  const raw = String(el.getAttribute('color') || (el as HTMLElement).style?.color || '').trim()
+  if (!raw) return null
+  const rgb = raw.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i)
+  if (rgb) {
+    const hex = [1, 2, 3].map(i => ('0' + (parseInt(rgb[i], 10) & 255).toString(16)).slice(-2)).join('')
+    return hex === '000000' ? null : '#' + hex
+  }
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw)) return /^#0{3,6}$/i.test(raw) ? null : raw.toLowerCase()
+  return null
+}
+
+const BLOCK = new Set(['DIV', 'P', 'LI', 'TR', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'])
+
+export function clean(html: string | null | undefined): string {
+  if (html == null || html === '') return ''
+  const src = String(html)
+  if (!src.includes('<')) return esc(decode(src))
+  const doc = new DOMParser().parseFromString('<div id="r">' + src + '</div>', 'text/html')
+  const root = doc.getElementById('r')
+  if (!root) return esc(src.replace(/<[^>]*>/g, ''))
+  const out: string[] = []
+
+  const walk = (node: Node) => {
+    const kids = node.childNodes
+    for (let i = 0; i < kids.length; i++) {
+      const n = kids[i]
+      if (n.nodeType === 3) { out.push(esc(n.nodeValue || '')); continue }
+      if (n.nodeType !== 1) continue
+      const el = n as HTMLElement
+      const tag = el.tagName.toUpperCase()
+      if (tag === 'BR') { out.push('<br>'); continue }
+      if (tag === 'SCRIPT' || tag === 'STYLE') continue
+      const st = el.style || ({} as CSSStyleDeclaration)
+      const weight = String(st.fontWeight || '')
+      const wraps: [string, string][] = []
+      if (tag === 'B' || tag === 'STRONG' || weight === 'bold' || parseInt(weight, 10) >= 600) wraps.push(['<b>', '</b>'])
+      if (tag === 'I' || tag === 'EM' || String(st.fontStyle || '') === 'italic') wraps.push(['<i>', '</i>'])
+      if (tag === 'U' || /underline/i.test(String(st.textDecoration || st.textDecorationLine || ''))) wraps.push(['<u>', '</u>'])
+      const col = colour(el)
+      if (col) wraps.push([`<font color="${col}">`, '</font>'])
+      wraps.forEach(w => out.push(w[0]))
+      walk(el)
+      for (let k = wraps.length - 1; k >= 0; k--) out.push(wraps[k][1])
+      // A block ends a line, or "<p>one</p><p>two</p>" becomes "onetwo".
+      if (BLOCK.has(tag) && i < kids.length - 1) out.push('<br>')
+      // Table cells sit on one line but need separating, or a pasted row reads "2IN300#".
+      else if ((tag === 'TD' || tag === 'TH') && i < kids.length - 1) out.push(' ')
+    }
+  }
+  walk(root)
+
+  let s = out.join('')
+  // An empty bold/coloured wrapper is what pressing Enter with bold on leaves behind.
+  for (let pass = 0; pass < 3; pass++) {
+    s = s.replace(/<(b|i|u)>((?:\s|<br>)*)<\/\1>/g, '$2').replace(/<font [^>]*>((?:\s|<br>)*)<\/font>/g, '$1')
+  }
+  return s.replace(/(?:\s*<br>\s*){3,}/g, '<br><br>').replace(/^(?:\s*<br>)+|(?:<br>\s*)+$/g, '').trim()
+}
+
+/** Notes saved before they were rich text hold real newlines; keep their shape. */
+export function notesToHtml(val: string | null | undefined): string {
+  let src = String(val == null ? '' : val)
+  if (!src.includes('<')) src = esc(decode(src)).replace(/\r?\n/g, '<br>')
+  return clean(src)
+}
+
+/** What a paste becomes: cleaned HTML, or plain text with its line breaks. */
+export function pasteHtml(e: ClipboardEvent | React.ClipboardEvent): string {
+  const html = e.clipboardData?.getData('text/html')
+  return html ? clean(html) : esc(e.clipboardData?.getData('text/plain') || '').replace(/\r?\n/g, '<br>')
+}

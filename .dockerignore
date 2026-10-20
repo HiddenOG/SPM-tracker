@@ -26,3 +26,9 @@ archive/
 ~$*
 
 # Keep data_fl/ — it holds the app's own logo, background and bundled font.
+
+# The front end: its dependencies and build output are made inside the image
+# (see the frontend stage in the Dockerfile), never copied from this machine.
+node_modules/
+frontend/node_modules/
+frontend/dist/

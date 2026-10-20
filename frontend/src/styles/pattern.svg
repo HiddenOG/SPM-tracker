@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <!-- The page background's faint motif: SPM's own trade, gaskets, flanges,
+       pipe, cartons, trucks, purchase orders, the warehouse. Used as a mask,
+       so the colour and strength come from the pattern-ink token in CSS.
+       Never put a double hyphen inside this comment: XML forbids it and the
+       browser then refuses the whole image. -->
+
+  <!-- spiral-wound gasket: rings and bolt holes -->
+  <g transform="translate(34 36) rotate(-8)">
+    <circle r="17"/><circle r="10"/><circle r="5.5"/>
+    <circle cx="0" cy="-13.5" r="1.4"/><circle cx="13.5" cy="0" r="1.4"/><circle cx="0" cy="13.5" r="1.4"/><circle cx="-13.5" cy="0" r="1.4"/>
+  </g>
+
+  <!-- purchase order: a sheet with lines and a total -->
+  <g transform="translate(118 18) rotate(7)">
+    <path d="M0 0h20l8 8v30H0z"/><path d="M20 0v8h8"/>
+    <path d="M5 15h14M5 21h18M5 27h10"/><path d="M15 33h8"/>
+  </g>
+
+  <!-- carton -->
+  <g transform="translate(206 26) rotate(-6)">
+    <path d="M0 9 16 1l16 8v18l-16 8L0 27z"/><path d="M0 9l16 8 16-8M16 17v18"/><path d="M8 5l16 8"/>
+  </g>
+
+  <!-- flanged pipe -->
+  <g transform="translate(270 86) rotate(14)">
+    <path d="M-20 -5h40M-20 5h40"/><path d="M-20 -11v22M-15 -11v22M15 -11v22M20 -11v22"/>
+  </g>
+
+  <!-- delivery truck -->
+  <g transform="translate(26 118) rotate(4)">
+    <path d="M0 2h22v18H0zM22 8h8l6 6v6H22"/><circle cx="7" cy="22" r="3"/><circle cx="29" cy="22" r="3"/>
+  </g>
+
+  <!-- warehouse -->
+  <g transform="translate(118 112) rotate(-5)">
+    <path d="M0 12 17 2l17 10v20H0z"/><path d="M8 32V20h18v12M8 25h18"/>
+  </g>
+
+  <!-- rising bars -->
+  <g transform="translate(204 128) rotate(6)">
+    <path d="M0 28h30"/><path d="M4 28V17M12 28V9M20 28V13M28 28V3"/>
+  </g>
+
+  <!-- stud bolt with nuts -->
+  <g transform="translate(64 196) rotate(-28)">
+    <path d="M-18 0h36"/><path d="M-12 -5h6v10h-6zM6 -5h6v10H6z"/>
+  </g>
+
+  <!-- clipboard tick -->
+  <g transform="translate(160 178) rotate(9)">
+    <path d="M3 4h22v30H3z"/><path d="M9 1h10v6H9z"/><path d="M8 20l4 4 8-9"/>
+  </g>
+
+  <!-- ring-joint gasket (oval section) -->
+  <g transform="translate(268 188) rotate(-12)">
+    <ellipse rx="15" ry="15"/><ellipse rx="10" ry="10"/>
+  </g>
+
+  <!-- small scattered marks so the gaps do not look empty -->
+  <circle cx="84" cy="80" r="2"/><circle cx="246" cy="230" r="2"/><circle cx="300" cy="20" r="2"/>
+  <path d="M182 82l4 4m0-4-4 4"/><path d="M8 228l4 4m0-4-4 4"/><path d="M226 74l3 3m0-3-3 3"/>
+</svg>

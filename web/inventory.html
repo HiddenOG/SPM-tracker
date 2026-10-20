@@ -1,5 +1,5 @@
 <!--
-  inventory.html — the Stock and Products pages, plus their modals.
+  inventory.html — the Stock page, plus its modals.
 
   Kept out of index.html on purpose. This fragment is fetched by
   inventory.js at start-up and injected into the page container, so the
@@ -51,46 +51,6 @@
   </div>
   <div class="pagination" id="stock-pagination"></div>
 </section>
-
-<!-- ══════ PRODUCTS PAGE ══════ -->
-<section class="page" id="page-products">
-  <div class="ph">
-    <div class="ph-title">Products</div>
-    <div class="ph-sub">Every part Flexitallic has despatched, read live from the sales orders</div>
-  </div>
-
-  <div class="kpi-grid" id="products-kpis"></div>
-
-  <div class="ot-bar" style="margin-bottom:12px">
-    <div class="srch">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" id="products-search" placeholder="Search part code…" oninput="clearTimeout(this._dbt);this._dbt=setTimeout(filterProductsList,150)" />
-    </div>
-  </div>
-
-  <div class="tw-wrap">
-    <div class="tw">
-      <table class="qt-tbl">
-        <thead>
-          <tr>
-            <th>Part code</th>
-            <th style="text-align:right">Times ordered</th>
-            <th style="text-align:right">Total qty</th>
-            <th>Unit</th>
-            <th style="text-align:right">Last price</th>
-            <th>Last despatch</th>
-            <th>Sales order</th>
-          </tr>
-        </thead>
-        <tbody id="products-list-body">
-          <tr><td colspan="7" style="text-align:center;padding:2.5rem;color:var(--t3)">Loading…</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <div class="pagination" id="products-pagination"></div>
-</section>
-
 
 <!-- ══════ STOCK ITEM MODAL ══════ -->
 <div class="cell-overlay hidden" id="stock-form-modal">

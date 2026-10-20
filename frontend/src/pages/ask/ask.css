@@ -1,0 +1,147 @@
+/* Ask - one centred reading column, the composer docked at the bottom. */
+.ask{max-width:820px;margin:0 auto;padding:28px 24px 0;display:flex;flex-direction:column;min-height:calc(100vh - var(--bar-h))}
+
+.ask .ask-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:18px}
+.ask .ask-head h1{margin:0;font:700 28px/1.1 var(--display);letter-spacing:-.02em}
+.ask .ask-head p{margin:6px 0 0;color:var(--ink-2);font-size:14px;max-width:56ch}
+.ask .ghost{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 13px;border-radius:10px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--ink-2);font-size:13.5px;font-weight:500;flex:none;transition:background .15s,color .15s}
+.ask .ghost:hover:not(:disabled){background:var(--surface-2);color:var(--ink)}
+.ask .ghost:disabled{opacity:.45;cursor:default}
+
+.ask .thread{flex:1;display:flex;flex-direction:column;gap:30px;padding:28px 0 36px}
+
+/* the welcome: just the question, centred in the empty space */
+.ask .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:12vh 0 4vh;animation:rise .35s ease both}
+.ask .empty h2{margin:0;font:700 26px/1.15 var(--display);letter-spacing:-.02em;text-wrap:balance}
+.ask .empty p{margin:0;color:var(--ink-3);font-size:14.5px;max-width:52ch}
+
+/* thinking: three soft orbs breathing in turn, and the words under way shimmering */
+.ask .thinking{display:flex;align-items:center;gap:12px;padding:4px 0;animation:fade .3s ease both}
+.ask .orbs{display:inline-flex;gap:5px}
+.ask .orbs i{width:7px;height:7px;border-radius:50%;background:var(--accent);opacity:.25;animation:breathe 1.3s ease-in-out infinite}
+.ask .orbs i:nth-child(2){animation-delay:.18s}
+.ask .orbs i:nth-child(3){animation-delay:.36s}
+@keyframes breathe{0%,100%{opacity:.22;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+.ask .shimmer{font-size:14.5px;font-weight:500;color:transparent;background:linear-gradient(90deg,var(--ink-3) 0%,var(--ink-3) 35%,var(--ink) 50%,var(--ink-3) 65%,var(--ink-3) 100%);
+  background-size:220% 100%;-webkit-background-clip:text;background-clip:text;animation:shine 1.8s linear infinite}
+@keyframes shine{from{background-position:110% 0}to{background-position:-110% 0}}
+@media (prefers-reduced-motion:reduce){ .ask .shimmer{color:var(--ink-2);background:none} .ask .orbs i{opacity:.7} }
+
+/* one exchange */
+.ask .turn{display:flex;flex-direction:column;gap:16px;animation:rise .3s ease both}
+.ask .q{align-self:flex-end;max-width:min(560px,86%);background:var(--accent);color:var(--on-accent);padding:11px 16px;border-radius:18px 18px 6px 18px;
+  font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere}
+.ask .a{display:flex;flex-direction:column;gap:14px}
+.ask .a-head{display:flex;align-items:center;gap:9px;font-size:13.5px}
+.ask .a-head .mono{margin-left:auto;font-size:12px;color:var(--ink-3)}
+.ask .mark-sm{width:24px;height:24px;border-radius:7px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font:700 8px var(--display);letter-spacing:.04em}
+
+.ask .trace{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+.ask .trace-t{width:100%;display:flex;align-items:center;gap:10px;padding:11px 14px;border:0;background:none;text-align:left;color:var(--ink-2);font-size:13.5px}
+.ask .trace-t:hover{background:var(--surface-2)}
+.ask .trace-t .sum{flex:1;min-width:0}
+.ask .trace-t .t{font-size:12px;color:var(--ink-3)}
+.ask .trace-t .chev{transition:transform .2s;color:var(--ink-3)}
+.ask .trace-t[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.ask .steps{list-style:none;margin:0;padding:4px 14px 12px;display:flex;flex-direction:column;gap:9px;border-top:1px solid var(--line)}
+.ask .steps li{display:flex;align-items:flex-start;gap:10px;padding-top:8px;font-size:13.5px;animation:fade .2s ease both}
+.ask .st{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;flex:none;margin-top:1px}
+.ask .st.run{border:2px solid var(--line-2);border-top-color:var(--accent);animation:spin .8s linear infinite}
+.ask .st.done{background:var(--ok-soft);color:var(--ok)}
+.ask .st.err{background:var(--crit-soft);color:var(--crit)}
+.ask .steps .what{flex:1;min-width:0;color:var(--ink)}
+.ask .steps .what small{display:block;font-size:12.5px;color:var(--ink-3);overflow-wrap:anywhere}
+.ask .steps .t{font-size:12px;color:var(--ink-3)}
+
+.ask .ans{font-size:15.5px;line-height:1.65;max-width:68ch}
+.ask .ans p{margin:0 0 .8em}
+.ask .ans p:last-child{margin-bottom:0}
+.ask .ans .lead{font-size:17px;font-weight:500;line-height:1.5;color:var(--ink)}
+.ask .ans ul{margin:0 0 .8em;padding-left:1.2em;display:flex;flex-direction:column;gap:5px}
+.ask .ans .live{white-space:pre-wrap}
+.ask .cite{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;margin:0 1px;border-radius:6px;
+  background:var(--accent-soft);color:var(--accent-ink);font:500 11px var(--mono);text-decoration:none;vertical-align:2px}
+.ask .cite:hover{background:var(--accent);color:var(--on-accent)}
+
+.ask .err{padding:12px 14px;border-radius:12px;background:var(--crit-soft);color:var(--crit);font-size:14px}
+
+.ask .sources-wrap{display:flex;flex-direction:column;gap:10px}
+.ask .label{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+.ask .sources{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ask .src{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);
+  text-decoration:none;min-width:0;transition:border-color .15s,box-shadow .2s}
+.ask .src:hover{border-color:var(--line-2);box-shadow:var(--shadow)}
+.ask .src.flash{animation:flash 1.4s ease}
+@keyframes flash{0%,40%{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}}
+.ask .src .top{display:flex;align-items:center;gap:8px;min-width:0}
+.ask .src .num{width:18px;height:18px;border-radius:6px;background:var(--accent-soft);color:var(--accent-ink);display:grid;place-items:center;font:500 11px var(--mono);flex:none}
+.ask .src .from{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ask .src .meta{font-size:11.5px;color:var(--ink-3)}
+.ask .src .subj{font-size:13.5px;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ask .src .snip{font-size:12.5px;color:var(--ink-3);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+.ask .foot{display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--ink-3)}
+.ask .foot button{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:5px 8px;border-radius:8px;color:var(--ink-2);font-size:12.5px}
+.ask .foot button:hover{background:var(--surface-2);color:var(--ink)}
+
+/* the composer */
+.ask .dock{position:sticky;bottom:0;padding:12px 0 calc(14px + env(safe-area-inset-bottom,0px));
+  background:none}
+.ask .composer{display:flex;flex-direction:column;gap:8px;padding:12px 12px 10px 16px;border-radius:20px;border:1px solid var(--line-2);
+  background:var(--surface);box-shadow:var(--shadow);transition:border-color .15s}
+.ask .composer:focus-within{border-color:var(--accent)}
+.ask .composer textarea{border:0;outline:0;background:none;resize:none;font-size:15.5px;line-height:1.5;padding:4px 0;max-height:168px}
+.ask .composer textarea::placeholder{color:var(--ink-3)}
+.ask .row{display:flex;align-items:center;gap:10px}
+.ask .sp{flex:1}
+.ask .seg{display:inline-flex;background:var(--surface-2);border-radius:11px;padding:3px;gap:2px;min-width:0;overflow-x:auto}
+.ask .seg button{border:0;background:none;padding:5px 11px;border-radius:8px;font-size:12.5px;color:var(--ink-2);white-space:nowrap;transition:background .15s,color .15s}
+.ask .seg button:hover{color:var(--ink)}
+.ask .seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(15,26,46,.12)}
+.ask .send{width:38px;height:38px;border-radius:12px;border:0;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;flex:none;transition:background .15s,opacity .15s}
+.ask .send:hover:not(:disabled){background:var(--accent-2)}
+.ask .send:disabled{opacity:.35;cursor:default}
+.ask .send.stop{background:var(--ink);color:var(--bg)}
+.ask .fine{margin:8px 4px 0;font-size:12px;color:var(--ink-3);text-align:center}
+
+/* a saved chat: its name in the heading, a follow-up asked by someone else is labelled */
+.ask .ask-title{min-width:0}
+.ask .ask-head h1.chat-name{font-size:22px;line-height:1.25;text-wrap:balance;overflow-wrap:anywhere}
+.ask .q-by{align-self:flex-end;margin-bottom:-10px;font-size:12px;color:var(--ink-3)}
+.ask .unsaved{padding:10px 14px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:13.5px}
+.ask .empty > p:only-child{color:var(--ink-2)}
+
+/* All chats: a big heading, then one quiet row per chat, divided by hairlines */
+.all-chats{max-width:1000px;margin:0 auto;padding:30px 28px 56px;animation:fade .25s ease both}
+.ac-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.ac-head h1{margin:0;font:700 30px/1.1 var(--display);letter-spacing:-.02em}
+.ac-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ac-tools input{width:min(300px,62vw);height:38px;padding:0 13px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font-size:14px;outline:0}
+.ac-tools input:focus{border-color:var(--accent)}
+.ac-icon{width:38px;height:38px;border-radius:10px;border:0;background:none;color:var(--ink-2);display:grid;place-items:center}
+.ac-icon:hover{background:var(--surface-2);color:var(--ink)}
+.ac-new{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 15px;border-radius:10px;border:0;background:var(--ink);color:var(--bg);font-size:14px;font-weight:600}
+.ac-new:hover{opacity:.88}
+.ac-count{margin:8px 0 0;font-size:13.5px;color:var(--ink-3)}
+.ac-note{margin:28px 0;color:var(--ink-2);font-size:14.5px}
+.ac-note a{color:var(--accent-ink)}
+.ac-list{list-style:none;margin:22px 0 0;padding:0}
+.ac-list li{border-bottom:1px solid var(--line)}
+.ac-list a{display:flex;align-items:baseline;gap:16px;padding:17px 10px;margin:0 -10px;border-radius:10px;text-decoration:none;color:var(--ink);transition:background .12s}
+.ac-list a:hover{background:var(--surface-2)}
+.ac-list .t{flex:1;min-width:0;font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-list .m{flex:none;font-size:13.5px;color:var(--ink-3);white-space:nowrap}
+
+@media (max-width:700px){
+  .all-chats{padding:22px 16px 40px}
+  .ac-head h1{font-size:25px}
+  .ac-list a{flex-direction:column;gap:2px;padding:13px 10px}
+  .ac-list .t{width:100%}
+  .ask{padding:20px 16px 0}
+  .ask .ask-head h1.chat-name{font-size:19px}
+  .ask .ask-head h1{font-size:24px}
+  .ask .ask-head p{font-size:13.5px}
+  .ask .empty h2{font-size:22px}
+  .ask .seg button{padding:5px 9px}
+}

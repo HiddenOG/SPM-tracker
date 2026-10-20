@@ -1,0 +1,36 @@
+/* Stock: four cards, a search, the register; the form in a small box. */
+.stock .kpi.zero .kpi-val{color:var(--crit)}
+
+.st-tbl th button{cursor:default}
+.st-tbl .id{font-size:12.5px;white-space:nowrap}
+.st-tbl .desc{white-space:normal;min-width:240px;max-width:460px}
+.st-tbl td.crit{color:var(--crit);font-weight:600}
+.st-tbl tr.low td:first-child{box-shadow:inset 3px 0 0 var(--crit)}
+.st-tbl .acts{white-space:nowrap}
+.st-tbl .acts .btn+.btn{margin-left:6px}
+.st-tbl .acts .del:hover:not(:disabled){color:var(--crit);border-color:var(--crit);background:var(--crit-soft)}
+
+/* the form (old .sf-*): labels above their boxes, the modal is narrow */
+.sf .sf-row{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.sf .sf-lbl{font-size:12px;font-weight:500;color:var(--ink-2)}
+.sf .sf-lbl em{color:var(--accent);font-style:normal}
+.sf input,.sf select{height:38px;padding:0 11px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface);font-size:14px;width:100%}
+.sf input.r{text-align:right}
+.sf input[readonly]{background:var(--surface-2);color:var(--ink-2)}
+.sf input:focus,.sf select:focus{outline:0;border-color:var(--accent)}
+.sf-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sf-err{padding:10px 12px;margin-bottom:12px;border-radius:10px;background:var(--crit-soft);border:1px solid var(--crit);color:var(--crit);font-size:13px}
+.sf-hist-wrap{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.sf-history{list-style:none;margin:0;padding:0;max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+.sf-history li{display:flex;align-items:baseline;gap:10px;padding:7px 11px;font-size:12.5px;border-bottom:1px solid var(--line)}
+.sf-history li:last-child{border-bottom:0}
+.sf-history b{font-family:var(--mono);font-weight:600;min-width:52px;text-align:right}
+.sf-history b.up{color:var(--ok)}
+.sf-history b.down{color:var(--crit)}
+.sf-history span{flex:1;min-width:0;color:var(--ink-2)}
+.sf-history time{color:var(--ink-3);font-size:11.5px;white-space:nowrap}
+.ds-text{font-size:13.5px;color:var(--ink-2);margin:0}
+
+@media (max-width:520px){
+  .sf-grid{grid-template-columns:1fr;gap:0}
+}

@@ -1,0 +1,96 @@
+/* Delays: five state cards that double as filters, then the table; a row
+   opens in place to show how long each step took. */
+.delays{max-width:none}
+
+.ocards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.ocard{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:3px;text-align:left;padding:14px 16px 16px;border-radius:16px;
+  border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);transition:border-color .15s,transform .15s}
+.ocard:hover{transform:translateY(-1px);border-color:var(--line-2)}
+.ocard.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft),var(--shadow)}
+.ocard-lbl{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.ocard-lbl::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--ink-3)}
+.ocard.ok .ocard-lbl::before{background:var(--ok)}
+.ocard.warn .ocard-lbl::before{background:var(--warn)}
+.ocard.crit .ocard-lbl::before{background:var(--crit)}
+.ocard.score .ocard-lbl::before{display:none}
+.ocard b{font:700 30px/1.15 var(--display);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.ocard.ok b{color:var(--ok)}
+.ocard.warn b{color:var(--warn)}
+.ocard.crit b{color:var(--crit)}
+.ocard small{font-size:12.5px;color:var(--ink-3)}
+.ocard.score .bar{display:block;height:5px;border-radius:3px;background:var(--surface-2);margin-top:8px;overflow:hidden}
+.ocard.score .bar i{display:block;height:100%;border-radius:3px;background:var(--ink-3);transition:width .6s ease}
+.ocard.score.ok .bar i{background:var(--ok)}
+.ocard.score.warn .bar i{background:var(--warn)}
+.ocard.score.crit .bar i{background:var(--crit)}
+
+.delays .ctls .chips{flex:1;min-width:0}
+.chips.sub .chip{height:26px;font-size:12px}
+
+.pop.menu{display:flex;flex-direction:column;min-width:180px;max-height:320px;overflow-y:auto;padding:6px}
+.pop.menu button{border:0;background:none;text-align:left;padding:7px 10px;border-radius:8px;font-size:13px;color:var(--ink)}
+.pop.menu button:hover{background:var(--surface-2)}
+.pop.menu button.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+
+.dt-tbl .x{width:34px;padding-left:12px;padding-right:0}
+.dt-tbl th.c button{justify-content:center}
+.dt-tbl td.c{text-align:center}
+.dt-tbl .chev{display:inline-block;font-size:18px;line-height:1;color:var(--ink-3);transition:transform .2s}
+.dt-tbl .chev.on{transform:rotate(90deg);color:var(--accent)}
+.dt-tbl .sub-v{display:block;font-size:11.5px;color:var(--ink-3);margin-top:1px}
+.dt-tbl .trunc{max-width:150px;overflow:hidden;text-overflow:ellipsis}
+.dt-tbl .in-stage{font-size:12.5px;color:var(--ink-2)}
+.dt-tbl tr.odr.overdue td.x,.dt-tbl tr.odr.critical td.x{box-shadow:inset 3px 0 0 var(--crit)}
+.dt-tbl tr.odr.at-risk td.x{box-shadow:inset 3px 0 0 var(--warn)}
+.dt-tbl tr.odr.open td{background:var(--surface-2)}
+
+.dl{display:inline-flex;flex-direction:column;align-items:center;line-height:1.15}
+.dl b{font:600 14px var(--mono)}
+.dl small{font-size:11px;color:var(--ink-3)}
+.dl.ok b{color:var(--ok)}
+.dl.warn b{color:var(--warn)}
+.dl.crit b{color:var(--crit)}
+.dl.grey b{color:var(--ink-3)}
+.gap{font-size:12.5px;color:var(--ink-2)}
+.gap.early{color:var(--ok)}
+.gap.late{color:var(--crit)}
+.li{display:inline-grid;place-items:center;min-width:26px;height:22px;padding:0 6px;border-radius:7px;background:var(--surface-2);font:600 12px var(--mono);color:var(--ink-2)}
+.li.warn{background:var(--warn-soft);color:var(--warn)}
+.li.crit{background:var(--crit-soft);color:var(--crit)}
+.otd-b{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;font-size:12px;font-weight:600;background:var(--surface-2);color:var(--ink-2);white-space:nowrap}
+.otd-b.on-track,.otd-b.del-otd{background:var(--ok-soft);color:var(--ok)}
+.otd-b.at-risk,.otd-b.del-late{background:var(--warn-soft);color:var(--warn)}
+.otd-b.overdue,.otd-b.critical{background:var(--crit-soft);color:var(--crit)}
+
+/* the opened row */
+.dt-tbl tr.oxr td{background:var(--bg);white-space:normal;padding:0;cursor:default}
+.ox{padding:16px 20px 18px 46px;display:flex;flex-direction:column;gap:14px;animation:fade .2s ease both}
+.ox-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.ox-hd .link{text-transform:none;letter-spacing:0;font-size:13px}
+.tl{list-style:none;margin:0;padding:22px 0 4px;display:flex;overflow-x:auto;scrollbar-width:thin}
+.tl li{position:relative;flex:1 0 96px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;padding:0 4px}
+.tl li i{width:12px;height:12px;border-radius:50%;border:2px solid var(--line-2);background:var(--bg);z-index:1}
+.tl li:not(:last-child)::after{content:'';position:absolute;top:5px;left:calc(50% + 8px);right:calc(-50% + 8px);height:2px;background:var(--line-2)}
+.tl li.done i{background:var(--ok);border-color:var(--ok)}
+.tl li.done:not(:last-child)::after{background:var(--ok)}
+.tl li.curr i{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.tl li b{font-size:12px;font-weight:600;margin-top:6px;white-space:nowrap}
+.tl li.todo b{color:var(--ink-3);font-weight:500}
+.tl li small{font:12px var(--mono);color:var(--ink-3);min-height:1.2em}
+.tl li.curr small{color:var(--accent-ink);font-family:var(--body);font-weight:600}
+.tl .dur{position:absolute;top:-18px;left:100%;transform:translateX(-50%);font:11px var(--mono);color:var(--ink-3);white-space:nowrap}
+.tl .dur.live{color:var(--accent-ink);font-weight:600}
+.ox-meta{display:flex;flex-wrap:wrap;gap:8px;margin:0}
+.ox-meta div{padding:8px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--line)}
+.ox-meta dt{font-size:11px;color:var(--ink-3)}
+.ox-meta dd{margin:0;font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums}
+
+@media (max-width:1100px){
+  .ocards{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (max-width:700px){
+  .ocards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ocard.score{grid-column:1/-1}
+  .ocard b{font-size:26px}
+  .ox{padding:14px 14px 16px}
+}

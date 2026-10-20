@@ -1,2 +1,14 @@
+# Railway builds every service (web, worker, mcp) with Nixpacks from this file.
+#
+# Python comes from requirements.txt as before. Node is added only to build the
+# new front end: frontend/ is a Vite + React app, and the web app serves its
+# build output (frontend/dist) at /app. That folder is not in git, so it has to
+# be built on every deploy - if this step fails, the build fails and Railway
+# keeps the previous version running rather than shipping a site whose pages
+# are missing.
 [phases.setup]
-nixPkgs = ["tesseract", "poppler_utils", "dejavu_fonts"]
+nixPkgs = ["...", "tesseract", "poppler_utils", "dejavu_fonts", "nodejs_20"]
+
+[phases.build]
+# "..." keeps whatever Nixpacks' Python provider would run here.
+cmds = ["...", "cd frontend && npm ci --include=dev --no-audit --no-fund && npm run build"]

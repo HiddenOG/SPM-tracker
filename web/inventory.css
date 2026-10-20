@@ -1,5 +1,5 @@
 /*
-  inventory.css — Stock and Products.
+  inventory.css — Stock.
 
   Loaded after style.css, so every token and component it uses (--t2, .qt-tbl,
   .qf-inp, .cell-box) comes from there and the two pages stay in step with the

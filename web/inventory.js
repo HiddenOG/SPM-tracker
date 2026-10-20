@@ -1,9 +1,9 @@
 /*
-  inventory.js — Stock and Products.
+  inventory.js — Stock.
 
-  Self-contained: this file fetches inventory.html at start-up, injects the two
-  pages and their modals into the page container, and owns everything they do.
-  Nothing in script.js knows about stock beyond the two sidebar rows, so the
+  Self-contained: this file fetches inventory.html at start-up, injects the
+  page and its modals into the page container, and owns everything they do.
+  Nothing in script.js knows about stock beyond the sidebar row, so the
   whole feature is three files — inventory.html, inventory.css, inventory.js —
   that can be read, changed and uploaded on their own.
 
@@ -21,9 +21,7 @@
 (function () {
 
   var _stock        = [];
-  var _products     = [];
   var _stockPage    = 1;
-  var _productsPage = 1;
   var PER_PAGE      = 100;   // the same page size as orders, quotes and delays
   var _editingId    = null;     // stock item being edited, null when creating
   var _editingQty   = 0;        // its quantity when the form opened
@@ -252,85 +250,6 @@
       + kpi('Total units', qty(units))
       + kpi('Value', money(worth), valued.length + ' of ' + list.length + ' priced')
       + kpi('At zero', String(zero));
-  }
-
-  // ── Products ─────────────────────────────────────────────────────────────
-
-  function loadProducts() {
-    return mount()
-      .then(function () { return authFetch('/api/products'); })
-      .then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (body) {
-          if (!r.ok) throw new Error(body.detail || body.error || ('Server error ' + r.status));
-          if (!Array.isArray(body)) throw new Error('Unexpected reply from the server.');
-          return body;
-        });
-      })
-      .then(function (rows) { _products = rows; renderProducts(); })
-      .catch(function (e) {
-        console.error('loadProducts', e);
-        var el = get('products-list-body');
-        if (el) {
-          el.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2.5rem;color:var(--crit)">'
-            + esc('Could not load products — ' + e.message) + '</td></tr>';
-        }
-      });
-  }
-
-  function filterProductsList() { _productsPage = 1; renderProducts(); }
-
-  function renderProducts() {
-    var body = get('products-list-body');
-    if (!body) return;
-    var search = get('products-search');
-    var term = search ? search.value.trim().toLowerCase() : '';
-    var list = term
-      ? _products.filter(function (p) { return (p.part_code || '').toLowerCase().indexOf(term) !== -1; })
-      : _products;
-
-    var box = get('products-kpis');
-    if (box) {
-      var lines = list.reduce(function (s, p) { return s + (p.times_ordered || 0); }, 0);
-      var units = list.reduce(function (s, p) { return s + num(p.total_qty); }, 0);
-      var worth = list.reduce(function (s, p) { return s + num(p.total_qty) * num(p.last_price); }, 0);
-      box.innerHTML = kpi('Parts', String(list.length))
-        + kpi('Order lines', String(lines))
-        + kpi('Units despatched', qty(units))
-        + kpi('At last price', money(worth), 'what that volume is worth today');
-    }
-
-    if (!list.length) {
-      body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2.5rem;color:var(--t3)">'
-        + (term ? 'No part matches your search.' : 'No parts yet — they appear as Flexitallic sales orders arrive.')
-        + '</td></tr>';
-      if (typeof renderPgBar === 'function') {
-        renderPgBar('products-pagination', 1, 0, PER_PAGE, 'prd-prev', 'prd-next', function () {}, function () {});
-      }
-      return;
-    }
-
-    var pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
-    if (_productsPage > pages) _productsPage = 1;
-    var start = (_productsPage - 1) * PER_PAGE;
-
-    body.innerHTML = list.slice(start, start + PER_PAGE).map(function (p) {
-      return '<tr>'
-        + '<td class="mono" style="font-size:12px">' + esc(p.part_code) + '</td>'
-        + '<td style="text-align:right;font-variant-numeric:tabular-nums">' + (p.times_ordered || 0) + '</td>'
-        + '<td style="text-align:right;font-variant-numeric:tabular-nums">' + qty(p.total_qty) + '</td>'
-        + '<td>' + esc(p.uom || 'EA') + '</td>'
-        + '<td style="text-align:right;font-variant-numeric:tabular-nums">'
-        +   (p.last_price != null ? money(p.last_price) : '—') + '</td>'
-        + '<td>' + esc(p.last_ordered || '—') + '</td>'
-        + '<td class="mono" style="font-size:12px">' + esc(p.last_so || '—') + '</td>'
-        + '</tr>';
-    }).join('');
-
-    if (typeof renderPgBar === 'function') {
-      renderPgBar('products-pagination', _productsPage, list.length, PER_PAGE, 'prd-prev', 'prd-next',
-        function () { if (_productsPage > 1) { _productsPage--; renderProducts(); } },
-        function () { if (_productsPage < pages) { _productsPage++; renderProducts(); } });
-    }
   }
 
   // ── the form ─────────────────────────────────────────────────────────────
@@ -570,8 +489,6 @@
   window.confirmDeleteStock    = confirmDeleteStock;
   window.closeDeleteStockModal = closeDeleteStockModal;
   window.doDeleteStockItem     = doDeleteStockItem;
-  window.loadProducts          = loadProducts;
-  window.filterProductsList    = filterProductsList;
 
   function ready(fn) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
@@ -580,14 +497,13 @@
 
   ready(function () {
     // showPage lives in script.js and knows nothing about stock. Rather than
-    // edit it, wrap it: the original still runs, and these two pages get their
+    // edit it, wrap it: the original still runs, and the stock page gets its
     // data loaded on the way past.
     var original = window.showPage;
     if (typeof original === 'function') {
       window.showPage = function (name) {
         original.apply(this, arguments);
-        if (name === 'stock')    loadStock();
-        if (name === 'products') loadProducts();
+        if (name === 'stock') loadStock();
       };
     }
 

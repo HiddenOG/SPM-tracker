@@ -57,6 +57,20 @@ def test_paused_it_idles_and_never_touches_gmail(monkeypatch):
     assert len(calls) == 3 and all(s >= 60 for s in calls)
 
 
+def test_the_products_page_is_gone_from_every_role():
+    """Inventory is Stock only: no role sees Products, in either app."""
+    old = (ROOT / "web" / "script.js").read_text(encoding="utf-8")
+    start = old.index("var ROLE_PAGES = {")
+    roles = old[start:old.index("};", start)]
+    assert "'products'" not in roles and "'stock'" in roles
+    pages = ROOT / "frontend" / "src" / "lib" / "pages.ts"
+    if pages.exists():
+        new = pages.read_text(encoding="utf-8")
+        start = new.index("const ROLE_PAGES")
+        assert "'products'" not in new[start:new.index("}", start)]
+        assert "key: 'products'" not in new          # and no menu entry
+
+
 def test_the_suppliers_page_is_hidden_in_both_apps():
     old = (ROOT / "web" / "script.js").read_text(encoding="utf-8")
     start = old.index("var ROLE_PAGES = {")
