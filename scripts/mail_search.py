@@ -244,10 +244,14 @@ def _subject(env) -> str:
 #
 # The text part sits at one of three places in nearly every message seen -
 # "1" for a single-part message, "1.1" inside multipart/alternative, "1.1.1"
-# when that is wrapped again in multipart/mixed. Asking for all three in the
-# same FETCH as the structure turns "fetch structure, then fetch text by path"
-# into one trip; a message whose text lives anywhere else costs a second.
-_LIKELY_PATHS = ("1", "1.1", "1.1.1")
+# when that is wrapped again in multipart/mixed.
+#
+# Only part "1" is asked for up front, because every message has one. Asking
+# for a part a message does not have ("1.1.1" of a simple email) makes Gmail
+# refuse the WHOLE fetch - "Some messages could not be FETCHed (Failure)" -
+# which once failed every Ask search and looked exactly like throttling.
+# Text that sits deeper is fetched afterwards, by its real path.
+_LIKELY_PATHS = ("1",)
 
 _META = ["ENVELOPE", "BODYSTRUCTURE", "X-GM-MSGID", "X-GM-THRID", "INTERNALDATE"]
 
@@ -266,11 +270,12 @@ def _body_of(v: dict, path: str):
 
 
 def _fetch_with_text(imap, uids: list, nbytes: int) -> dict:
-    """Structure, headers and the text part of each message, in one trip.
+    """Structure, headers and the text part of each message.
 
     Returns {uid: {"meta": {...}, "text": bytes|None, "part": (path, enc,
-    charset, is_html)|None}}. Messages whose text part sits outside the usual
-    three places get a second, targeted fetch.
+    charset, is_html)|None}}. One trip when the text is part "1"; messages
+    whose text sits deeper get a second fetch by the path their structure
+    gives, so nothing is ever asked for that is not there.
     """
     items = _META + [f"BODY.PEEK[{p}]<0.{nbytes}>" for p in _LIKELY_PATHS]
     data = imap.fetch(uids, items)
@@ -289,7 +294,14 @@ def _fetch_with_text(imap, uids: list, nbytes: int) -> dict:
         for uid, path in missing.items():
             by_path.setdefault(path, []).append(uid)
         for path, group in by_path.items():
-            extra = imap.fetch(group, [f"BODY.PEEK[{path}]<0.{nbytes}>"])
+            try:
+                extra = imap.fetch(group, [f"BODY.PEEK[{path}]<0.{nbytes}>"])
+            except Exception as exc:
+                # Gmail refuses a whole group for one odd message. The hits
+                # still count without their text: better a result with no
+                # snippet than a failed search.
+                print(f"  [warn] mail_search: text of {len(group)} message(s) at {path} not fetched: {exc}")
+                continue
             for uid, v in extra.items():
                 out[uid]["text"] = _body_of(v, path)
     return out

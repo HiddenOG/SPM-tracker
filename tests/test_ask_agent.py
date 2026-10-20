@@ -537,3 +537,35 @@ def test_closing_mid_answer_does_not_raise():
     gen = A.run("q", client=client, mail=FakeMail(), tracker=FakeTracker(), user={"sub": "u1"})
     next(gen)
     gen.close()
+
+
+def test_mail_search_never_asks_gmail_for_a_part_that_is_not_there():
+    """Gmail refuses a WHOLE fetch if one message lacks a part asked for
+    ("Some messages could not be FETCHed"). Asking every hit for parts 1, 1.1
+    and 1.1.1 at once failed every Ask search, which looked like throttling."""
+    import mail_search as M
+
+    # A plain email (text is part 1) and a multipart one (text is part 1.1).
+    structures = {1: ("TEXT", "PLAIN"), 2: [("TEXT", "PLAIN"), ("TEXT", "HTML")]}
+    real_parts = {1: {"1"}, 2: {"1", "1.1", "1.2"}}
+
+    class StrictGmail:
+        def fetch(self, uids, items):
+            for uid in uids:
+                for it in items:
+                    if it.startswith("BODY.PEEK["):
+                        part = it[len("BODY.PEEK["):it.index("]")]
+                        if part not in real_parts[uid]:
+                            raise RuntimeError("fetch failed: Some messages could not be FETCHed (Failure)")
+            return {uid: {b"BODYSTRUCTURE": structures[uid], b"X-GM-MSGID": uid,
+                          **{f"BODY[{it[10:it.index(']')]}]<0>".encode(): b"hello"
+                             for it in items if it.startswith("BODY.PEEK[")}} for uid in uids}
+
+    texts = {1: ("1", "7BIT", "utf-8", False), 2: ("1.1", "7BIT", "utf-8", False)}
+    orig = M._text_part
+    M._text_part = lambda bs: texts[1] if bs == structures[1] else texts[2]
+    try:
+        out = M._fetch_with_text(StrictGmail(), [1, 2], 3000)
+    finally:
+        M._text_part = orig
+    assert out[1]["text"] == b"hello" and out[2]["text"] == b"hello"

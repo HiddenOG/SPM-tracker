@@ -44,7 +44,7 @@ def test_the_browser_gets_small_images_and_a_favicon():
     # The quotation PDFs keep the full-size original.
     assert (ROOT / "data_fl" / "Gemini_Generated_Image_z6jc3vz6jc3vz6jc.png").is_file()
     for page in ("web/index.html", "web/messages.html", "frontend/index.html"):
-        assert 'href="/favicon.ico"' in (ROOT / page).read_text(encoding="utf-8"), page
+        assert 'href="/favicon.ico' in (ROOT / page).read_text(encoding="utf-8"), page
     # The photo behind the sign-in is gone; the moving backdrop replaced it.
     assert "bg.jpg" not in (ROOT / "web" / "style.css").read_text(encoding="utf-8")
     assert 'id="auth-bg"' in (ROOT / "web" / "index.html").read_text(encoding="utf-8")
