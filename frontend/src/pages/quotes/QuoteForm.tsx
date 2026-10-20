@@ -5,7 +5,7 @@ import { currentUser } from '../../lib/session'
 import { todayLocal } from '../../lib/orders'
 import { clean, notesToHtml } from './rich'
 import { FormatBar, Rich } from './RichEditor'
-import { type Company, COMPANY_NAME, downloadQuotePdf, readCompany } from './QuotesPage'
+import { type Company, COMPANY_NAME, downloadQuotePdf, readCompany, sym } from './QuotesPage'
 import './quotes.css'
 
 /*
@@ -47,7 +47,6 @@ function blankFields(company: Company): Fields {
 let keySeq = 1
 const newRow = (r: Partial<Row> = {}): Row => ({ _k: keySeq++, product_no: '', description: '', uom: 'EA', quantity: 1, unit_price: 0, tax_rate: 0, line_total: 0, ...r })
 const lineTotal = (r: Row) => Math.round((Number(r.quantity) || 0) * (Number(r.unit_price) || 0) * (1 + (Number(r.tax_rate) || 0)) * 100) / 100
-const sym = (c: string) => (c === 'GBP' ? '£' : c === 'NGN' ? '₦' : '$')
 const n = (v: string) => parseFloat(v) || 0
 
 function Eye({ on, onToggle, what }: { on: boolean; onToggle: () => void; what: string }) {

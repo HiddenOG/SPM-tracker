@@ -14,8 +14,12 @@ import './quotes.css'
 export type Company = 'spm' | 'danmag'
 type Quote = {
   id: string; quote_number?: string; company?: string; client?: string; reference_po?: string
-  subject?: string; total?: number | null; quote_date?: string; status?: string
+  subject?: string; total?: number | null; quote_date?: string; status?: string; currency?: string | null
 }
+
+// A quote's currency as a symbol, for its total here and in the form. Quotes
+// are in dollars, naira or pounds, so the list can't assume one.
+export const sym = (c?: string | null) => (c === 'GBP' ? '£' : c === 'NGN' ? '₦' : '$')
 
 const PER_PAGE = 100
 const STATUS_TONE: Record<string, string> = { draft: 'n', sent: 'ok', accepted: 'ok', rejected: 'r' }
@@ -103,7 +107,7 @@ export default function QuotesPage() {
             <thead>
               <tr>
                 {['Quote #', 'Client', 'Reference REQ', 'Subject'].map(h => <th key={h}><button type="button" tabIndex={-1}>{h}</button></th>)}
-                <th className="r"><button type="button" tabIndex={-1}>Total ($)</button></th>
+                <th className="r"><button type="button" tabIndex={-1}>Total</button></th>
                 <th><button type="button" tabIndex={-1}>Date</button></th>
                 <th><button type="button" tabIndex={-1}>Status</button></th>
                 <th aria-label="Actions" />
@@ -119,7 +123,7 @@ export default function QuotesPage() {
                   <td>{(x.client || '').toUpperCase()}</td>
                   <td className="mono ref" title={x.reference_po || ''}>{x.reference_po || '—'}</td>
                   <td className="subj" title={x.subject || ''}>{x.subject || '—'}</td>
-                  <td className="r mono">{x.total != null ? '$' + Number(x.total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                  <td className="r mono">{x.total != null ? sym(x.currency) + Number(x.total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
                   <td>{x.quote_date ? fmtDate(x.quote_date)?.d : '—'}</td>
                   <td><span className={`pill ${STATUS_TONE[x.status || 'draft'] || 'n'}`}><i />{x.status || 'draft'}</span></td>
                   <td className="r acts" onClick={e => e.stopPropagation()}>
