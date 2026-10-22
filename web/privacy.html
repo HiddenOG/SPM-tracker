@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy — SPMprocure360</title>
+  <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
+  <style>
+    :root{--bg:#F6F4F3;--ink:#1F1A1B;--ink-2:#5C5254;--line:rgba(31,26,27,.12);--accent:#8C1C1C}
+    @media (prefers-color-scheme:dark){:root{--bg:#151515;--ink:#ECECE8;--ink-2:#A3A29D;--line:rgba(255,255,255,.1);--accent:#F08A7E}}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:680px;margin:0 auto;padding:48px 20px 64px}
+    header{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+    header img{width:40px;height:40px;border-radius:9px}
+    h1{margin:0;font-size:28px;line-height:1.2;letter-spacing:-.01em}
+    h2{margin:30px 0 6px;font-size:17px}
+    p,li{color:var(--ink-2)}
+    ul{padding-left:1.2em}
+    a{color:var(--accent)}
+    footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:14px;color:var(--ink-2)}
+  </style>
+</head>
+<body>
+<main>
+  <header><img src="/logo.png" alt="" /><div><h1>Privacy</h1><span style="color:var(--ink-2);font-size:14px">SPMprocure360 · Special Piping Materials (Nig.) Ltd.</span></div></header>
+
+  <p>SPMprocure360 is the internal order-tracking system of Special Piping Materials (Nig.) Ltd. It is used only by our own staff, who sign in with accounts we issue.</p>
+
+  <h2>What it reads</h2>
+  <p>SPM Ask, the question-answering part of the system, reads the company's own mailbox, specialpiping@gmail.com, with <b>read-only</b> access, to answer staff questions about orders, clients and correspondence. It cannot send, change or delete any email.</p>
+
+  <h2>What it keeps</h2>
+  <ul>
+    <li>Questions staff ask, and the answers given, are saved so the team can reopen them.</li>
+    <li>An answer may quote short parts of the emails it was drawn from, and lists those emails as its sources.</li>
+    <li>Nothing read from the mailbox is sold, shared with third parties, or used for advertising.</li>
+  </ul>
+
+  <h2>Who processes it</h2>
+  <p>Answers are written with Anthropic's Claude, which receives only the question and the email extracts needed to answer it. Data is stored in our database hosted by Supabase, and the system runs on Railway.</p>
+
+  <h2>Google user data</h2>
+  <p>Our use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. Access can be withdrawn at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy: <a href="mailto:specialpiping@gmail.com">specialpiping@gmail.com</a>.</p>
+
+  <footer>Last updated 21 October 2026 · <a href="/">Sign in to SPMprocure360</a></footer>
+</main>
+</body>
+</html>

@@ -605,6 +605,13 @@ def apple_touch_icon():
     return FileResponse(WEB_IMG / "apple-touch-icon.png", media_type="image/png", headers=_IMG_CACHE)
 
 
+@app.get("/privacy")
+def privacy_page():
+    """Public, no sign-in: Google requires a privacy policy link before the
+    Gmail API sign-in app (SPM Ask) can be published."""
+    return FileResponse(WEB_DIR / "privacy.html", media_type="text/html; charset=utf-8", headers=_FILE_HEADERS)
+
+
 @app.get("/messages")
 def messages_page():
     fpath = WEB_DIR / "messages.html"
