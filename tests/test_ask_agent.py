@@ -83,6 +83,7 @@ class FakeClient:
     def __init__(self, rounds):
         self.rounds, self.calls = list(rounds), []
         self.messages = self
+        self.beta = self                      # client.beta.messages.stream(...)
 
     def stream(self, **kw):
         # Snapshot the conversation as it was sent. The agent keeps appending
@@ -266,8 +267,34 @@ def test_history_is_text_only_capped_and_starts_with_the_user():
     assert all(m["role"] in ("user", "assistant") for m in clean)
 
 
-def test_the_model_is_haiku_5_5():
-    assert A.MODEL == "claude-haiku-5-5"
+def test_the_model_is_sonnet_5_5_with_room_to_think_and_a_fallback():
+    """Haiku didn't know a CG from a CGI. Sonnet thinks before answering, and
+    thinking counts against max_tokens, so 4096 would cut answers short."""
+    assert A.MODEL == "claude-sonnet-5-5"
+    assert A.MAX_TOKENS >= 16000 and A.EFFORT in ("low", "medium", "high")
+    client = FakeClient([round_([text_block("Done.")], "end_turn")])
+    list(A.run("hi", client=client, mail=FakeMail(), tracker=FakeTracker()))
+    sent = client.calls[0]
+    assert sent["fallbacks"] == "default" and A.FALLBACK_BETA in sent["betas"]
+    assert sent["output_config"] == {"effort": A.EFFORT}
+
+
+def test_ask_knows_the_gasket_shorthand():
+    for term in ("CGI = CG plus an inner ring", '"16 SS"', "300#", "B16.47",
+                 "A quote from Flexitallic"):
+        assert term in A.SYSTEM, term
+
+
+def test_quote_search_matches_words_not_exact_phrases():
+    """Descriptions are stored like GASKET:SPIRALWOUND36IN,SS300LB - no spaces."""
+    import mcp_server as T
+    w = T._search_words
+    assert T._matches(w("spiral wound 36 300"), "GASKET:SPIRALWOUND36IN,SS300LB")
+    assert T._matches(w("CGI 316 graphite"), 'GASKET (SPIRAL WOUND) 24", CGI, ANSI 316/GRAPHITE')
+    assert T._matches(w("36 300#"), 'GASKET 36" CL300#')
+    assert not T._matches(w("spiral wound 36"), "SPIRAL WOUND 4 IN 316L SS")   # 36 is not inside 316
+    assert not T._matches(w("gasket for 36 x 300"), "GASKET 36IN 150LB")       # every number counts
+    assert w("Gasket FOR 36 x 300") == ["gasket", "36", "300"]                 # filler words dropped
 
 
 # ── tools ───────────────────────────────────────────────────────────────────

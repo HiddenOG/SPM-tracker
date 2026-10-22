@@ -45,9 +45,17 @@ from datetime import date, datetime, timedelta, timezone
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
-MODEL = os.environ.get("ASK_MODEL", "claude-haiku-5-5")
-MAX_ROUNDS = 6
-MAX_TOKENS = 4096
+# Sonnet, not Haiku: Haiku answered gasket questions without knowing a
+# Flexitallic CG from a CGI or reading "16 SS" as 316. A question costs a few
+# US cents on Sonnet against a fraction of one on Haiku; ASK_MODEL overrides.
+MODEL = os.environ.get("ASK_MODEL", "claude-sonnet-5-5")
+EFFORT = os.environ.get("ASK_EFFORT", "medium")
+MAX_ROUNDS = 8
+# Thinking counts against this, so it has to leave room for the answer.
+MAX_TOKENS = 16000
+# If a request is ever declined by a safety check, the API re-runs it on a
+# fallback model inside the same call instead of failing the question.
+FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 
 _WAT = timezone(timedelta(hours=1))
@@ -58,15 +66,25 @@ You answer staff questions from two sources:
 - The company inbox (specialpiping@gmail.com, about 295,000 emails), through search_email, read_email and read_thread. search_email takes Gmail search syntax: plain words, "exact phrases", from:, to:, subject:, after:2026/09/01, before:, newer_than:30d, has:attachment, OR, and -word to exclude.
 - The SPMprocure360 tracker, through the order, quote and stock tools. The tracker only holds Chevron and NLNG orders; every other client's orders are found in email.
 
+The trade's shorthand - read requests with it, and don't ask what these mean:
+- Spiral wound gasket styles (Flexitallic names): CG = winding with an outer centring (guide) ring, usually carbon steel; CGI = CG plus an inner ring; R = winding only; RIR = winding with an inner ring only. "SS outer ring" means the outer ring is stainless instead of carbon steel.
+- Materials: SS = stainless steel; 316, 316L and 304 are grades. Staff often drop the 3, so "16 SS" or "SS16" means 316 SS. Fillers: graphite (flexible graphite), PTFE, mica or Thermiculite (Flexitallic's mica-based filler). CS = carbon steel.
+- Size is the pipe size in inches, written 36", 36 IN, 36IN or NPS 36. Pressure class is written 300LB, 300#, CL300 or class 300 (150, 300, 600, 900, 1500, 2500). Sizes above 24" follow ASME B16.47 Series A or B, so a 36" gasket needs the series too.
+- Ring joints (RTJ) are numbered R, RX or BX plus a number (R18, RX24).
+- "A quote from Flexitallic" or "Flexitallic's offer" is Flexitallic's price to SPM. It comes from Flexitallic's sales staff by email, usually as a PDF or Excel attachment. "Our quote" or an SPM quote (SPM-00xx-...) is SPM's price to a client, in the quotations tool. A Flexitallic "sales acknowledgement" or SO comes after SPM orders.
+- If one term is still unclear, say how you read it and carry on rather than stopping to ask.
+
 How to work:
-- Search first, then read the one to four emails that matter before answering. Search results show only the start of each email.
+- For items, search with a few key words and numbers, not the whole description: search_quotes("spiral wound 36 300"). Spacing and punctuation don't matter there. In email, try the ways the size is written (36" OR 36IN OR "36 in") and from:flexitallic.
+- Search first, then read the one to four emails that matter before answering.
+- Prices, offers and POs are usually in attachments, not the email text ("please find attached"). Search and read results list each email's attachments; open the relevant one with read_attachment before saying a price isn't there. Search results show only the start of each email.
 - For "latest", "status" or "update" questions, search recent mail first (newer_than:30d or newer_than:60d) and widen only if nothing useful comes back.
 - Do not write anything before or between tool calls. Write only the final answer.
 - If the emails don't settle the question, say what you found and what is missing. Never guess a date, an amount or a PO number.
 
 How to answer:
 - The first sentence is the direct answer.
-- Then short paragraphs, or lines starting with "- " for lists. Plain language. No headings, no tables, no bold.
+- Then short paragraphs, or lines starting with "- " for lists. Plain language. No headings or tables. A list line may start with a short **bold** label, like "**QU-677580 (Seplat):**"; no other bold.
 - Cite emails by their reference number in square brackets, like [2], straight after the fact it supports.
 - Write PO numbers, SO numbers, amounts and dates exactly as the source has them."""
 
@@ -93,6 +111,18 @@ EMAIL_TOOLS = [
             "type": "object",
             "properties": {"id": {"type": "string", "description": "The email id from search results."}},
             "required": ["id"],
+        },
+    },
+    {
+        "name": "read_attachment",
+        "description": "Read the text inside one attachment of an email - PDF, Excel (.xlsx), Word (.docx) or text. Use it when the attachment holds the answer, such as a supplier's price offer or a PO. Takes the email id and the file name exactly as listed under 'attachments' in search or read results.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "description": "The email id."},
+                "filename": {"type": "string", "description": "The attachment's file name."},
+            },
+            "required": ["id", "filename"],
         },
     },
     {
@@ -191,7 +221,7 @@ def _q(s: str, n=60) -> str:
 def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None):
     """Run one tool. Returns (text for the model, step label, step detail)."""
     args = args or {}
-    if name in ("search_email", "read_email", "read_thread"):
+    if name in ("search_email", "read_email", "read_thread", "read_attachment"):
         if mail is None:
             import mail_search as mail
     else:
@@ -231,6 +261,16 @@ def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None):
                 + f'subject: {m["subject"]}\n{att}thread {m["thread"]}'
                 + (f' ({"; ".join(notes)})' if notes else "") + f'\n\n{m["body"]}')
         return text, label, f'{_short_from(m["from"])} · {m["date"][:11]}'
+
+    if name == "read_attachment":
+        eid = str(args.get("id") or "")
+        a = mail.attachment(eid, str(args.get("filename") or ""))
+        ref = refs.by_id.get(eid)                 # the email's [n], if it was shown
+        of = f" of email [{ref}]" if ref else ""
+        pages = f" · {a['pages']} pages" if a.get("pages") else ""
+        note = " (only the start is shown - the file is longer)" if a.get("cut") else ""
+        return (f'Attachment "{a["name"]}"{of}{note}:\n\n{a["text"]}',
+                f"Opening “{_q(a['name'], 50)}”", f'{a["kind"].upper()}{pages}')
 
     if name == "read_thread":
         t = mail.thread(str(args.get("thread_id") or ""))
@@ -313,10 +353,12 @@ def run(question: str, history=None, scope: str = "both", user=None,
             # Automatic caching marks the last block of each request, so the
             # next round reads the growing conversation from cache rather than
             # paying for it again.
-            with client.messages.stream(
+            with client.beta.messages.stream(
                 model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
                 tools=tools, messages=messages,
                 cache_control={"type": "ephemeral"},
+                output_config={"effort": EFFORT},
+                betas=[FALLBACK_BETA], fallbacks="default",
             ) as stream:
                 for event in stream:
                     if (getattr(event, "type", "") == "content_block_delta"
@@ -390,6 +432,8 @@ def _pending_label(name: str, args) -> str:
         return "Reading an email"
     if name == "read_thread":
         return "Reading the whole conversation"
+    if name == "read_attachment":
+        return f"Opening “{_q(str(args.get('filename') or 'an attachment'), 50)}”"
     if name in ("find_orders", "order_detail"):
         return "Checking the tracker"
     if name == "orders_stuck":

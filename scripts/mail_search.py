@@ -428,3 +428,100 @@ def thread(thread_id: str, limit: int = 20) -> dict:
         return {"thread": tid, "size": len(uids), "shown": len(msgs), "messages": msgs}
 
     return _with_imap(run)
+
+
+def _attachment_parts(bs, path=""):
+    """(path, mime, encoding, filename, size) for every leaf that has a file name."""
+    if getattr(bs, "is_multipart", False) or (
+            isinstance(bs, (list, tuple)) and bs and isinstance(bs[0], list)):
+        for i, child in enumerate(bs[0], start=1):
+            yield from _attachment_parts(child, f"{path}.{i}" if path else str(i))
+        return
+    for p, mime, _params, enc, _disp, filename in _walk(bs, path):
+        if filename:
+            try:
+                size = int(bs[6]) if len(bs) > 6 else 0
+            except (TypeError, ValueError):
+                size = 0
+            yield p, mime, enc, decode_mime_words(filename), size
+
+
+def attachment(message_id: str, filename: str = "") -> dict:
+    """The text of one attachment of one email (Gmail API, else IMAP)."""
+    return _route("attachment", _imap_attachment, message_id, filename)
+
+
+def _imap_attachment(message_id: str, filename: str = "") -> dict:
+    import mail_attachments as MA
+    mid = re.sub(r"\D", "", str(message_id or ""))
+    if not mid:
+        raise MailSearchError("That isn't a message id.")
+
+    def run(imap):
+        uid = _uid_by_msgid.get(mid)
+        if uid is None:
+            found = imap.search(["X-GM-MSGID", mid])
+            if not found:
+                raise MailSearchError(f"No message with id {mid}.")
+            uid = found[0]
+        meta = imap.fetch([uid], ["BODYSTRUCTURE"]).get(uid) or {}
+        parts = list(_attachment_parts(meta.get(b"BODYSTRUCTURE")))
+        try:
+            i = MA.pick([p[3] for p in parts], filename)
+        except MA.AttachmentError as exc:
+            raise MailSearchError(str(exc)) from exc
+        path, mime, enc, name, size = parts[i]
+        if size > MA.MAX_FILE_BYTES * 1.4:        # base64 is about a third bigger
+            raise MailSearchError(f"{name} is too big to read here.")
+        raw = _body_of(imap.fetch([uid], [f"BODY.PEEK[{path}]"]).get(uid) or {}, path) or b""
+        if enc == "base64":
+            raw = base64.b64decode(re.sub(rb"[^A-Za-z0-9+/=]", b"", raw))
+        elif enc == "quoted-printable":
+            raw = quopri.decodestring(raw)
+        try:
+            return MA.extract_text(raw, name, mime)
+        except MA.AttachmentError as exc:
+            raise MailSearchError(str(exc)) from exc
+
+    return _with_imap(run)
+
+
+# ── which way to Gmail ───────────────────────────────────────────────────────
+# The Gmail API (gmail_api.py) answers when it is set up - faster, no
+# per-connection login, nothing fetched by part number. IMAP above is the
+# fallback: if the API is not configured, or fails for any reason, the same
+# question goes over IMAP, so Ask keeps working while the API is set up or
+# if its token is ever revoked.
+
+_imap_search, _imap_read, _imap_thread = search, read, thread
+
+
+def _route(name: str, imap_fn, *args):
+    import gmail_api
+    if gmail_api.configured():
+        try:
+            return getattr(gmail_api, name)(*args)
+        except gmail_api.GmailApiError as exc:
+            print(f"  [warn] mail_search: Gmail API {name} failed, using IMAP: {exc}")
+    return imap_fn(*args)
+
+
+def search(query: str, limit: int = 10) -> dict:
+    """Search the whole mailbox, newest first (Gmail API, else IMAP)."""
+    return _route("search", _imap_search, query, limit)
+
+
+def read(message_id: str) -> dict:
+    """One message in full (Gmail API, else IMAP)."""
+    return _route("read", _imap_read, message_id)
+
+
+def thread(thread_id: str, limit: int = 20) -> dict:
+    """Every message in a thread, oldest first (Gmail API, else IMAP)."""
+    return _route("thread", _imap_thread, thread_id, limit)
+
+
+def backend() -> str:
+    """Which way the next question will go - for the set-up check."""
+    import gmail_api
+    return "gmail_api" if gmail_api.configured() else "imap"

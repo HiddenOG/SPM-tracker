@@ -44,3 +44,7 @@ logs/
 
 # Generated reports - contain customer and pricing data
 exports/
+
+# Google sign-in key for the Gmail API (scripts/gmail_auth.py) - private, like .env
+google_client.json
+client_secret*.json

@@ -53,6 +53,7 @@ Then ask, in Claude Code:
 from __future__ import annotations
 
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -444,6 +445,41 @@ def order_detail(po_number: str) -> str:
 
 # ── quotations ───────────────────────────────────────────────────────────────
 
+# Words too common to narrow a search ("gasket FOR 36 x 300").
+_STOP = {"a", "an", "and", "the", "for", "of", "with", "to", "in", "on", "x", "by", "or"}
+
+
+def _flat(s) -> str:
+    """Lower case, letters and digits only: "SPIRALWOUND36IN, SS-300#" -> "spiralwound36inss300"."""
+    return re.sub(r"[^a-z0-9]", "", str(s or "").lower())
+
+
+def _search_words(text) -> list:
+    """The words and numbers to look for, flattened the same way."""
+    return [w for w in (_flat(t) for t in re.split(r"[^A-Za-z0-9]+", text or ""))
+            if w and w not in _STOP]
+
+
+def _matches(words, *texts) -> bool:
+    """Every word present. A number must stand on its own - "36" matches
+    "36IN" and '36"' but not "316" - letters may run into anything."""
+    if not words:
+        return False
+    plain = " ".join(_plain(t).lower() for t in texts if t)
+    hay = _flat(plain)
+    for w in words:
+        if w.isdigit():
+            if not re.search(rf"(?<![0-9]){w}(?![0-9])", plain):
+                return False
+        elif w not in hay:
+            return False
+    return True
+
+
+def _item_matches(words, it) -> bool:
+    return _matches(words, it.get("description"), it.get("part_number"))
+
+
 @mcp.tool()
 def search_quotes(text: str = "", client: str = "", since: str = "",
                   limit: int = 20) -> str:
@@ -451,7 +487,9 @@ def search_quotes(text: str = "", client: str = "", since: str = "",
 
     `text` is matched against line item descriptions and part numbers as well
     as the quote subject, so "spiral wound gasket" finds quotes containing that
-    item rather than only ones with it in the title.
+    item rather than only ones with it in the title. Every word and number in
+    `text` must appear, but spacing and punctuation are ignored, so
+    "spiral wound 36 300" finds "GASKET:SPIRALWOUND36IN,SS300LB".
 
     Args:
         text: words to look for in items or the subject.
@@ -474,6 +512,7 @@ def search_quotes(text: str = "", client: str = "", since: str = "",
         quotes = [q for q in quotes if str(q.get("quote_date") or "") >= since]
 
     needle = (text or "").strip().lower()
+    words = _search_words(text)
     items_by_quote: dict[str, list] = {}
     if needle:
         try:
@@ -486,11 +525,9 @@ def search_quotes(text: str = "", client: str = "", since: str = "",
             items_by_quote.setdefault(it["quotation_id"], []).append(it)
 
         def _hit(q):
-            if needle in (q.get("subject") or "").lower():
+            if _matches(words, q.get("subject")):
                 return True
-            return any(needle in (_plain(i.get("description")) + " " +
-                                  str(i.get("part_number") or "")).lower()
-                       for i in items_by_quote.get(q["id"], []))
+            return any(_item_matches(words, i) for i in items_by_quote.get(q["id"], []))
 
         quotes = [q for q in quotes if _hit(q)]
 
@@ -509,13 +546,17 @@ def search_quotes(text: str = "", client: str = "", since: str = "",
             (q.get("recipient_company") or q.get("client") or "")[:28],
             q.get("currency") or "", q.get("total") or "—"))
         if q.get("subject"):
-            out.append(f"        {str(q['subject'])[:70]}")
-        # Only the matching items, so a 40-line quote does not fill the reply.
+            out.append(f"        {str(q['subject'])[:120]}")
+        # Only the matching items, so a 40-line quote does not fill the reply -
+        # but each in full: the size and rating sit at the END of a
+        # Flexitallic description, which a short cut used to drop.
         for it in items_by_quote.get(q["id"], []):
-            desc = _plain(it.get("description"))
-            if needle and needle in (desc + " " + str(it.get("part_number") or "")).lower():
-                out.append("        - %-58s %s x %s" % (
-                    desc[:58], it.get("quantity") or "?", it.get("unit_price") or "?"))
+            if words and _item_matches(words, it):
+                desc = _plain(it.get("description"))
+                part = f" [part {it['part_number']}]" if it.get("part_number") else ""
+                out.append("        - %s%s · qty %s %s · unit price %s" % (
+                    desc[:300], part, it.get("quantity") or "?", it.get("uom") or "",
+                    it.get("unit_price") if it.get("unit_price") is not None else "?"))
     return "\n".join(out)
 
 

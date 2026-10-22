@@ -32,3 +32,7 @@ archive/
 node_modules/
 frontend/node_modules/
 frontend/dist/
+
+# Google sign-in key for the Gmail API - private, like .env
+google_client.json
+client_secret*.json

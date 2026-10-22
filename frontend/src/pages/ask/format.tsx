@@ -8,7 +8,21 @@ import { Fragment, type ReactNode } from 'react'
 
 const BULLET = /^\s*([-•*]|\d+[.)])\s+/
 
+// **label** becomes bold (Sonnet labels list items that way); citations inside work too.
 function inline(s: string, onCite: (n: number) => void, key: string): ReactNode {
+  const out: ReactNode[] = []
+  let last = 0
+  for (const m of s.matchAll(/\*\*(.+?)\*\*/g)) {
+    const i = m.index ?? 0
+    if (i > last) out.push(<Fragment key={`${key}-t${i}`}>{cites(s.slice(last, i), onCite, `${key}-t${i}`)}</Fragment>)
+    out.push(<strong key={`${key}-b${i}`}>{cites(m[1], onCite, `${key}-b${i}`)}</strong>)
+    last = i + m[0].length
+  }
+  if (last < s.length) out.push(<Fragment key={`${key}-t${last}`}>{cites(s.slice(last), onCite, `${key}-t${last}`)}</Fragment>)
+  return out
+}
+
+function cites(s: string, onCite: (n: number) => void, key: string): ReactNode {
   const out: ReactNode[] = []
   let last = 0
   for (const m of s.matchAll(/\[(\d{1,2})\]/g)) {
