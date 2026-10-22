@@ -48,7 +48,7 @@ def test_api_results_have_the_same_shape_as_imap(monkeypatch):
     monkeypatch.setattr(G, "_get", fake_get)
 
     r = G.search("PO 4500", 5)
-    assert r["total"] == 1
+    assert r["total"] == 1 and r["estimated"] is True       # Gmail only estimates the count
     h = r["results"][0]
     assert set(h) == {"id", "thread", "date", "from", "to", "subject", "snippet", "attachments"}
     assert h["id"] == str(int(MSG["id"], 16))            # decimal, like IMAP's X-GM-MSGID

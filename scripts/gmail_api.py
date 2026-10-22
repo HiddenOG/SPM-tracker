@@ -261,7 +261,7 @@ def search(query: str, limit: int = 10) -> dict:
         results.append(h)
     # Gmail only estimates the total, but never below what it just returned.
     total = max(int(listing.get("resultSizeEstimate") or 0), len(ids))
-    return {"total": total, "results": results}
+    return {"total": total, "results": results, "estimated": True}
 
 
 def read(message_id: str) -> dict:

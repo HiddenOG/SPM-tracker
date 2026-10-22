@@ -235,7 +235,9 @@ def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None):
         if not res["results"]:
             return (f'No emails match {query!r}. Try fewer or different words, '
                     f'or a wider date range.', label, "No matches")
-        lines = [f'{res["total"]} emails match {query!r}; newest {len(res["results"])} shown:']
+        # The Gmail API only estimates the total; IMAP counts it exactly.
+        about = "about " if res.get("estimated") else ""
+        lines = [f'{about}{res["total"]} emails match {query!r}; newest {len(res["results"])} shown:']
         for h in res["results"]:
             n = refs.ref(h)
             att = f' · attachments: {", ".join(h["attachments"])[:160]}' if h.get("attachments") else ""
@@ -243,7 +245,7 @@ def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None):
                          f'    subject: {h["subject"]}{att}\n'
                          f'    id {h["id"]} · thread {h["thread"]}\n'
                          f'    {h["snippet"]}')
-        detail = f'{res["total"]:,} match' + ("" if res["total"] == 1 else "es")
+        detail = ("~" if about else "") + f'{res["total"]:,} match' + ("" if res["total"] == 1 else "es")
         return "\n".join(lines), label, detail
 
     if name == "read_email":
