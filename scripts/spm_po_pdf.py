@@ -456,25 +456,50 @@ def generate_spm_po_pdf(po: dict, line_items: list[dict]) -> bytes:
     # check. The stored header total only stands in when there are no lines to
     # add up — an order saved before anything was priced.
     if line_items:
-        grand = total
+        sub_total = total
     else:
         try:
-            grand = float(po.get("total") or 0)
+            sub_total = float(po.get("total") or 0)
         except (TypeError, ValueError):
-            grand = 0.0
+            sub_total = 0.0
+
+    disc_pct      = float(po.get("discount_pct") or 0)
+    disc_amt      = sub_total * disc_pct / 100
+    disc_visible  = po.get("discount_visible", True)
+    markup_pct    = float(po.get("markup_pct") or 0)
+    markup_amt    = sub_total * markup_pct / 100
+    markup_visible = po.get("markup_visible", True)
+    grand         = sub_total - disc_amt + markup_amt
+
+    has_adjustments = disc_pct or markup_pct
+
+    tot_rows: list[list[Any]] = []
+    if has_adjustments:
+        tot_rows.append([_p("SUB-TOTAL", tot_l), _p(_money(sub_total, symbol), tot_r)])
+    if disc_pct and disc_visible:
+        tot_rows.append([_p(f"Discount ({disc_pct:.1f}%)", tot_l),
+                         _p(f"- {_money(disc_amt, symbol)}", tot_r)])
+    if markup_pct and markup_visible:
+        tot_rows.append([_p(f"Markup ({markup_pct:.1f}%)", tot_l),
+                         _p(f"+ {_money(markup_amt, symbol)}", tot_r)])
+    tot_rows.append([_p("TOTAL", tot_l), _p(_money(grand, symbol), tot_r)])
 
     tot_tbl = Table(
-        [[_p("TOTAL", tot_l), _p(_money(grand, symbol), tot_r)]],
+        tot_rows,
         colWidths=[sum(col_w[:6]), col_w[6]],
     )
     tot_tbl.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), BAND),
         ("BOX", (0, 0), (-1, -1), 0.6, RULE),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, HAIR),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
         ("TOPPADDING", (0, 0), (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        # Emphasise the grand total row
+        ("TEXTCOLOR", (0, -1), (-1, -1), PRIMARY),
+        ("FONTSIZE", (0, -1), (-1, -1), 10.5),
     ]))
     story.append(tot_tbl)
 

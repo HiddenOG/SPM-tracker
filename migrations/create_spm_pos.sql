@@ -66,3 +66,9 @@ create index if not exists spm_po_li_parent_idx  on spm_po_line_items(spm_po_id)
 
 -- If the tables were created before the client_name column existed:
 -- alter table spm_pos add column if not exists client_name text;
+
+-- Discount / markup added 2026-10-23:
+alter table spm_pos add column if not exists discount_pct     numeric(7,4) default 0;
+alter table spm_pos add column if not exists markup_pct       numeric(7,4) default 0;
+alter table spm_pos add column if not exists discount_visible boolean      default true;
+alter table spm_pos add column if not exists markup_visible   boolean      default true;

@@ -7,6 +7,18 @@ import { FormatBar, Rich } from '../quotes/RichEditor'
 import { type SpmPo, PO_CURRENCY, downloadPoPdf, fmtPo } from './PurchaseOrdersPage'
 import '../quotes/quotes.css'
 
+function Eye({ on, onToggle, what }: { on: boolean; onToggle: () => void; what: string }) {
+  return (
+    <button type="button" className={`eye${on ? '' : ' off'}`} onClick={onToggle} aria-pressed={on}
+            title={on ? `${what} shown in PDF — click to hide` : `${what} hidden from PDF — click to show`}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {on ? <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>
+            : <path d="M17.94 17.94A10 10 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9 9 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22" />}
+      </svg>
+    </button>
+  )
+}
+
 /*
   One purchase order, new or saved: a port of the form half of the
   purchase-orders module in web/script.js.
@@ -54,7 +66,10 @@ const blank = (): Fields => ({
   po_date: todayLocal(), po_number: '', client: '', client_name: '', manager: 'FELIX AKARUE',
   sales_person: 'IJALA STYLES ONOME', vendor_name: '', vendor_role: 'Sales', vendor_company: '', vendor_address: '',
   vendor_email: '', shipping_terms: '', shipping_method: '', delivery_date: '', deliver_to: '', currency: 'USD', notes: '',
+  discount_pct: '0', markup_pct: '0',
 })
+
+const n = (v: string) => parseFloat(v) || 0
 
 export default function PoForm() {
   const { id: routeId } = useParams()
@@ -66,6 +81,8 @@ export default function PoForm() {
   const [ref, setRef] = useState<number | null>(null)
   const [vendorPick, setVendorPick] = useState('')
   const [saved, setSaved] = useState<SpmPo[]>([])
+  const [discountShow, setDiscountShow] = useState(true)
+  const [markupShow, setMarkupShow] = useState(true)
   const [loading, setLoading] = useState(!isNew)
   const [notice, setNotice] = useState<{ ok: boolean; msg: string } | null>(null)
   const [invalid, setInvalid] = useState<string | null>(null)
@@ -98,7 +115,10 @@ export default function PoForm() {
         vendor_company: s('vendor_company'), vendor_address: s('vendor_address'), vendor_email: s('vendor_email'),
         shipping_terms: s('shipping_terms'), shipping_method: s('shipping_method'), delivery_date: s('delivery_date'),
         deliver_to: s('deliver_to'), currency: (s('currency') || 'USD').toUpperCase(), notes: s('notes'),
+        discount_pct: String(p.discount_pct ?? 0), markup_pct: String(p.markup_pct ?? 0),
       })
+      setDiscountShow(p.discount_visible !== false)
+      setMarkupShow(p.markup_visible !== false)
       setRef(p.po_seq ? Number(p.po_seq) : null)
       setVendorPick(s('vendor_company').toLowerCase())
       setRows((p.line_items || []).map(it => newRow({
@@ -144,7 +164,12 @@ export default function PoForm() {
   }, [rows])
   const preview = ['S.P.M.', code, ref ? String(ref) : '####', ...clientPos, ...(supplierSlug(f.vendor_company) ? [supplierSlug(f.vendor_company)] : [])].join('-')
 
-  const total = rows.reduce((a, r) => a + (Number(r.line_total) || 0), 0)
+  const t = useMemo(() => {
+    const sub = rows.reduce((a, r) => a + (Number(r.line_total) || 0), 0)
+    const da = sub * n(f.discount_pct) / 100
+    const ma = sub * n(f.markup_pct) / 100
+    return { sub, da, ma, grand: sub - da + ma }
+  }, [rows, f.discount_pct, f.markup_pct])
 
   const updateRow = (k: number, patch: Partial<Row>) => { if ('client_po_no' in patch) setTouched(true); setRows(rs => rs.map(r => {
     if (r._k !== k) return r
@@ -180,13 +205,16 @@ export default function PoForm() {
       po_date: g('po_date'), client: g('client'), client_name: g('client_name'), manager: g('manager'), sales_person: g('sales_person'),
       vendor_name: g('vendor_name'), vendor_role: g('vendor_role'), vendor_company: g('vendor_company'), vendor_address: g('vendor_address'),
       vendor_email: g('vendor_email'), deliver_to: g('deliver_to'), shipping_terms: g('shipping_terms'), shipping_method: g('shipping_method'),
-      delivery_date: g('delivery_date'), currency: g('currency') || 'USD', notes: g('notes'), total: Math.round(total * 100) / 100,
+      delivery_date: g('delivery_date'), currency: g('currency') || 'USD', notes: g('notes'),
+      discount_pct: n(f.discount_pct), markup_pct: n(f.markup_pct),
+      discount_visible: discountShow, markup_visible: markupShow,
+      total: Math.round(t.grand * 100) / 100,
       line_items: rows.map((r, i) => ({
         item_no: i + 1, client_po_no: r.client_po_no || '', quote_ref: r.quote_ref || '', description: clean(r.description || ''),
         quantity: Number(r.quantity) || 0, unit_price: Number(r.unit_price) || 0, line_total: Number(r.line_total) || 0,
       })),
     }
-  }, [f, rows, total])
+  }, [f, rows, t.grand, discountShow, markupShow])
 
   /** Save. Throws on failure, and the form is left exactly as it is. */
   const doSave = async (): Promise<{ id: string; number: string }> => {
@@ -344,7 +372,16 @@ export default function PoForm() {
           <div className="qf-totals">
             <div><span>Line items</span><b className="mono">{rows.length}</b></div>
             <div><span>Currency</span><b className="mono">{f.currency}</b></div>
-            <div className="grand"><span>TOTAL ({sym})</span><b className="mono">{fmtPo(total, sym)}</b></div>
+            <div><span>Sub-total</span><b className="mono">{fmtPo(t.sub, sym)}</b></div>
+            <div>
+              <label><Eye on={discountShow} onToggle={() => setDiscountShow(v => !v)} what="Discount" />Discount <input className="qf-inline" type="number" min={0} max={100} step="0.1" value={f.discount_pct} onChange={e => set('discount_pct', e.target.value)} /> %</label>
+              <b className="mono">— {fmtPo(t.da, sym)}</b>
+            </div>
+            <div>
+              <label><Eye on={markupShow} onToggle={() => setMarkupShow(v => !v)} what="Markup" />Markup <input className="qf-inline" type="number" min={0} step="0.1" value={f.markup_pct} onChange={e => set('markup_pct', e.target.value)} /> %</label>
+              <b className="mono">+ {fmtPo(t.ma, sym)}</b>
+            </div>
+            <div className="grand"><span>TOTAL ({sym})</span><b className="mono">{fmtPo(t.grand, sym)}</b></div>
           </div>
         </div>
 
