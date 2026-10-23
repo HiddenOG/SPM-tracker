@@ -68,7 +68,11 @@ create index if not exists spm_po_li_parent_idx  on spm_po_line_items(spm_po_id)
 -- alter table spm_pos add column if not exists client_name text;
 
 -- Discount / markup added 2026-10-23:
-alter table spm_pos add column if not exists discount_pct     numeric(7,4) default 0;
-alter table spm_pos add column if not exists markup_pct       numeric(7,4) default 0;
-alter table spm_pos add column if not exists discount_visible boolean      default true;
-alter table spm_pos add column if not exists markup_visible   boolean      default true;
+alter table spm_pos add column if not exists discount_pct       numeric(7,4) default 0;
+alter table spm_pos add column if not exists markup_pct         numeric(7,4) default 0;
+alter table spm_pos add column if not exists discount_visible   boolean      default true;
+alter table spm_pos add column if not exists markup_visible     boolean      default true;
+
+-- Editable PO number override added 2026-10-23:
+-- Null = auto-generated; non-null = user typed their own number.
+alter table spm_pos add column if not exists po_number_override text;

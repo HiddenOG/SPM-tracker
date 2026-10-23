@@ -83,6 +83,7 @@ export default function PoForm() {
   const [saved, setSaved] = useState<SpmPo[]>([])
   const [discountShow, setDiscountShow] = useState(true)
   const [markupShow, setMarkupShow] = useState(true)
+  const [poNumberLocked, setPoNumberLocked] = useState(true)
   const [loading, setLoading] = useState(!isNew)
   const [notice, setNotice] = useState<{ ok: boolean; msg: string } | null>(null)
   const [invalid, setInvalid] = useState<string | null>(null)
@@ -109,8 +110,9 @@ export default function PoForm() {
     if (isNew) return
     getJson<Record<string, unknown> & { line_items?: Partial<Row>[] }>(`/api/spm_pos/${routeId}`).then(p => {
       const s = (k: string) => (p[k] == null ? '' : String(p[k]))
+      const savedNumber = s('po_number')
       setF({
-        po_date: s('po_date').slice(0, 10), po_number: s('po_number'), client: s('client'), client_name: s('client_name'),
+        po_date: s('po_date').slice(0, 10), po_number: savedNumber, client: s('client'), client_name: s('client_name'),
         manager: s('manager'), sales_person: s('sales_person'), vendor_name: s('vendor_name'), vendor_role: s('vendor_role'),
         vendor_company: s('vendor_company'), vendor_address: s('vendor_address'), vendor_email: s('vendor_email'),
         shipping_terms: s('shipping_terms'), shipping_method: s('shipping_method'), delivery_date: s('delivery_date'),
@@ -119,6 +121,10 @@ export default function PoForm() {
       })
       setDiscountShow(p.discount_visible !== false)
       setMarkupShow(p.markup_visible !== false)
+      // If the saved number differs from what the auto-formula would produce, it
+      // was manually overridden before — keep it unlocked so the user can see and
+      // edit the override rather than silently discarding it.
+      setPoNumberLocked(!!p.po_number_override === false)
       setRef(p.po_seq ? Number(p.po_seq) : null)
       setVendorPick(s('vendor_company').toLowerCase())
       setRows((p.line_items || []).map(it => newRow({
@@ -190,7 +196,7 @@ export default function PoForm() {
   // Everything that must be true before saving, in the order the form is read.
   const validate = () => {
     setInvalid(null)
-    if (!f.client) return bad('client', 'Choose the end client — the PO number is built from it, and a number is never reissued.')
+    if (!f.client) return bad('client', 'Choose the end client.')
     if (f.client === 'others' && !f.client_name.trim()) return bad('client_name', "Type the customer's company name — its initials become the code in the PO number.")
     if (!f.vendor_company.trim()) return bad('vendor_company', 'Enter the supplier company — the PO number ends with it.')
     if (!rows.some(r => r.description.replace(/<[^>]*>/g, '').trim() || Number(r.line_total))) {
@@ -209,12 +215,15 @@ export default function PoForm() {
       discount_pct: n(f.discount_pct), markup_pct: n(f.markup_pct),
       discount_visible: discountShow, markup_visible: markupShow,
       total: Math.round(t.grand * 100) / 100,
+      // When the user has unlocked and typed their own number, send it so the
+      // server stores it verbatim instead of re-deriving the formula number.
+      ...(!poNumberLocked && f.po_number.trim() ? { po_number_override: f.po_number.trim() } : {}),
       line_items: rows.map((r, i) => ({
         item_no: i + 1, client_po_no: r.client_po_no || '', quote_ref: r.quote_ref || '', description: clean(r.description || ''),
         quantity: Number(r.quantity) || 0, unit_price: Number(r.unit_price) || 0, line_total: Number(r.line_total) || 0,
       })),
     }
-  }, [f, rows, t.grand, discountShow, markupShow])
+  }, [f, rows, t.grand, discountShow, markupShow, poNumberLocked])
 
   /** Save. Throws on failure, and the form is left exactly as it is. */
   const doSave = async (): Promise<{ id: string; number: string }> => {
@@ -222,8 +231,9 @@ export default function PoForm() {
     let id = poId
     if (!poId && r.id) { id = r.id; setPoId(r.id); nav(`/purchase-orders/${r.id}`, { replace: true }) }
     if (r.po_seq) setRef(r.po_seq)
-    // The server's number is the real one; show it rather than the preview.
-    if (r.po_number) { setF(x => ({ ...x, po_number: r.po_number! })); setTouched(false) }
+    // Update the stored number from the server response; if we sent an override
+    // the server echoes it back and we keep the form in unlocked mode.
+    if (r.po_number) { setF(x => ({ ...x, po_number: r.po_number! })); if (poNumberLocked) setTouched(false) }
     getJson<SpmPo[]>('/api/spm_pos').then(setSaved, () => {})
     return { id: id!, number: r.po_number || preview }
   }
@@ -296,7 +306,50 @@ export default function PoForm() {
           {field('Date', inp('po_date', { type: 'date' }))}
           {f.client === 'others' && field('Client company name', inp('client_name', { placeholder: 'e.g. Sahara Group Limited' }))}
           {f.client === 'others' && field('Code', <span className="mono code-hint">{code}</span>)}
-          {field('PO number', <input className="qf-inp mono" value={poId && f.po_number && !touched ? f.po_number : preview} readOnly title="Built from the client, the P.O. No. column below and the vendor" />, true)}
+          {field('PO number', (
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              {poNumberLocked
+                ? <input
+                    className="qf-inp mono"
+                    style={{ flex: 1 }}
+                    value={poId && f.po_number && !touched ? f.po_number : preview}
+                    readOnly
+                    title="Auto-generated — click the pencil to override"
+                  />
+                : <input
+                    ref={reg('po_number')}
+                    className="qf-inp mono"
+                    style={{ flex: 1 }}
+                    value={f.po_number}
+                    onChange={e => set('po_number', e.target.value)}
+                    placeholder={preview}
+                    title="Type a custom PO number — or click the lock to revert to auto"
+                  />
+              }
+              <button
+                type="button"
+                className="eye"
+                style={{ flexShrink: 0 }}
+                title={poNumberLocked ? 'Click to edit PO number manually' : 'Click to revert to auto-generated number'}
+                onClick={() => {
+                  if (poNumberLocked) {
+                    // Unlock: pre-fill with whatever is currently shown
+                    setF(x => ({ ...x, po_number: (poId && f.po_number && !touched ? f.po_number : preview) }))
+                    setPoNumberLocked(false)
+                    setTimeout(() => fieldRefs.current.po_number?.focus(), 0)
+                  } else {
+                    // Re-lock: go back to auto
+                    setPoNumberLocked(true)
+                  }
+                }}
+              >
+                {poNumberLocked
+                  ? /* pencil */ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  : /* lock  */ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                }
+              </button>
+            </div>
+          ), true)}
           {field('Manager', inp('manager', { placeholder: 'FELIX AKARUE' }))}
           {field('Sales person', inp('sales_person', { placeholder: 'IJALA STYLES ONOME' }))}
         </div>

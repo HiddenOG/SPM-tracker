@@ -4484,28 +4484,30 @@ def _po_line_rows(po_id: str, items: list) -> list[dict]:
 def _po_record(body: dict) -> dict:
     status = str(body.get("status") or "draft").lower()
     return {
-        "client":           (body.get("client") or "").strip().lower() or None,
-        "client_name":      (body.get("client_name") or "").strip() or None,
-        "status":           status if status in _PO_STATUSES else "draft",
-        "po_date":          body.get("po_date") or None,
-        "vendor_name":      body.get("vendor_name"),
-        "vendor_role":      body.get("vendor_role"),
-        "vendor_company":   body.get("vendor_company"),
-        "vendor_address":   body.get("vendor_address"),
-        "vendor_email":     body.get("vendor_email"),
-        "deliver_to":       body.get("deliver_to"),
-        "shipping_terms":   body.get("shipping_terms"),
-        "shipping_method":  body.get("shipping_method"),
-        "delivery_date":    body.get("delivery_date"),
-        "manager":          body.get("manager"),
-        "sales_person":     body.get("sales_person"),
-        "currency":         (body.get("currency") or "USD").upper(),
-        "discount_pct":     float(body.get("discount_pct") or 0),
-        "markup_pct":       float(body.get("markup_pct") or 0),
-        "discount_visible": body.get("discount_visible", True),
-        "markup_visible":   body.get("markup_visible", True),
-        "total":            float(body.get("total") or 0),
-        "notes":            body.get("notes"),
+        "client":              (body.get("client") or "").strip().lower() or None,
+        "client_name":        (body.get("client_name") or "").strip() or None,
+        "status":             status if status in _PO_STATUSES else "draft",
+        "po_date":            body.get("po_date") or None,
+        "vendor_name":        body.get("vendor_name"),
+        "vendor_role":        body.get("vendor_role"),
+        "vendor_company":     body.get("vendor_company"),
+        "vendor_address":     body.get("vendor_address"),
+        "vendor_email":       body.get("vendor_email"),
+        "deliver_to":         body.get("deliver_to"),
+        "shipping_terms":     body.get("shipping_terms"),
+        "shipping_method":    body.get("shipping_method"),
+        "delivery_date":      body.get("delivery_date"),
+        "manager":            body.get("manager"),
+        "sales_person":       body.get("sales_person"),
+        "currency":           (body.get("currency") or "USD").upper(),
+        "discount_pct":       float(body.get("discount_pct") or 0),
+        "markup_pct":         float(body.get("markup_pct") or 0),
+        "discount_visible":   body.get("discount_visible", True),
+        "markup_visible":     body.get("markup_visible", True),
+        "total":              float(body.get("total") or 0),
+        "notes":              body.get("notes"),
+        # Stored so the form can detect on load that a manual override is active.
+        "po_number_override": (body.get("po_number_override") or "").strip() or None,
     }
 
 
@@ -4554,8 +4556,10 @@ def create_spm_po(body: dict = Body(default={}), user: dict = Depends(verify_jwt
         # Stored alongside the number so the list page can show and search the
         # client POs without opening every order and reading its line items.
         record["client_po"] = " ".join(client_pos) or None
-        record["po_number"] = _po_number(record["client"], record["client_name"],
-                                         client_pos, record["vendor_company"], seq)
+        auto_number = _po_number(record["client"], record["client_name"],
+                                 client_pos, record["vendor_company"], seq)
+        # A manual override from the form takes precedence over the auto number.
+        record["po_number"] = record.pop("po_number_override") or auto_number
         record["created_by"] = user.get("name") or user.get("email")
 
         res = get_client().table("spm_pos").insert(record).execute()
@@ -4607,9 +4611,11 @@ def update_spm_po(po_id: str, body: dict = Body(default={}), user: dict = Depend
         # around it, but a reference already quoted to a supplier must not move.
         client_pos = _client_pos_from_items(items)
         update["client_po"] = " ".join(client_pos) or None
-        update["po_number"] = _po_number(update["client"], update["client_name"],
-                                         client_pos, update["vendor_company"],
-                                         int(exists.data[0].get("po_seq") or 0))
+        auto_number = _po_number(update["client"], update["client_name"],
+                                 client_pos, update["vendor_company"],
+                                 int(exists.data[0].get("po_seq") or 0))
+        # Honour a manual override; clear po_number_override when reverting to auto.
+        update["po_number"] = update.pop("po_number_override") or auto_number
         if update["status"] == "issued":
             update["issued_at"] = datetime.now(timezone.utc).isoformat()
 
