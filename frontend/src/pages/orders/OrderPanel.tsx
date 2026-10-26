@@ -1,3 +1,4 @@
+import ConfirmBox from '../../lib/ConfirmBox'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ApiError, getJson, send, streamEvents } from '../../lib/api'
 import {
@@ -258,14 +259,28 @@ function Notes({ client, id }: { client: Client; id: string }) {
     try { await send('PATCH', `/api/comments/${encodeURIComponent(editing.id)}`, { body: editing.text.trim() }); setEditing(null); await load() }
     catch (e) { setErr((e as Error).message) }
   }
-  const remove = async (c: Comment) => {
-    if (!confirm('Delete this note?')) return
-    try { await send('DELETE', `/api/comments/${encodeURIComponent(c.id)}`); await load() }
-    catch (e) { setErr((e as Error).message) }
+  // Deleting asks first, in the app's own box (lib/ConfirmBox).
+  const [asking, setAsking] = useState<Comment | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [delErr, setDelErr] = useState('')
+  const closeAsk = () => { setAsking(null); setDelErr('') }
+  const remove = async () => {
+    if (!asking) return
+    setDeleting(true); setDelErr('')
+    try { await send('DELETE', `/api/comments/${encodeURIComponent(asking.id)}`); await load(); setAsking(null) }
+    catch (e) { setDelErr((e as Error).message || 'Could not delete it. Try again.') }
+    finally { setDeleting(false) }
   }
+  const preview = (s: string) => (s.length > 120 ? s.slice(0, 117).trimEnd() + '…' : s)
 
   return (
     <div className="notes">
+      {asking && (
+        <ConfirmBox title="Delete this note?" busy={deleting} error={delErr} confirmLabel="Delete note"
+                    onConfirm={remove} onCancel={closeAsk}>
+          <b>“{preview(asking.body)}”</b> will be deleted for everyone who can see this order. This can't be undone.
+        </ConfirmBox>
+      )}
       {err && <p className="err-text">{err}</p>}
       {items === null ? <p className="muted">Loading notes…</p>
         : !items.length ? <p className="muted center">No notes yet. Write the first one below.</p>
@@ -281,7 +296,7 @@ function Notes({ client, id }: { client: Client; id: string }) {
                   <time>{ago(c.created_at)}</time>
                   <span className="sp" />
                   {me?.id && c.user_id === me.id && <button type="button" className="link" onClick={() => setEditing({ id: c.id, text: c.body })}>Edit</button>}
-                  {(isAdmin || (me?.id && c.user_id === me.id)) && <button type="button" className="link danger" onClick={() => remove(c)}>Delete</button>}
+                  {(isAdmin || (me?.id && c.user_id === me.id)) && <button type="button" className="link danger" onClick={() => setAsking(c)}>Delete</button>}
                 </div>
                 {editing?.id === c.id ? (
                   <div className="note-edit">
