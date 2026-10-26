@@ -90,15 +90,34 @@ def _access_token(force: bool = False) -> str:
         return _token["value"]
 
 
+def _rate_limited(r) -> bool:
+    """Google's "slow down": 429, or a 403 about quota or rate (not a permission refusal)."""
+    if r.status_code == 429:
+        return True
+    return r.status_code == 403 and any(w in r.text for w in ("Quota exceeded", "rateLimitExceeded", "userRateLimitExceeded"))
+
+
+# Waits before each retry when Google says to slow down. Its per-user limit is
+# counted per minute; a burst of reads trips it for a moment, not for long.
+_BACKOFF = (1.0, 2.5, 5.0)
+
+
 def _get(path: str, params: dict | None = None) -> dict:
-    for attempt in (1, 2):
-        token = _access_token(force=attempt == 2)
+    refreshed = False
+    slowed = 0
+    while True:
+        token = _access_token(force=refreshed)
         try:
             r = _http.get(f"{API}/{path}", params=params, headers={"Authorization": f"Bearer {token}"})
         except httpx.HTTPError as exc:
             raise GmailApiError(f"Gmail didn't answer: {exc}") from exc
-        if r.status_code == 401 and attempt == 1:
+        if r.status_code == 401 and not refreshed:
+            refreshed = True
             continue                                  # token expired early: once more with a new one
+        if _rate_limited(r) and slowed < len(_BACKOFF):
+            time.sleep(_BACKOFF[slowed])
+            slowed += 1
+            continue
         if r.status_code == 404:
             raise GmailApiError("Gmail has no such message or thread.")
         if r.status_code != 200:
@@ -108,7 +127,6 @@ def _get(path: str, params: dict | None = None) -> dict:
                 msg = ""
             raise GmailApiError(f"Gmail refused ({r.status_code}): {msg or r.text[:200]}")
         return r.json()
-    raise GmailApiError("Gmail refused the sign-in.")
 
 
 # ── reading a message ────────────────────────────────────────────────────────
@@ -225,7 +243,8 @@ def _fetch_many(ids: list[str]) -> dict:
     """Full messages by API id, fetched side by side (each is one quick call)."""
     if not ids:
         return {}
-    with ThreadPoolExecutor(max_workers=min(8, len(ids))) as pool:
+    # Four at a time: eight at once tripped Gmail's per-user rate limit.
+    with ThreadPoolExecutor(max_workers=min(4, len(ids))) as pool:
         got = list(pool.map(lambda i: _safe_get(f"messages/{i}", {"format": "full"}), ids))
     return {i: m for i, m in zip(ids, got) if m}
 

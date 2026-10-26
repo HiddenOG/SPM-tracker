@@ -239,6 +239,29 @@ def test_the_loop_stops_at_the_round_limit():
     assert "search limit" in answer_of(events)
 
 
+def test_at_the_limit_it_answers_with_what_it_found():
+    """It once spent every round searching, found the right thread, then
+    replied only "couldn't finish". The last round now has to answer."""
+    rounds = [round_([tool_block(f"t{i}", "find_orders", {"query": "x"})], "tool_use")
+              for i in range(A.MAX_ROUNDS - 1)]
+    rounds.append(round_([text_block("Found the thread; the item list is in Simeon's spreadsheet.")], "end_turn"))
+    client = FakeClient(rounds)
+    events, _ = run_all(client=client)
+    choices = [c["tool_choice"]["type"] for c in client.calls]
+    assert choices == ["auto"] * (A.MAX_ROUNDS - 1) + ["none"]      # only the last may not search
+    last_results = client.calls[-1]["messages"][-1]["content"]
+    assert last_results[-1] == {"type": "text", "text": A.LAST_ROUND_NOTE}
+    assert sum(1 for c in client.calls for m in c["messages"]
+               if isinstance(m["content"], list) and {"type": "text", "text": A.LAST_ROUND_NOTE} in m["content"]) == 1
+    assert "Simeon's spreadsheet" in answer_of(events)
+    assert "search limit" not in answer_of(events)
+    assert any(e["t"] == "done" for e in events)                    # a finished answer, not a stopped one
+
+
+def test_a_vague_follow_up_carries_on_the_last_question():
+    assert '"continue"' in A.SYSTEM and "Never answer it with a general summary" in A.SYSTEM
+
+
 def test_tracker_scope_offers_no_email_tools():
     client = FakeClient([round_([text_block("ok")], "end_turn")])
     run_all(client=client, scope="tracker")

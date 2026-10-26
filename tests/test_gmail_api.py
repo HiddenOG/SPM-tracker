@@ -103,3 +103,28 @@ def test_the_google_key_file_is_never_committed():
     assert "google_client.json" in (ROOT / ".gitignore").read_text(encoding="utf-8")
     assert "google_client.json" in (ROOT / ".dockerignore").read_text(encoding="utf-8")
 
+
+
+def test_google_saying_slow_down_is_waited_out(monkeypatch):
+    """A burst of reads trips Gmail's per-user rate limit for a moment; a short
+    wait and retry gets the email instead of skipping it."""
+    class R:
+        def __init__(self, code, text=""):
+            self.status_code, self.text = code, text
+        def json(self): return {"id": "1"} if self.status_code == 200 else {"error": {"message": self.text}}
+
+    replies = [R(403, "Quota exceeded for quota metric 'Total Query Cost'"), R(429, "slow down"), R(200)]
+    monkeypatch.setattr(G, "_access_token", lambda force=False: "t")
+    monkeypatch.setattr(G._http, "get", lambda *a, **k: replies.pop(0))
+    slept = []
+    monkeypatch.setattr(G.time, "sleep", slept.append)
+    assert G._get("messages/1") == {"id": "1"}
+    assert slept == [1.0, 2.5]
+
+    # A real permission refusal is not retried.
+    replies[:] = [R(403, "Insufficient Permission")]
+    try:
+        G._get("messages/1")
+        assert False, "should have raised"
+    except G.GmailApiError as e:
+        assert "403" in str(e)

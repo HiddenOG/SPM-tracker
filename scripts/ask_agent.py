@@ -53,6 +53,10 @@ EFFORT = os.environ.get("ASK_EFFORT", "medium")
 MAX_ROUNDS = 8
 # Thinking counts against this, so it has to leave room for the answer.
 MAX_TOKENS = 16000
+LAST_ROUND_NOTE = (
+    "That was the last search allowed for this question. Don't call any more tools. "
+    "Answer now from what you have found: say what you found, cite it, say plainly "
+    "what you couldn't find or confirm, and suggest the one search that would settle it.")
 # If a request is ever declined by a safety check, the API re-runs it on a
 # fallback model inside the same call instead of failing the question.
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -76,6 +80,7 @@ The trade's shorthand - read requests with it, and don't ask what these mean:
 
 How to work:
 - For items, search with a few key words and numbers, not the whole description: search_quotes("spiral wound 36 300"). Spacing and punctuation don't matter there. In email, try the ways the size is written (36" OR 36IN OR "36 in") and from:flexitallic.
+- A short follow-up like "continue", "keep looking" or "search again" means carry on with the previous question: search for what it asked, in ways not tried yet. Never answer it with a general summary of recent mail.
 - Search first, then read the one to four emails that matter before answering.
 - Prices, offers and POs are usually in attachments, not the email text ("please find attached"). Search and read results list each email's attachments; open the relevant one with read_attachment before saying a price isn't there. Search results show only the start of each email.
 - For "latest", "status" or "update" questions, search recent mail first (newer_than:30d or newer_than:60d) and widen only if nothing useful comes back.
@@ -358,6 +363,8 @@ def run(question: str, history=None, scope: str = "both", user=None,
             with client.beta.messages.stream(
                 model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
                 tools=tools, messages=messages,
+                # The last round may not search again: it has to answer.
+                tool_choice={"type": "none" if rnd == MAX_ROUNDS else "auto"},
                 cache_control={"type": "ephemeral"},
                 output_config={"effort": EFFORT},
                 betas=[FALLBACK_BETA], fallbacks="default",
@@ -410,6 +417,11 @@ def run(question: str, history=None, scope: str = "both", user=None,
                            "secs": round(time.time() - t0, 1)}
                     results.append({"type": "tool_result", "tool_use_id": block.id,
                                     "content": f"That failed: {msg}", "is_error": True})
+            if rnd == MAX_ROUNDS - 1:
+                # Out of searches: answer from what was found rather than
+                # throwing it all away. (It once ended with only "couldn't
+                # finish" after finding the right thread.)
+                results.append({"type": "text", "text": LAST_ROUND_NOTE})
             # Every tool result for the round in one message.
             messages.append({"role": "user", "content": results})
         else:

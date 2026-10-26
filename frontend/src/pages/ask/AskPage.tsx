@@ -322,8 +322,11 @@ function Ask() {
     if (busy || !question || opening === 'loading') return
     setBusy(true)
     // What has been said so far in this chat, so a follow-up makes sense.
-    const history = turns.filter(t => t.status === 'done' && t.text)
-      .flatMap(t => [{ role: 'user', content: t.question }, { role: 'assistant', content: t.text }])
+    // Unfinished turns count too: a "continue" after one that ran out of
+    // searches must still know what was being looked for.
+    const history = turns.filter(t => t.status !== 'working')
+      .flatMap(t => [{ role: 'user', content: t.question },
+                     { role: 'assistant', content: t.text || '(No answer - this question stopped before it finished.)' }])
       .slice(-8)
     const key = nextKey.current++
     setTurns(ts => [...ts, { key, question, asker: user?.name, at: stamp(), steps: [], text: '', sources: [], status: 'working' }])
