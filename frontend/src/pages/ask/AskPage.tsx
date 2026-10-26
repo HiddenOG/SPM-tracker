@@ -136,6 +136,27 @@ const I = {
   plus: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>,
   send: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>,
   stop: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>,
+  retry: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>,
+  edit: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>,
+}
+
+// Under each question, on hover: ask it again, change it, or copy it.
+function QuestionActions({ text, busy, onRetry, onEdit }: {
+  text: string; busy: boolean; onRetry: () => void; onEdit: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 1500)
+    }, () => {})
+  }
+  return (
+    <div className="q-acts">
+      <button type="button" onClick={onRetry} disabled={busy} title="Ask this again" aria-label="Ask this again">{I.retry}<span>Retry</span></button>
+      <button type="button" onClick={onEdit} disabled={busy} title="Change this question and ask it" aria-label="Edit this question">{I.edit}<span>Edit</span></button>
+      <button type="button" onClick={copy} title="Copy this question" aria-label="Copy this question">{copied ? I.check : I.copy}<span>{copied ? 'Copied' : 'Copy'}</span></button>
+    </div>
+  )
 }
 
 function Answer({ turn }: { turn: Turn }) {
@@ -403,6 +424,16 @@ function Ask() {
     ask(text)
   }
 
+  // Edit: the question goes back in the box, cursor at the end, to change and send.
+  const editQuestion = (q: string) => {
+    setDraft(q)
+    requestAnimationFrame(() => {
+      const el = input.current
+      if (!el) return
+      el.focus(); el.setSelectionRange(q.length, q.length)
+    })
+  }
+
   const newChat = () => {
     if (busy) abort.current?.abort()
     go('/ask')
@@ -445,7 +476,11 @@ function Ask() {
         ) : turns.map(t => (
           <div className="turn" key={t.key}>
             {t.asker && t.asker !== user?.name && <span className="q-by">{t.asker}</span>}
-            <div className="q">{t.question}</div>
+            <div className="q-wrap">
+              <div className="q">{t.question}</div>
+              <QuestionActions text={t.question} busy={busy}
+                               onRetry={() => submit(t.question)} onEdit={() => editQuestion(t.question)} />
+            </div>
             <Answer turn={t} />
           </div>
         ))}
