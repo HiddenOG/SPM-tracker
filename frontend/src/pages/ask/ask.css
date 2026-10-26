@@ -86,8 +86,11 @@
 .ask .foot button:hover{background:var(--surface-2);color:var(--ink)}
 
 /* the composer */
-.ask .dock{position:sticky;bottom:0;padding:12px 0 calc(14px + env(safe-area-inset-bottom,0px));
-  background:none}
+/* Like Claude's: the page colour fills the space around the message box and
+   fades in just above it, so the conversation scrolls away behind it rather
+   than showing underneath. */
+.ask .dock{position:sticky;bottom:0;padding:28px 0 calc(14px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(to bottom,transparent 0,var(--bg) 26px)}
 .ask .composer{display:flex;flex-direction:column;gap:8px;padding:12px 12px 10px 16px;border-radius:20px;border:1px solid var(--line-2);
   background:var(--surface);box-shadow:var(--shadow);transition:border-color .15s}
 .ask .composer:focus-within{border-color:var(--accent)}
