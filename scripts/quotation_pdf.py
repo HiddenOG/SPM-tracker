@@ -90,13 +90,27 @@ def _valid_colour(val: str) -> str | None:
     that ReportLab rejects outright, taking the whole PDF down with them.
     """
     v = (val or "").strip()
+    ok = None
     if re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})", v):
-        return v
-    if re.fullmatch(r"rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)", v, re.IGNORECASE):
-        return v
-    if v.lower() in _RL_COLOURS:
-        return v.lower()
-    return None
+        ok = v
+    elif re.fullmatch(r"rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)", v, re.IGNORECASE):
+        ok = v
+    elif v.lower() in _RL_COLOURS:
+        ok = v.lower()
+    # White or near-white text prints invisibly on white paper - copied from a
+    # dark-mode email or a coloured table heading. It prints black instead.
+    return None if ok and _too_light(ok) else ok
+
+
+def _too_light(v: str) -> bool:
+    # ReportLab misreads the short form (#fff), so spell it out first.
+    if re.fullmatch(r"#[0-9a-fA-F]{3}", v):
+        v = "#" + "".join(ch * 2 for ch in v[1:])
+    try:
+        c = colors.toColor(v)
+        return min(c.red, c.green, c.blue) >= 200 / 255
+    except Exception:
+        return False
 
 
 def _balance_tags(src: str) -> str:

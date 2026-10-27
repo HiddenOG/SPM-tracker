@@ -18,23 +18,40 @@ export function decode(s: string): string {
   return d.textContent || ''
 }
 
-/** A colour ReportLab can parse, or null. Black counts as no colour. */
+/**
+  A colour ReportLab can parse, or null for "no colour - follow the page".
+
+  Only real colours are kept: reds, blues, greens - the ones someone chose to
+  make a line stand out. Neutral ones are dropped: black, the near-blacks
+  every email and Word file writes for ordinary text (Gmail rgb(34,34,34),
+  Outlook #212121, this app's own #0f1a2e when a row is copied to another),
+  greys, and white. Kept, they froze ordinary text dark - unreadable in dark
+  mode - or white, invisible in light mode and on the printed PDF. Without a
+  colour, text is light in dark mode, dark in light mode and black on paper.
+*/
 function colour(el: Element): string | null {
   const raw = String(el.getAttribute('color') || (el as HTMLElement).style?.color || '').trim()
   if (!raw) return null
+  let hex: string | null = null
   const rgb = raw.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i)
-  if (rgb) {
-    const hex = [1, 2, 3].map(i => ('0' + (parseInt(rgb[i], 10) & 255).toString(16)).slice(-2)).join('')
-    return hex === '000000' ? null : '#' + hex
-  }
-  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw)) return /^#0{3,6}$/i.test(raw) ? null : raw.toLowerCase()
+  if (rgb) hex = '#' + [1, 2, 3].map(i => ('0' + (parseInt(rgb[i], 10) & 255).toString(16)).slice(-2)).join('')
+  else if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw)) hex = raw.toLowerCase()
   // Word writes the common ones by name: style="color:red".
-  return NAMED[raw.toLowerCase()] ?? null
+  else hex = NAMED[raw.toLowerCase()] ?? null
+  return hex && !isNeutral(hex) ? hex : null
+}
+
+/** Black, white or any grey in between: the three channels nearly equal. */
+export function isNeutral(hex: string): boolean {
+  let h = hex.replace('#', '')
+  if (h.length === 3) h = h.split('').map(c => c + c).join('')
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16))
+  return Math.max(r, g, b) - Math.min(r, g, b) < 40
 }
 
 const NAMED: Record<string, string> = {
   red: '#ff0000', darkred: '#8b0000', maroon: '#800000', blue: '#0000ff', navy: '#000080', darkblue: '#00008b',
-  green: '#008000', darkgreen: '#006400', orange: '#ffa500', purple: '#800080', teal: '#008080', gray: '#808080', grey: '#808080',
+  green: '#008000', darkgreen: '#006400', orange: '#ffa500', purple: '#800080', teal: '#008080',
 }
 
 const BLOCK = new Set(['DIV', 'P', 'LI', 'TR', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'])

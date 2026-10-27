@@ -88,6 +88,12 @@
 .fmt-bar button:hover{background:var(--surface-2)}
 .fmt-bar .sep{width:1px;height:18px;background:var(--line-2);margin:0 3px}
 .fmt-bar .clr{width:18px;height:18px;border-radius:50%;margin:0 2px;box-shadow:0 0 0 1px var(--line-2)}
+/* Default: half dark, half light - the colour that follows the theme */
+.fmt-bar .clr.default{background:linear-gradient(135deg,var(--ink) 50%,var(--surface) 50%)}
+/* Dark mode: dark chosen colours (green, navy, blue) are shown brighter so they
+   can be read on the dark page. Only on screen - saved and printed as chosen. */
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .qf-ce font[color]{filter:brightness(1.6) saturate(1.1)} }
+:root[data-theme="dark"] .qf-ce font[color]{filter:brightness(1.6) saturate(1.1)}
 .fmt-bar .clr:hover{transform:scale(1.15);background-clip:padding-box}
 
 @media (max-width:860px){
