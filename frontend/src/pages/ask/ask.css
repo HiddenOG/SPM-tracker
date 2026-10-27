@@ -38,7 +38,7 @@
 .ask .q-wrap .q{max-width:100%}
 .ask .q-acts{display:flex;gap:2px;opacity:0;transform:translateY(-3px);transition:opacity .18s ease,transform .18s ease}
 .ask .q-wrap:hover .q-acts,.ask .q-acts:focus-within{opacity:1;transform:none}
-.ask .q-acts button{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border:0;border-radius:8px;
+.ask .q-acts button{display:inline-grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:8px;
   background:none;color:var(--ink-3);font-size:12.5px;transition:background .15s,color .15s}
 .ask .q-acts button:hover:not(:disabled){background:var(--surface-2);color:var(--ink)}
 .ask .q-acts button:disabled{opacity:.4;cursor:default}

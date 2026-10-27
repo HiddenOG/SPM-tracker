@@ -152,9 +152,9 @@ function QuestionActions({ text, busy, onRetry, onEdit }: {
   }
   return (
     <div className="q-acts">
-      <button type="button" onClick={onRetry} disabled={busy} title="Ask this again" aria-label="Ask this again">{I.retry}<span>Retry</span></button>
-      <button type="button" onClick={onEdit} disabled={busy} title="Change this question and ask it" aria-label="Edit this question">{I.edit}<span>Edit</span></button>
-      <button type="button" onClick={copy} title="Copy this question" aria-label="Copy this question">{copied ? I.check : I.copy}<span>{copied ? 'Copied' : 'Copy'}</span></button>
+      <button type="button" onClick={onRetry} disabled={busy} title="Ask this again" aria-label="Ask this again">{I.retry}</button>
+      <button type="button" onClick={onEdit} disabled={busy} title="Change this question and ask it" aria-label="Edit this question">{I.edit}</button>
+      <button type="button" onClick={copy} title={copied ? 'Copied' : 'Copy this question'} aria-label={copied ? 'Copied' : 'Copy this question'}>{copied ? I.check : I.copy}</button>
     </div>
   )
 }
