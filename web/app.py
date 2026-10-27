@@ -2980,6 +2980,71 @@ def get_quotations(user: dict = Depends(verify_jwt)):
         raise HTTPException(status_code=500, detail="Server error")
 
 
+# ── Paste a table into a quote ───────────────────────────────────────────────
+# A table copied from an email, Word or Excel arrives with its structure and
+# the quote form reads it itself. Text copied out of a PDF loses the table:
+# columns run together and each description wraps over several lines. This
+# asks Claude to rebuild the table - headings and rows, the words unchanged -
+# and the form then matches the columns exactly as it does for a real table.
+PASTE_MODEL = os.environ.get("PASTE_MODEL", "claude-opus-5-5")
+_PASTE_MAX_CHARS = 30_000
+
+_PASTE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "headers": {"type": "array", "items": {"type": "string"}},
+        "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
+    },
+    "required": ["headers", "rows"],
+    "additionalProperties": False,
+}
+
+_PASTE_PROMPT = """This text was copied out of a PDF, an enquiry or quotation listing items to buy. Copying from a PDF loses the table: columns run together, and one item's description wraps over several lines. Rebuild the table.
+
+- headers: the column headings as the document has them (e.g. "Material", "Description", "Qty", "UOM", "Unit Price"). If there are none, name the columns plainly: Item, Product No, Description, UOM, Qty, Unit Price.
+- rows: one row per item, one cell per heading, in the same order.
+- Join all the lines that belong to one item's description into its Description cell, keeping each original line on its own line (separate them with a newline).
+- Copy the words and numbers exactly. Never invent, correct or fill in a value; leave a cell empty if the item has none.
+- Leave out anything that isn't an item row: letter text, page headers and footers, totals.
+
+The copied text:
+"""
+
+
+@app.post("/api/quotations/parse-paste")
+def parse_paste(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
+    text = str(body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Nothing was pasted.")
+    if len(text) > _PASTE_MAX_CHARS:
+        raise HTTPException(status_code=400, detail="That's too much text to read at once - paste the table in two parts.")
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise HTTPException(status_code=503, detail="No ANTHROPIC_API_KEY is configured.")
+    import anthropic
+    try:
+        res = anthropic.Anthropic().messages.create(
+            model=PASTE_MODEL, max_tokens=16000,
+            output_config={"effort": "low", "format": {"type": "json_schema", "schema": _PASTE_SCHEMA}},
+            messages=[{"role": "user", "content": _PASTE_PROMPT + text}],
+        )
+    except anthropic.APIError as exc:
+        print(f"  [error] parse_paste: {exc}")
+        raise HTTPException(status_code=502, detail="The table reader didn't answer. Try again in a moment.")
+    if res.stop_reason == "refusal":
+        raise HTTPException(status_code=422, detail="The table reader declined this text.")
+    if res.stop_reason == "max_tokens":
+        raise HTTPException(status_code=422, detail="That table is too long to read at once - paste it in two parts.")
+    try:
+        data = json.loads(next(b.text for b in res.content if b.type == "text"))
+    except Exception:
+        raise HTTPException(status_code=502, detail="The table reader's answer couldn't be read. Try again.")
+    headers = [str(h) for h in data.get("headers") or []]
+    rows = [[str(c) for c in r] for r in data.get("rows") or [] if any(str(c).strip() for c in r)]
+    if not headers or not rows:
+        raise HTTPException(status_code=422, detail="No table could be found in what was pasted.")
+    return _ok({"headers": headers, "rows": rows})
+
+
 @app.post("/api/quotations/parse-enquiry")
 def parse_enquiry(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
     try:

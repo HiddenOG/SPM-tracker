@@ -28,7 +28,13 @@ function colour(el: Element): string | null {
     return hex === '000000' ? null : '#' + hex
   }
   if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw)) return /^#0{3,6}$/i.test(raw) ? null : raw.toLowerCase()
-  return null
+  // Word writes the common ones by name: style="color:red".
+  return NAMED[raw.toLowerCase()] ?? null
+}
+
+const NAMED: Record<string, string> = {
+  red: '#ff0000', darkred: '#8b0000', maroon: '#800000', blue: '#0000ff', navy: '#000080', darkblue: '#00008b',
+  green: '#008000', darkgreen: '#006400', orange: '#ffa500', purple: '#800080', teal: '#008080', gray: '#808080', grey: '#808080',
 }
 
 const BLOCK = new Set(['DIV', 'P', 'LI', 'TR', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'])

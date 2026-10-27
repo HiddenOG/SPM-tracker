@@ -95,3 +95,36 @@
   .qf-bottom{grid-template-columns:1fr}
   .qf-notes{border-right:0;border-bottom:1px solid var(--line)}
 }
+
+/* Paste items: the paste area, then a preview with a column picker over each column */
+/* Narrow while it's only a place to paste; wide once there's a table to check. */
+.cell-box.paste-box{max-width:min(600px,96vw);padding:20px 22px;transition:max-width .25s ease}
+.cell-box.paste-box.wide{max-width:min(1080px,96vw)}
+.paste-box .cell-hd h2{margin:0;font:700 18px var(--display)}
+.pi-help{margin:0 0 12px;font-size:13.5px;line-height:1.5;color:var(--ink-2)}
+.pi-zone{min-height:150px;display:grid;place-items:center;border:2px dashed var(--line-2);border-radius:14px;
+  background:var(--surface-2);color:var(--ink-3);font-size:14px;outline:0;cursor:text;transition:border-color .15s,background .15s}
+.pi-zone:focus{border-color:var(--accent);background:var(--accent-soft)}
+.pi-zone.busy{cursor:progress}
+.pi-zone kbd{font:600 12px var(--mono);padding:2px 6px;border:1px solid var(--line-2);border-radius:5px;background:var(--surface);color:var(--ink-2)}
+.pi-reading{display:inline-flex;align-items:center;gap:10px;color:var(--ink-2)}
+.pi-reading .orbs{display:inline-flex;gap:5px}
+.pi-reading .orbs i{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:breathe 1.3s ease-in-out infinite}
+.pi-reading .orbs i:nth-child(2){animation-delay:.18s}
+.pi-reading .orbs i:nth-child(3){animation-delay:.36s}
+.pi-scroll{max-height:min(56vh,520px);overflow:auto;border:1px solid var(--line);border-radius:12px}
+.pi-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.pi-table th{position:sticky;top:0;z-index:1;background:var(--surface);text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--line-2);min-width:120px}
+.pi-table td{vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--line)}
+.pi-table tr.off td{opacity:.4}
+.pi-keep{width:34px;min-width:34px!important;text-align:center}
+.pi-pick{width:100%;height:30px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface-2);color:var(--ink);font-size:12.5px;font-weight:600;padding:0 6px}
+.pi-pick.f-skip{color:var(--ink-3);font-weight:400}
+.pi-pick.f-extra{color:var(--ink-2);font-weight:500}
+.pi-src{display:block;margin-top:5px;font-size:11px;font-weight:500;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}
+.pi-cell{white-space:pre-line;max-height:9.5em;overflow:hidden;color:var(--ink)}
+.pi-table td.f-skip .pi-cell{color:var(--ink-3);text-decoration:line-through}
+.pi-table td.f-description{min-width:280px}
+.pi-btns{align-items:center}
+.pi-btns .btn{flex:none}
+@media (max-width:640px){ .paste-box{padding:16px 14px} .pi-btns{flex-wrap:wrap} }

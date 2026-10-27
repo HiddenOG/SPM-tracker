@@ -5,6 +5,8 @@ import { currentUser } from '../../lib/session'
 import { todayLocal } from '../../lib/orders'
 import { clean, notesToHtml } from './rich'
 import { FormatBar, Rich } from './RichEditor'
+import PasteItems from './PasteItems'
+import type { Item } from './pasteTable'
 import { type Company, COMPANY_NAME, downloadQuotePdf, readCompany, sym } from './QuotesPage'
 import './quotes.css'
 
@@ -46,6 +48,8 @@ function blankFields(company: Company): Fields {
 }
 let keySeq = 1
 const newRow = (r: Partial<Row> = {}): Row => ({ _k: keySeq++, product_no: '', description: '', uom: 'EA', quantity: 1, unit_price: 0, tax_rate: 0, line_total: 0, ...r })
+/** A line with something in it - not the blank starter row. */
+const filled = (r: Row) => !!(r.product_no.trim() || r.description.replace(/<[^>]*>|&nbsp;/g, '').trim() || Number(r.unit_price))
 const lineTotal = (r: Row) => Math.round((Number(r.quantity) || 0) * (Number(r.unit_price) || 0) * (1 + (Number(r.tax_rate) || 0)) * 100) / 100
 const n = (v: string) => parseFloat(v) || 0
 
@@ -80,6 +84,7 @@ export default function QuoteForm() {
   const [pdfState, setPdfState] = useState('')
   const [banner, setBanner] = useState<{ ok: boolean; msg: string } | null>(null)
   const [importing, setImporting] = useState('')
+  const [pasting, setPasting] = useState(false)
   const enquiryInput = useRef<HTMLInputElement>(null)
   const priceInput = useRef<HTMLInputElement>(null)
   const status = useRef('draft')
@@ -244,6 +249,19 @@ export default function QuoteForm() {
     finally { setImporting(''); if (enquiryInput.current) enquiryInput.current.value = '' }
   }
 
+  // ── paste a table (PasteItems) ──
+  // Empty lines - the blank starter row - are simply replaced. Filled ones
+  // are kept unless the person chose Replace.
+  const addPasted = (items: Item[], replace: boolean) => {
+    const fresh = items.map(it => {
+      const r = newRow({ product_no: it.product_no, description: it.description, uom: it.uom, quantity: it.quantity, unit_price: it.unit_price })
+      return { ...r, line_total: lineTotal(r) }
+    })
+    setRows(rs => (replace ? fresh : [...rs.filter(filled), ...fresh]))
+    setPasting(false)
+    setBanner({ ok: true, msg: `${fresh.length} line item${fresh.length === 1 ? '' : 's'} ${replace ? 'replaced the old lines' : 'added from the paste'}. Check them before saving.` })
+  }
+
   // ── export the lines to Excel ──
   const exportXlsx = async () => {
     if (!rows.length) { alert('No line items to export.'); return }
@@ -379,9 +397,11 @@ export default function QuoteForm() {
             <button type="button" className="btn ghost sm" onClick={() => priceInput.current?.click()} disabled={!!importing} title="Import prices from the exported file">
               {importing === 'prices' ? 'Importing…' : '↑ Import prices'}
             </button>
+            <button type="button" className="btn ghost sm" onClick={() => setPasting(true)} title="Paste a table copied from an email, Word, Excel or a PDF">⧉ Paste items</button>
             <button type="button" className="btn sm" onClick={() => setRows(rs => [...rs, newRow()])}>+ Add row</button>
           </div>
         </div>
+        {pasting && <PasteItems hasLines={rows.some(filled)} showsProductNo={isNlng} onClose={() => setPasting(false)} onAdd={addPasted} />}
         <div className="qf-items-wrap">
           <table className={`qf-items${isNlng ? ' nlng' : ''}`}>
             <colgroup>
