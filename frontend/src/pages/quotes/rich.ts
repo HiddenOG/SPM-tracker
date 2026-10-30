@@ -64,17 +64,35 @@ export function clean(html: string | null | undefined): string {
   const root = doc.getElementById('r')
   if (!root) return esc(src.replace(/<[^>]*>/g, ''))
   const out: string[] = []
+  // Lines as the screen shows them. A block (each line typed with Enter, a
+  // pasted paragraph) starts AND ends a line - wherever it sits, even inside
+  // bold text or as the last thing in its parent. Only breaking after blocks
+  // that weren't last lost the line breaks around bold headings, and a saved
+  // note ran together on the PDF (SPM-00114-CNL). A <br> closing a block is the
+  // browser's placeholder for an empty line, so it isn't counted twice.
+  let open = false        // the current line has something on it
+  let pending = false     // a line ended; break before whatever comes next
+  const flush = () => { if (pending) { out.push('<br>'); pending = false } }
+  const endLine = () => { if (open) { pending = true; open = false } }
 
   const walk = (node: Node) => {
     const kids = node.childNodes
     for (let i = 0; i < kids.length; i++) {
       const n = kids[i]
-      if (n.nodeType === 3) { out.push(esc(n.nodeValue || '')); continue }
+      if (n.nodeType === 3) {
+        const v = n.nodeValue || ''
+        // Whitespace between blocks (Word's newlines between paragraphs) isn't text.
+        if (!/[^ \t\r\n]/.test(v)) { if (open) out.push(esc(v)); continue }
+        flush(); out.push(esc(v)); open = true
+        continue
+      }
       if (n.nodeType !== 1) continue
       const el = n as HTMLElement
       const tag = el.tagName.toUpperCase()
-      if (tag === 'BR') { out.push('<br>'); continue }
+      if (tag === 'BR') { flush(); out.push('<br>'); open = false; continue }
       if (tag === 'SCRIPT' || tag === 'STYLE') continue
+      const block = BLOCK.has(tag)
+      if (block) endLine()
       const st = el.style || ({} as CSSStyleDeclaration)
       const weight = String(st.fontWeight || '')
       const wraps: [string, string][] = []
@@ -83,13 +101,15 @@ export function clean(html: string | null | undefined): string {
       if (tag === 'U' || /underline/i.test(String(st.textDecoration || st.textDecorationLine || ''))) wraps.push(['<u>', '</u>'])
       const col = colour(el)
       if (col) wraps.push([`<font color="${col}">`, '</font>'])
+      // A line break waiting goes before the bold or colour, not just inside it.
+      if (wraps.length && /[^ \t\r\n]/.test(el.textContent || '')) flush()
       wraps.forEach(w => out.push(w[0]))
       walk(el)
       for (let k = wraps.length - 1; k >= 0; k--) out.push(wraps[k][1])
       // A block ends a line, or "<p>one</p><p>two</p>" becomes "onetwo".
-      if (BLOCK.has(tag) && i < kids.length - 1) out.push('<br>')
+      if (block) endLine()
       // Table cells sit on one line but need separating, or a pasted row reads "2IN300#".
-      else if ((tag === 'TD' || tag === 'TH') && i < kids.length - 1) out.push(' ')
+      else if ((tag === 'TD' || tag === 'TH') && open && i < kids.length - 1) out.push(' ')
     }
   }
   walk(root)

@@ -181,6 +181,24 @@ def test_an_empty_note_falls_back_to_the_standing_sentence():
     assert _rich_text("<br>", "fallback") == "fallback"
 
 
+def test_a_laid_out_note_keeps_its_lines_and_blank_lines():
+    """A cost breakdown typed with blank lines between its parts must print
+    the same way, each part on its own line - not run together."""
+    from quotation_pdf import generate_quotation_pdf
+    note = ('<font color="#cc0000"><b>FCA COST BREAKDOWN</b></font><br><br><b>DESCRIPTION AMOUNT (USD)</b><br><br>'
+            'Packing and Crating $1,979.75<br>Freight $2,900.50<br><br><b>SUBTOTAL $4,880.25</b>')
+    lines = _lines(generate_quotation_pdf(_quote(notes=note), _ITEMS))
+    at = lines.index("Notes:")
+    assert lines[at + 1:at + 6] == ["FCA COST BREAKDOWN", "DESCRIPTION AMOUNT (USD)",
+                                    "Packing and Crating $1,979.75", "Freight $2,900.50", "SUBTOTAL $4,880.25"]
+
+
+def test_a_one_line_note_stays_beside_the_label():
+    from quotation_pdf import generate_quotation_pdf
+    lines = _lines(generate_quotation_pdf(_quote(notes="Prices valid 30 days"), _ITEMS))
+    assert any(l.startswith("Notes:") and "Prices valid 30 days" in l for l in lines)
+
+
 def test_the_notes_label_survives_a_formatted_note():
     from quotation_pdf import generate_quotation_pdf
     q = _quote(notes='<b><font color="#0b5">All items FIRM</font></b>')

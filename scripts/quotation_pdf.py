@@ -741,7 +741,11 @@ def generate_quotation_pdf(quotation: dict, line_items: list[dict]) -> bytes:
     ))
     story.append(Spacer(1, 3 * mm))
     notes = _rich_text(quotation.get("notes"), "Looking forward to your business.")
-    story.append(_p(f"<b>Notes:</b>  {notes}", body))
+    # A note laid out over several lines (a cost breakdown) starts on a line of
+    # its own, so its first line isn't run in beside the label; a one-liner
+    # stays beside it as before.
+    sep = "<br/>" if "<br/>" in notes else "  "
+    story.append(_p(f"<b>Notes:</b>{sep}{notes}", body))
     story.append(Spacer(1, 5 * mm))
 
     # ── 9. Signature block ───────────────────────────────────────────────────
