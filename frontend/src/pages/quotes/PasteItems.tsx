@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ApiError, send } from '../../lib/api'
-import { FIELD_LABEL, type Field, type Item, type Table, fromHtml, fromRebuilt, fromTabs, guessFields, toItems } from './pasteTable'
+import { FIELD_LABEL, type Field, type Item, SINGLE, type Table, fieldForHeader, fromHtml, fromRebuilt, fromTabs, guessFields, headKey, toItems } from './pasteTable'
+import { type Col, labelOf } from './quoteColumns'
 
 /*
   "Paste items": copy a table from an email, Word, Excel or a PDF, paste it
@@ -11,15 +12,38 @@ import { FIELD_LABEL, type Field, type Item, type Table, fromHtml, fromRebuilt, 
 
 const CHOICES: Field[] = ['product_no', 'description', 'uom', 'quantity', 'unit_price', 'extra', 'column', 'skip']
 
+/**
+  The guesses, checked against the quote's own columns. A heading with the
+  same name as one of them ("DDP Unit Price (USD)" and "DDP unit price") goes
+  into it; one named like a worked-out total is skipped, as the quote works
+  that out itself. A quote with no second price yet takes a second price
+  column as one, so a pasted FCA + DDP table lands as FCA + DDP.
+*/
+function matchQuote(t: Table, guessed: Field[], targets: Col[], canPrice2: boolean): Field[] {
+  const fields = [...guessed]
+  t.headers.forEach((h, i) => {
+    if (!t.hadHeader) return
+    const hit = targets.find(c => headKey(labelOf(c)) === headKey(h))
+    if (hit) fields[i] = hit.kind === 'total' ? 'skip' : `col:${hit.key}`
+  })
+  if (canPrice2 && t.hadHeader && fields.includes('unit_price') && !fields.includes('price2')) {
+    const i = t.headers.findIndex((h, j) => fields[j] === 'extra' && fieldForHeader(h) === 'unit_price')
+    if (i >= 0) fields[i] = 'price2'
+  }
+  return fields
+}
+
 const plainText = (html: string) => {
   const d = document.createElement('div')
   d.innerHTML = html.replace(/<br\s*\/?>/gi, '\n')
   return d.textContent || ''
 }
 
-export default function PasteItems({ lineCount, showsProductNo, onAdd, onFill, onClose }: {
+export default function PasteItems({ lineCount, showsProductNo, targets, canPrice2, onAdd, onFill, onClose }: {
   lineCount: number                    // filled lines already on the quote
   showsProductNo: boolean              // only NLNG quotes have a Product no. column
+  targets: Col[]                       // the columns this quote added, which a pasted column can go into
+  canPrice2: boolean                   // no second price yet, and room for one
   onAdd: (items: Item[], replace: boolean) => void
   // Put the pasted columns into the lines already there, top to bottom.
   onFill: (items: Item[], cols: Field[][]) => void   // cols: what each row has a value for
@@ -41,7 +65,7 @@ export default function PasteItems({ lineCount, showsProductNo, onAdd, onFill, o
   }, [reading, onClose])
 
   const use = (t: Table) => {
-    setTable(t); setFields(guessFields(t)); setKeep(t.cells.map(() => true)); setErr('')
+    setTable(t); setFields(matchQuote(t, guessFields(t), targets, canPrice2)); setKeep(t.cells.map(() => true)); setErr('')
   }
 
   // A paste, or a table dragged onto the box: both carry the same data.
@@ -88,7 +112,7 @@ export default function PasteItems({ lineCount, showsProductNo, onAdd, onFill, o
   const setField = (i: number, f: Field) => setFields(fs => fs.map((x, j) => {
     if (j === i) return f
     // Only one column can be the description, the qty, and so on.
-    return x === f && !['extra', 'column', 'skip'].includes(f) ? 'extra' : x
+    return x === f && SINGLE(f) ? 'extra' : x
   }))
 
   return createPortal(
@@ -131,8 +155,14 @@ export default function PasteItems({ lineCount, showsProductNo, onAdd, onFill, o
                       <th key={i}>
                         <select value={fields[i]} onChange={e => setField(i, e.target.value as Field)}
                                 className={`pi-pick f-${fields[i]}`} aria-label={`What "${h}" is`}>
-                          {CHOICES.map(c => <option key={c} value={c}>{FIELD_LABEL[c]}</option>)}
+                          {CHOICES.map(c => <option key={c} value={c}>{FIELD_LABEL[c as keyof typeof FIELD_LABEL]}</option>)}
+                          {canPrice2 && <option value="price2">{FIELD_LABEL.price2}</option>}
                           {fields[i] === 'item_no' && <option value="item_no">{FIELD_LABEL.item_no}</option>}
+                          {targets.some(c => c.kind !== 'total') && (
+                            <optgroup label="This quote's columns">
+                              {targets.filter(c => c.kind !== 'total').map(c => <option key={c.key} value={`col:${c.key}`}>{labelOf(c)}</option>)}
+                            </optgroup>
+                          )}
                         </select>
                         <span className="pi-src">{h}</span>
                       </th>

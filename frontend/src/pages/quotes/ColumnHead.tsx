@@ -5,7 +5,8 @@ import { type Col, MAX_ADDED, REMOVABLE, isAdded, labelOf } from './quoteColumns
 /*
   One line-item heading with its ▾ menu: rename, move, add a column either
   side, remove. The menu sits on the page body, as the table's scroll box
-  would clip it, and closes on a click outside, Escape or a scroll.
+  would clip it, follows its heading on a scroll, and closes on a click
+  outside, Escape, a resize or the heading leaving the screen.
 */
 
 type Action = 'left' | 'right' | 'add-left' | 'add-right' | 'add-price' | 'remove'
@@ -30,12 +31,15 @@ export default function ColumnHead({ col, index, count, added, canPrice = false,
   const menu = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLInputElement>(null)
 
-  useLayoutEffect(() => {
-    if (!open || !btn.current) return
+  // Under the heading, kept on screen when the heading is near the right edge.
+  const place = (opening = false) => {
+    if (!btn.current) return false
     const r = btn.current.getBoundingClientRect()
-    // Keep the menu on screen when the heading is near the right edge.
+    if (!opening && (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth)) return false
     setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.right - 200, window.innerWidth - 208)) })
-  }, [open])
+    return true
+  }
+  useLayoutEffect(() => { if (open) place(true) }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -43,15 +47,18 @@ export default function ColumnHead({ col, index, count, added, canPrice = false,
       if (!menu.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node)) setOpen(false)
     }
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); btn.current?.focus() } }
+    // A scroll - the page, or the table sliding to show a new column - moves
+    // the menu with its heading; it only closes once the heading is off screen.
+    const follow = () => { if (!place()) setOpen(false) }
     const shut = () => setOpen(false)
     document.addEventListener('mousedown', out)
     window.addEventListener('keydown', key, true)
-    window.addEventListener('scroll', shut, true)
+    window.addEventListener('scroll', follow, true)
     window.addEventListener('resize', shut)
     return () => {
       document.removeEventListener('mousedown', out)
       window.removeEventListener('keydown', key, true)
-      window.removeEventListener('scroll', shut, true)
+      window.removeEventListener('scroll', follow, true)
       window.removeEventListener('resize', shut)
     }
   }, [open])

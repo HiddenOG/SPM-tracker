@@ -17,14 +17,20 @@ import { clean, esc } from './rich'
   before anything is added.
 */
 
-export type Field = 'item_no' | 'product_no' | 'description' | 'uom' | 'quantity' | 'unit_price' | 'extra' | 'column' | 'skip'
+// price2: a second price (DDP beside FCA), with its own worked-out total.
+// `col:x1`: into a column this quote already has.
+type BaseField = 'item_no' | 'product_no' | 'description' | 'uom' | 'quantity' | 'unit_price' | 'price2' | 'extra' | 'column' | 'skip'
+export type Field = BaseField | `col:${string}`
 
-export const FIELD_LABEL: Record<Field, string> = {
+export const FIELD_LABEL: Record<BaseField, string> = {
   product_no: 'Product no.', description: 'Description', uom: 'UOM', quantity: 'Qty', unit_price: 'Unit price',
-  extra: 'Add to description', column: 'New column', item_no: 'Item no. (skip)', skip: 'Skip',
+  price2: 'Second price (e.g. DDP)', extra: 'Add to description', column: 'New column', item_no: 'Item no. (skip)', skip: 'Skip',
 }
-// Each of these can hold one column; extra and skip can hold any number.
-const SINGLE: Field[] = ['item_no', 'product_no', 'description', 'uom', 'quantity', 'unit_price']
+// Each of these can hold one column; extra, column and skip can hold any number.
+export const SINGLE = (f: Field) => ['item_no', 'product_no', 'description', 'uom', 'quantity', 'unit_price', 'price2'].includes(f) || f.startsWith('col:')
+
+/** A heading compared loosely: "DDP Unit Price (USD)" is "ddp unit price". */
+export const headKey = (h: string) => h.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim()
 
 export type Table = {
   headers: string[]          // as copied, or "Column 1"... when no heading row came with it
@@ -32,8 +38,10 @@ export type Table = {
   hadHeader: boolean
 }
 
-// cols: columns set as "New column" - each becomes a column of its own on the quote.
-export type Item = { product_no: string; description: string; uom: string; quantity: number; unit_price: number; cols: { label: string; value: string }[] }
+// cols: columns set as "New column" (no key - each becomes a column of its own)
+// or into one of the quote's columns (key). price2: the second price, if picked.
+export type PastedCol = { label: string; value: string; key?: string }
+export type Item = { product_no: string; description: string; uom: string; quantity: number; unit_price: number; price2: number | null; price2Label: string; cols: PastedCol[] }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9$#/ ]+/g, ' ').replace(/\s+/g, ' ').trim()
 const plain = (html: string) => {
@@ -112,7 +120,7 @@ export function guessFields(t: Table): Field[] {
   // One column per quote column: a second "Qty" becomes a description line.
   const seen = new Set<Field>()
   return fields.map(f => {
-    if (!SINGLE.includes(f)) return f
+    if (!SINGLE(f)) return f
     if (seen.has(f)) return 'extra'
     seen.add(f)
     return f
@@ -222,8 +230,15 @@ export function toItems(t: Table, fields: Field[], keep: boolean[], productInDes
       uom: unit.uom,
       quantity: qty > 0 ? qty : 1,
       unit_price: num(cell('unit_price')),
-      cols: fields.map((f, i) => (f === 'column' ? { label: t.headers[i], value: plain(row[i] || '').replace(/\n+/g, ' ') } : null))
-        .filter((c): c is { label: string; value: string } => !!c),
+      // null for an empty cell too, so filling lines never wipes a price with 0.
+      price2: at('price2') >= 0 && plain(cell('price2')) ? num(cell('price2')) : null,
+      price2Label: at('price2') >= 0 && t.hadHeader ? t.headers[at('price2')] : '',
+      cols: fields.map((f, i): PastedCol | null => {
+        const value = plain(row[i] || '').replace(/\n+/g, ' ')
+        if (f === 'column') return { label: t.headers[i], value }
+        if (f.startsWith('col:')) return { label: t.headers[i], value, key: f.slice(4) }
+        return null
+      }).filter((c): c is PastedCol => !!c),
     }
   })
 }
