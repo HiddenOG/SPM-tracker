@@ -108,6 +108,7 @@
 .cell-box.paste-box.wide{max-width:min(1080px,96vw)}
 .paste-box .cell-hd h2{margin:0;font:700 18px var(--display)}
 .pi-help{margin:0 0 12px;font-size:13.5px;line-height:1.5;color:var(--ink-2)}
+.pi-note{margin:0 0 12px;font-size:13px;line-height:1.5;color:var(--ink-2);padding:8px 12px;border-radius:8px;background:var(--surface-2,rgba(127,127,127,.08))}
 .pi-zone{min-height:150px;display:grid;place-items:center;border:2px dashed var(--line-2);border-radius:14px;
   background:var(--surface-2);color:var(--ink-3);font-size:14px;outline:0;cursor:text;transition:border-color .15s,background .15s}
 .pi-zone:focus{border-color:var(--accent);background:var(--accent-soft)}

@@ -75,8 +75,10 @@ function guessByContent(cols: string[][]): Field[] {
   })
   const fields: Field[] = cols.map(() => 'extra')
   const take = (f: Field, i: number) => { if (i >= 0 && fields[i] === 'extra') fields[i] = f }
-  // The description: the wordiest column.
-  take('description', stats.reduce((b, s, i) => (s.avgLen * s.lines > (stats[b]?.avgLen ?? -1) * (stats[b]?.lines ?? 1) ? i : b), 0))
+  // The description: the wordiest column - but never one that's all numbers,
+  // or a column of prices pasted on its own is taken for item text.
+  const wordy = stats.reduce((b, s, i) => (s.numeric < 0.8 && (b < 0 || s.avgLen * s.lines > stats[b].avgLen * stats[b].lines) ? i : b), -1)
+  take('description', wordy)
   stats.forEach((s, i) => { if (s.seq && s.n > 1) take('item_no', i) })
   stats.forEach((s, i) => { if (s.uom >= 0.6) take('uom', i) })
   // Money has decimals or a currency sign; a quantity is a short whole number;
@@ -154,7 +156,13 @@ export function fromHtml(html: string): Table | null {
 /** Tab-separated text (Excel or Google Sheets copied as plain text). */
 export function fromTabs(text: string): Table | null {
   const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim())
-  if (lines.length < 1 || !lines.some(l => l.includes('\t'))) return null
+  if (lines.length < 1) return null
+  // One column copied on its own - prices, quantities, part numbers - has no
+  // tabs, but it's still a column: one short value per line.
+  if (!lines.some(l => l.includes('\t'))) {
+    const single = lines.length >= 2 && lines.slice(1).every(l => NUM.test(l) || /^\S{1,30}$/.test(l.trim()))
+    return single ? finish(lines.map(l => [esc(l.trim())])) : null
+  }
   return finish(lines.map(l => l.split('\t').map(c => esc(c.trim()).replace(/\\n/g, '<br>'))))
 }
 

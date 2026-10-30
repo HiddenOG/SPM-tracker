@@ -17,12 +17,15 @@ const plainText = (html: string) => {
   return d.textContent || ''
 }
 
-export default function PasteItems({ hasLines, showsProductNo, onAdd, onClose }: {
-  hasLines: boolean                    // the quote already has filled lines
+export default function PasteItems({ lineCount, showsProductNo, onAdd, onFill, onClose }: {
+  lineCount: number                    // filled lines already on the quote
   showsProductNo: boolean              // only NLNG quotes have a Product no. column
   onAdd: (items: Item[], replace: boolean) => void
+  // Put the pasted columns into the lines already there, top to bottom.
+  onFill: (items: Item[], cols: Field[][]) => void   // cols: what each row has a value for
   onClose: () => void
 }) {
+  const hasLines = lineCount > 0
   const [table, setTable] = useState<Table | null>(null)
   const [fields, setFields] = useState<Field[]>([])
   const [keep, setKeep] = useState<boolean[]>([])
@@ -73,6 +76,14 @@ export default function PasteItems({ hasLines, showsProductNo, onAdd, onClose }:
   const items = useMemo(() => (table ? toItems(table, fields, keep, !showsProductNo) : []), [table, fields, keep, showsProductNo])
   const count = items.length
   const noDesc = table && !fields.includes('description')
+  // What a fill would change: every quote column the paste was matched to,
+  // and per row only the cells that have something in them.
+  const fillCols = fields.filter(f => !['item_no', 'skip'].includes(f))
+  const hasValue = useMemo(() => (table ? table.cells.filter((_, i) => keep[i])
+    .map(r => fillCols.filter(f => fields.some((x, j) => x === f && plainText(r[j] || '').trim()))) : []),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [table, fields, keep])
+  const fills = Math.min(count, lineCount)
 
   const setField = (i: number, f: Field) => setFields(fs => fs.map((x, j) => {
     if (j === i) return f
@@ -105,7 +116,9 @@ export default function PasteItems({ hasLines, showsProductNo, onAdd, onClose }:
             <p className="pi-help">
               {table.cells.length} row{table.cells.length === 1 ? '' : 's'} found. Check what each column goes into - change any that's wrong - and untick rows you don't want.
             </p>
-            {noDesc && <p className="err-text">No column is set as the Description - pick one above the item text.</p>}
+            {noDesc && (hasLines
+              ? <p className="pi-note">No Description column, so these can only fill the {lineCount} line{lineCount === 1 ? '' : 's'} already on the quote, from the top. To add new lines, set a column as the Description.</p>
+              : <p className="err-text">No column is set as the Description - pick one above the item text.</p>)}
             <div className="pi-scroll">
               <table className="pi-table">
                 <thead>
@@ -145,12 +158,21 @@ export default function PasteItems({ hasLines, showsProductNo, onAdd, onClose }:
               <button type="button" className="btn ghost" onClick={() => setTable(null)}>Paste again</button>
               <span className="sp" />
               {hasLines && (
-                <button type="button" className="btn ghost" disabled={!count || !!noDesc}
+                <button type="button" className={`btn${noDesc ? '' : ' ghost'}`} disabled={!fills || !fillCols.length}
+                        title="Put these columns into the lines already on the quote, top to bottom"
+                        onClick={() => onFill(items, hasValue)}>
+                  Fill {fills} existing line{fills === 1 ? '' : 's'}
+                </button>
+              )}
+              {hasLines && !noDesc && (
+                <button type="button" className="btn ghost" disabled={!count}
                         onClick={() => onAdd(items, true)}>Replace all lines</button>
               )}
-              <button type="button" className="btn" disabled={!count || !!noDesc} onClick={() => onAdd(items, false)}>
-                {hasLines ? `Add ${count} after existing lines` : `Add ${count} item${count === 1 ? '' : 's'}`}
-              </button>
+              {!(hasLines && noDesc) && (
+                <button type="button" className="btn" disabled={!count || !!noDesc} onClick={() => onAdd(items, false)}>
+                  {hasLines ? `Add ${count} after existing lines` : `Add ${count} item${count === 1 ? '' : 's'}`}
+                </button>
+              )}
             </div>
           </>
         )}

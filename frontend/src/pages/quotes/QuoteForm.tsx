@@ -6,7 +6,7 @@ import { todayLocal } from '../../lib/orders'
 import { clean, notesToHtml } from './rich'
 import { FormatBar, Rich } from './RichEditor'
 import PasteItems from './PasteItems'
-import type { Item } from './pasteTable'
+import type { Field, Item } from './pasteTable'
 import { type Company, COMPANY_NAME, downloadQuotePdf, readCompany, sym } from './QuotesPage'
 import './quotes.css'
 
@@ -262,6 +262,33 @@ export default function QuoteForm() {
     setBanner({ ok: true, msg: `${fresh.length} line item${fresh.length === 1 ? '' : 's'} ${replace ? 'replaced the old lines' : 'added from the paste'}. Check them before saving.` })
   }
 
+  // Fill: the pasted columns go into the lines already there, first pasted
+  // row into the first line, and so on. Only matched columns with something
+  // in them change; a column set as "Add to description" goes under the text.
+  const fillPasted = (items: Item[], rowCols: Field[][]) => {
+    let i = 0
+    setRows(rs => rs.map(r => {
+      if (!filled(r) || i >= items.length) return r
+      const cols = rowCols[i]
+      const it = items[i++]
+      const { _k, ...rest } = r
+      const next = newRow({
+        ...rest,  // a new key, so the description box shows the new text
+        ...(cols.includes('product_no') && isNlng ? { product_no: it.product_no } : {}),
+        ...(cols.includes('uom') ? { uom: it.uom } : {}),
+        ...(cols.includes('quantity') ? { quantity: it.quantity } : {}),
+        ...(cols.includes('unit_price') ? { unit_price: it.unit_price } : {}),
+        description: cols.includes('description') ? it.description
+          : it.description ? [r.description, it.description].filter(Boolean).join('<br>') : r.description,
+      })
+      return { ...next, line_total: lineTotal(next) }
+    }))
+    const used = Math.min(items.length, rows.filter(filled).length)
+    const left = items.length - used
+    setPasting(false)
+    setBanner({ ok: true, msg: `${used} line${used === 1 ? '' : 's'} filled from the paste${left ? ` - ${left} pasted row${left === 1 ? ' was' : 's were'} left over, as there were more than lines` : ''}. Check them before saving.` })
+  }
+
   // ── export the lines to Excel ──
   const exportXlsx = async () => {
     if (!rows.length) { alert('No line items to export.'); return }
@@ -401,7 +428,7 @@ export default function QuoteForm() {
             <button type="button" className="btn sm" onClick={() => setRows(rs => [...rs, newRow()])}>+ Add row</button>
           </div>
         </div>
-        {pasting && <PasteItems hasLines={rows.some(filled)} showsProductNo={isNlng} onClose={() => setPasting(false)} onAdd={addPasted} />}
+        {pasting && <PasteItems lineCount={rows.filter(filled).length} showsProductNo={isNlng} onClose={() => setPasting(false)} onAdd={addPasted} onFill={fillPasted} />}
         <div className="qf-items-wrap">
           <table className={`qf-items${isNlng ? ' nlng' : ''}`}>
             <colgroup>
