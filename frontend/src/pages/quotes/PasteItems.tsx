@@ -9,7 +9,7 @@ import { FIELD_LABEL, type Field, type Item, type Table, fromHtml, fromRebuilt, 
   Nothing reaches the quote until the person presses Add or Replace.
 */
 
-const CHOICES: Field[] = ['product_no', 'description', 'uom', 'quantity', 'unit_price', 'extra', 'skip']
+const CHOICES: Field[] = ['product_no', 'description', 'uom', 'quantity', 'unit_price', 'extra', 'column', 'skip']
 
 const plainText = (html: string) => {
   const d = document.createElement('div')
@@ -88,7 +88,7 @@ export default function PasteItems({ lineCount, showsProductNo, onAdd, onFill, o
   const setField = (i: number, f: Field) => setFields(fs => fs.map((x, j) => {
     if (j === i) return f
     // Only one column can be the description, the qty, and so on.
-    return x === f && !['extra', 'skip'].includes(f) ? 'extra' : x
+    return x === f && !['extra', 'column', 'skip'].includes(f) ? 'extra' : x
   }))
 
   return createPortal(

@@ -529,19 +529,60 @@ def generate_quotation_pdf(quotation: dict, line_items: list[dict]) -> bytes:
     sym      = "£" if currency == "GBP" else "₦" if currency == "NGN" else "$"
 
     is_nlng = (quotation.get("client") or "").lower() == "nlng"
-    pno_w   = 28 * mm if is_nlng else 0
-    col_w   = [9*mm, USE_W - 9*mm - pno_w - 16*mm - 16*mm - 24*mm - 24*mm,
-               *([pno_w] if is_nlng else []),
-               16*mm, 16*mm, 24*mm, 24*mm]
+    # The columns, in order: the quote's own (line_columns, set on the form for
+    # an unusual case) or the standard ones. Each is (key, heading).
+    _esc = lambda s: _html_escape(s, quote=False)   # typed text, so "&" or "<" can't break the cell
+    std_label = {"description": "Item Description", "product_no": "Product No.", "quantity": "QTY",
+                 "uom": "UOM", "unit_price": "Unit Price", "line_total": "Total"}
+    own = quotation.get("line_columns")
+    # A second price (FCA and DDP side by side): its price column and the total
+    # column worked out from it - qty x that price - with its own grand total.
+    p2_key = p2_total_key = None
+    p2_label = ""
+    if isinstance(own, list) and own:
+        own = [c for c in own if isinstance(c, dict)]
+        cols = [(str(c.get("key") or ""), str(c.get("label") or "").strip()) for c in own]
+        cols = [(k, lbl or std_label.get(k, "")) for k, lbl in cols if k in std_label or re.fullmatch(r"x\d{1,3}", k)]
+        for c in own:
+            if c.get("kind") == "total" and any(p.get("key") == c.get("of") and p.get("kind") == "price" for p in own):
+                p2_key, p2_total_key = str(c["of"]), str(c["key"])
+                p2_label = str(c.get("label") or "").strip() or "Second total"
+    else:
+        cols = [(k, std_label[k]) for k in
+                ("description", *(["product_no"] if is_nlng else []), "quantity", "uom", "unit_price", "line_total")]
 
-    hrow = [
-        _p("#",                     th_cell),
-        _p("Item Description",      th_cell),
-        *([_p("Product No.",        th_cell)] if is_nlng else []),
-        _p("QTY",                   th_c),
-        _p("UOM",                   th_c),
-        _p(f"Unit Price ({sym})",   th_r),
-        _p(f"Total ({sym})",        th_r),
+    # Fixed widths for everything but the description, which takes the rest.
+    # Added columns can squeeze it; below 45 mm the table is "crowded": the
+    # figures drop to a smaller size in narrower columns that still hold a
+    # whole number, and only the text columns shrink further.
+    base_w = {"product_no": 28*mm, "quantity": 16*mm, "uom": 16*mm, "unit_price": 24*mm, "line_total": 24*mm}
+    widths = {k: base_w.get(k, 24*mm) for k, _ in cols if k != "description"}
+    crowded = USE_W - 9*mm - sum(widths.values()) < 45*mm
+    if crowded:
+        tight = {"quantity": 12*mm, "uom": 11*mm, "unit_price": 19*mm, "line_total": 21*mm,
+                 **({p2_key: 19*mm, p2_total_key: 21*mm} if p2_key else {})}
+        widths.update({k: w for k, w in tight.items() if k in widths})
+        flex = [k for k in widths if k not in tight]
+        room = USE_W - 9*mm - 40*mm - sum(widths[k] for k in widths if k in tight)
+        have = sum(widths[k] for k in flex)
+        if flex and have > room:
+            for k in flex:
+                widths[k] *= room / have
+        td_c = sty("td_c2", fontSize=7, textColor=DARK, alignment=TA_CENTER)
+        td_r = sty("td_r2", fontSize=7, textColor=DARK, alignment=TA_RIGHT)
+        td_s = sty("td_s2", fontSize=6.5, textColor=colors.grey, alignment=TA_CENTER)
+        th_cell, th_c, th_r = (sty(n, fontName="Helvetica-Bold", fontSize=7, textColor=WHITE, alignment=a)
+                               for n, a in (("th_2", TA_LEFT), ("th_c2", TA_CENTER), ("th_r2", TA_RIGHT)))
+    widths["description"] = USE_W - 9*mm - sum(widths.values())
+    col_w = [9*mm, *[widths[k] for k, _ in cols]]
+
+    td_x = sty("td_x", fontSize=6.5 if crowded else 7.5, textColor=DARK, leading=9 if crowded else 10)
+    money_cols = ("unit_price", "line_total", p2_key, p2_total_key)
+    head_style = {"quantity": th_c, "uom": th_c, "unit_price": th_r, "line_total": th_r,
+                  **({p2_key: th_r, p2_total_key: th_r} if p2_key else {})}
+    sub2 = 0.0
+    hrow = [_p("#", th_cell)] + [
+        _p(_esc(lbl) + (f" ({sym})" if k in money_cols else ""), head_style.get(k, th_cell)) for k, lbl in cols
     ]
     rows = [hrow]
     for item in line_items:
@@ -556,14 +597,27 @@ def generate_quotation_pdf(quotation: dict, line_items: list[dict]) -> bytes:
         qty   = float(item.get("quantity") or 0)
         upx   = float(item.get("unit_price") or 0)
         total = float(item.get("line_total") or qty * upx)
-        rows.append([
-            _p(str(item.get("item_no") or ""), td_s),
-            desc_cell,
-            *([_p(str(item.get("product_no") or ""), td_s)] if is_nlng else []),
-            _p(f"{qty:,.2f}",   td_c),
-            _p(str(item.get("uom") or "EA"), td_c),
-            _p(f"{upx:,.2f}",   td_r),
-            _p(f"{total:,.2f}", td_r),
+        extra = item.get("extra") if isinstance(item.get("extra"), dict) else {}
+        cell = {
+            "description": desc_cell,
+            "product_no":  _p(_esc(str(item.get("product_no") or "")), td_s),
+            "quantity":    _p(f"{qty:,.2f}",   td_c),
+            "uom":         _p(_esc(str(item.get("uom") or "EA")), td_c),
+            "unit_price":  _p(f"{upx:,.2f}",   td_r),
+            "line_total":  _p(f"{total:,.2f}", td_r),
+        }
+        if p2_key:
+            try:
+                px2 = float(re.sub(r"[^\d.\-]", "", str(extra.get(p2_key) or "")) or 0)
+            except ValueError:
+                px2 = 0.0
+            # Worked out here rather than read back, so it can never disagree with its price.
+            tot2 = round(qty * px2, 2)
+            sub2 += tot2
+            cell[p2_key] = _p(f"{px2:,.2f}", td_r)
+            cell[p2_total_key] = _p(f"{tot2:,.2f}", td_r)
+        rows.append([_p(str(item.get("item_no") or ""), td_s)] + [
+            cell[k] if k in cell else _p(_esc(str(extra.get(k) or "")), td_x) for k, _ in cols
         ])
 
     items_tbl = Table(rows, colWidths=col_w)
@@ -613,11 +667,21 @@ def generate_quotation_pdf(quotation: dict, line_items: list[dict]) -> bytes:
                          _p(f"+ {sym}{vat_amt:,.2f}", tot_r)])
     if shipping:
         tot_rows.append([_p("Shipping", tot_l), _p(f"{sym}{shipping:,.2f}", tot_r)])
-    tot_rows.append([_p(f"TOTAL ({sym})", grand_l), _p(f"{sym}{grand_total:,.2f}", grand_r)])
+    # The grand total takes the Total column's name once it's renamed ("FCA Extended Total").
+    grand_name = dict(cols).get("line_total", "Total") or "Total"
+    tot_rows.append([_p(f"{_esc(grand_name.upper())} ({sym})", grand_l), _p(f"{sym}{grand_total:,.2f}", grand_r)])
+    grand_at = len(tot_rows) - 1
+    if p2_key:
+        # Same discount, markup and VAT as the first price; never the shipping
+        # charge, which a delivered (DDP) price already includes.
+        goods2 = sub2 - sub2 * disc_pct / 100 + sub2 * markup_pct / 100
+        total2 = goods2 + goods2 * vat_pct / 100
+        tot_rows.append([_p(f"{_esc(p2_label.upper())} ({sym})", grand_l), _p(f"{sym}{total2:,.2f}", grand_r)])
 
     tot_tbl = Table(tot_rows, colWidths=[55 * mm, 40 * mm], hAlign="RIGHT")
     tot_tbl.setStyle(TableStyle([
-        ("LINEABOVE",     (0, -1), (-1, -1), 1, PRIMARY),
+        ("LINEABOVE",     (0, grand_at), (-1, grand_at), 1, PRIMARY),
+        *([("LINEABOVE",  (0, -1), (-1, -1), 0.5, PRIMARY)] if p2_key else []),
         ("TOPPADDING",    (0, 0), (-1, -1), 3),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ("LEFTPADDING",   (0, 0), (-1, -1), 0),

@@ -3837,6 +3837,93 @@ def _parse_nlng_pdf(pdf_bytes: bytes) -> dict:
     }
 
 
+_QUOTE_BUILTIN_COLS = {"description", "product_no", "uom", "quantity", "unit_price", "line_total"}
+_QUOTE_MAX_ADDED   = 4
+
+
+def _quote_columns(raw) -> list | None:
+    """A quote's own line-item columns, checked: [{key, label}], or None for
+    the standard layout. Keys are the built-in fields or x1, x2... for added
+    text columns; at most four added, and the columns the figures come from
+    are always there."""
+    if not isinstance(raw, list) or not raw:
+        return None
+    out, seen, added = [], set(), 0
+    for c in raw:
+        if not isinstance(c, dict):
+            continue
+        key = str(c.get("key") or "")
+        if key in seen or not (key in _QUOTE_BUILTIN_COLS or re.fullmatch(r"x\d{1,3}", key)):
+            continue
+        if key not in _QUOTE_BUILTIN_COLS:
+            if added >= _QUOTE_MAX_ADDED:
+                continue
+            added += 1
+        seen.add(key)
+        col = {"key": key, "label": str(c.get("label") or "").strip()[:40]}
+        # A second price (FCA and DDP side by side): a 'price' column typed per
+        # line and a 'total' column worked out from it.
+        if key not in _QUOTE_BUILTIN_COLS and c.get("kind") in ("price", "total"):
+            col["kind"] = c["kind"]
+            if c["kind"] == "total":
+                col["of"] = str(c.get("of") or "")
+        out.append(col)
+    # Only one complete pair counts; anything else is a plain text column.
+    total = next((c for c in out if c.get("kind") == "total"
+                  and any(p["key"] == c["of"] and p.get("kind") == "price" for p in out)), None)
+    for c in out:
+        if c.get("kind") and not (total and c["key"] in (total["key"], total["of"])):
+            c.pop("kind", None)
+            c.pop("of", None)
+    for key in ("description", "quantity", "unit_price", "line_total"):
+        if key not in seen:
+            out.append({"key": key, "label": ""})
+    return out
+
+
+def _quote_line_rows(qid: str, items: list) -> list[dict]:
+    """Line items as rows for quotation_line_items. `extra` (the added
+    columns' values) is only sent when some line has one, so standard quotes
+    don't depend on that column existing."""
+    def extra(item) -> dict | None:
+        raw = item.get("extra")
+        if not isinstance(raw, dict):
+            return None
+        vals = {str(k): str(v or "").strip()[:200] for k, v in raw.items()
+                if re.fullmatch(r"x\d{1,3}", str(k))}
+        return vals or None
+    rows = [{
+        "quotation_id": qid,
+        "item_no":      item.get("item_no") or idx + 1,
+        "product_no":   item.get("product_no") or None,
+        "description":  item.get("description"),
+        "uom":          item.get("uom") or "EA",
+        "quantity":     float(item.get("quantity") or 0),
+        "unit_price":   float(item.get("unit_price") or 0),
+        "tax_rate":     float(item.get("tax_rate") or 0),
+        "line_total":   float(item.get("line_total") or 0),
+        "extra":        extra(item),
+    } for idx, item in enumerate(items)]
+    # Every row in one insert must carry the same keys, so it's all or none.
+    if not any(r["extra"] for r in rows):
+        for r in rows:
+            del r["extra"]
+    return rows
+
+
+def _columns_missing(exc: Exception) -> None:
+    """Custom columns saved before migrations/add_quote_columns.sql was run:
+    say that, rather than a bare "Server error"."""
+    msg = str(exc)
+    if ("line_columns" in msg or "'extra'" in msg or '"extra"' in msg) and "column" in msg.lower():
+        raise HTTPException(
+            status_code=503,
+            detail="This quote's own columns can't be saved yet - the database "
+                   "needs a one-time update (migrations/add_quote_columns.sql). "
+                   "Everything is still on screen.",
+        )
+
+
 @app.post("/api/quotations")
 def create_quotation(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
     try:
@@ -3881,6 +3968,8 @@ def create_quotation(body: dict = Body(default={}), user: dict = Depends(verify_
             "created_by":        user.get("name") or user.get("email"),
             **_tc_visibility(body),
         }
+        if body.get("line_columns"):
+            record["line_columns"] = _quote_columns(body.get("line_columns"))
         res = get_client().table("quotations").insert(record).execute()
         if not res.data:
             raise HTTPException(status_code=500, detail="Insert failed")
@@ -3893,23 +3982,15 @@ def create_quotation(body: dict = Body(default={}), user: dict = Depends(verify_
             # nothing to total up — that half-saved state is invisible in the
             # list and the work looks saved when it is gone.
             try:
-                get_client().table("quotation_line_items").insert([{
-                    "quotation_id": qid,
-                    "item_no":      item.get("item_no") or idx + 1,
-                    "product_no":   item.get("product_no") or None,
-                    "description":  item.get("description"),
-                    "uom":          item.get("uom") or "EA",
-                    "quantity":     float(item.get("quantity") or 0),
-                    "unit_price":   float(item.get("unit_price") or 0),
-                    "tax_rate":     float(item.get("tax_rate") or 0),
-                    "line_total":   float(item.get("line_total") or 0),
-                } for idx, item in enumerate(items)]).execute()
+                get_client().table("quotation_line_items").insert(
+                    _quote_line_rows(qid, items)).execute()
             except Exception as li_exc:
                 print(f"  [error] create_quotation line items ({qnum}): {li_exc}")
                 try:
                     get_client().table("quotations").delete().eq("id", qid).execute()
                 except Exception as undo_exc:
                     print(f"  [error] could not roll back {qnum}: {undo_exc}")
+                _columns_missing(li_exc)
                 raise HTTPException(
                     status_code=503,
                     detail="Could not save the line items — nothing was saved. "
@@ -3920,6 +4001,7 @@ def create_quotation(body: dict = Body(default={}), user: dict = Depends(verify_
         raise
     except Exception as exc:
         print(f"  [error] create_quotation: {exc}")
+        _columns_missing(exc)
         raise HTTPException(status_code=500, detail="Server error")
 
 
@@ -4212,6 +4294,10 @@ def update_quotation(quote_id: str, body: dict = Body(default={}), user: dict = 
         }
         if body.get("status") == "sent":
             update["sent_at"] = datetime.now(timezone.utc).isoformat()
+        # Only a quote with its own columns sends these, so a standard quote
+        # saves exactly as before (and still saves if the migration is missing).
+        if "line_columns" in body:
+            update["line_columns"] = _quote_columns(body.get("line_columns"))
 
         # The number used to be built once, on create, and never touched again.
         # Change the client on a saved draft and the number kept the old code:
@@ -4256,17 +4342,8 @@ def update_quotation(quote_id: str, body: dict = Body(default={}), user: dict = 
         # quote. item_no carries no unique constraint, so both sets can coexist
         # for the moment in between.
         if items:
-            get_client().table("quotation_line_items").insert([{
-                "quotation_id": quote_id,
-                "item_no":      item.get("item_no") or idx + 1,
-                "product_no":   item.get("product_no") or None,
-                "description":  item.get("description"),
-                "uom":          item.get("uom") or "EA",
-                "quantity":     float(item.get("quantity") or 0),
-                "unit_price":   float(item.get("unit_price") or 0),
-                "tax_rate":     float(item.get("tax_rate") or 0),
-                "line_total":   float(item.get("line_total") or 0),
-            } for idx, item in enumerate(items)]).execute()
+            get_client().table("quotation_line_items").insert(
+                _quote_line_rows(quote_id, items)).execute()
         if existing:
             get_client().table("quotation_line_items") \
                 .delete().in_("id", [r["id"] for r in existing]).execute()
@@ -4276,6 +4353,7 @@ def update_quotation(quote_id: str, body: dict = Body(default={}), user: dict = 
         raise
     except Exception as exc:
         print(f"  [error] update_quotation: {exc}")
+        _columns_missing(exc)
         raise HTTPException(status_code=500, detail="Server error")
 
 

@@ -3,10 +3,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getBlob, getJson, readDataUrl, saveBlob, send } from '../../lib/api'
 import { currentUser } from '../../lib/session'
 import { todayLocal } from '../../lib/orders'
-import { clean, notesToHtml } from './rich'
+import { clean, esc, notesToHtml } from './rich'
 import { FormatBar, Rich } from './RichEditor'
 import PasteItems from './PasteItems'
 import type { Field, Item } from './pasteTable'
+import ColumnHead, { type Action } from './ColumnHead'
+import ConfirmBox from '../../lib/ConfirmBox'
+import { type Col, DEFAULT_LABEL, MAX_ADDED, REMOVABLE, defaultCols, isAdded, labelOf, newKey, newPricePair, priceOf, readCols, secondPrice } from './quoteColumns'
 import { type Company, COMPANY_NAME, downloadQuotePdf, readCompany, sym } from './QuotesPage'
 import './quotes.css'
 
@@ -20,7 +23,8 @@ import './quotes.css'
       no PDF is made if that save fails.
 */
 
-type Row = { _k: number; product_no: string; description: string; uom: string; quantity: number; unit_price: number; tax_rate: number; line_total: number }
+// extra: the values in this quote's added columns, by column key.
+type Row = { _k: number; product_no: string; description: string; uom: string; quantity: number; unit_price: number; tax_rate: number; line_total: number; extra: Record<string, string> }
 
 const CLIENTS: [string, string][] = [['chevron', 'Chevron Nigeria Limited'], ['nlng', 'NLNG'], ['seplat', 'SEPLAT'], ['exxon', 'ExxonMobil'], ['total', 'TotalEnergies'], ['others', 'Others']]
 const CLIENT_DEFAULT: Record<string, { company: string; dest: string; country: string }> = {
@@ -47,7 +51,13 @@ function blankFields(company: Company): Fields {
   }
 }
 let keySeq = 1
-const newRow = (r: Partial<Row> = {}): Row => ({ _k: keySeq++, product_no: '', description: '', uom: 'EA', quantity: 1, unit_price: 0, tax_rate: 0, line_total: 0, ...r })
+const newRow = (r: Partial<Row> = {}): Row => ({ _k: keySeq++, product_no: '', description: '', uom: 'EA', quantity: 1, unit_price: 0, tax_rate: 0, line_total: 0, extra: {}, ...r })
+/** A saved line's added-column values, as plain strings. */
+const readExtra = (v: unknown): Record<string, string> =>
+  v && typeof v === 'object' ? Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, String(x ?? '')])) : {}
+// Form widths (%) of the built-in columns; the description takes what's left.
+const COL_W: Record<string, number> = { product_no: 15, uom: 7, quantity: 8, unit_price: 15, line_total: 13 }
+const ADDED_W = 11
 /** A line with something in it - not the blank starter row. */
 const filled = (r: Row) => !!(r.product_no.trim() || r.description.replace(/<[^>]*>|&nbsp;/g, '').trim() || Number(r.unit_price))
 const lineTotal = (r: Row) => Math.round((Number(r.quantity) || 0) * (Number(r.unit_price) || 0) * (1 + (Number(r.tax_rate) || 0)) * 100) / 100
@@ -85,12 +95,27 @@ export default function QuoteForm() {
   const [banner, setBanner] = useState<{ ok: boolean; msg: string } | null>(null)
   const [importing, setImporting] = useState('')
   const [pasting, setPasting] = useState(false)
+  // This quote's own column layout; null = the standard one.
+  const [cols, setCols] = useState<Col[] | null>(null)
+  const hadCols = useRef(false)                             // the saved quote had its own layout
+  const [renameKey, setRenameKey] = useState('')            // a just-added column, named straight away
+  const [dropCol, setDropCol] = useState<Col | null>(null)  // an added column with values, waiting on "are you sure"
   const enquiryInput = useRef<HTMLInputElement>(null)
   const priceInput = useRef<HTMLInputElement>(null)
   const status = useRef('draft')
 
   const set = (k: string, v: string) => setF(x => ({ ...x, [k]: v }))
   const isNlng = f.client === 'nlng'
+  const layout = cols ?? defaultCols(isNlng)
+  const hasProductNo = layout.some(c => c.key === 'product_no')
+  const addedKeys = useMemo(() => (cols || []).filter(c => isAdded(c.key)).map(c => c.key), [cols])
+  const addedCount = addedKeys.length
+  const pair = secondPrice(layout)
+  // The grand total takes the Total column's name once it's renamed ("FCA Extended Total").
+  const grandLabel = (layout.find(c => c.key === 'line_total')?.label.trim() || 'Total').toUpperCase()
+  const canPrice = !pair && addedCount <= MAX_ADDED - 2
+  /** A line's total at the second price: qty x that price. */
+  const total2 = (r: Row) => (pair ? Math.round((Number(r.quantity) || 0) * priceOf(r.extra[pair.price.key]) * 100) / 100 : 0)
   const s = sym(f.currency)
   const money = (v: number) => s + (Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -119,7 +144,10 @@ export default function QuoteForm() {
       setRows((q.line_items || []).map(it => newRow({
         product_no: it.product_no || '', description: it.description || '', uom: it.uom || 'EA',
         quantity: Number(it.quantity) || 1, unit_price: Number(it.unit_price) || 0, tax_rate: Number(it.tax_rate) || 0, line_total: Number(it.line_total) || 0,
+        extra: readExtra(it.extra),
       })))
+      const saved = readCols(q.line_columns, q.client === 'nlng')
+      setCols(saved); hadCols.current = !!saved
       const nh = notesToHtml(q.notes as string)
       notes.current = nh; setNotesInit(nh); setFormKey(k => k + 1)
       setLoading(false)
@@ -135,8 +163,13 @@ export default function QuoteForm() {
     // VAT is on the goods after discount and markup, before shipping.
     const va = (sub - da + ma) * n(f.vat_pct) / 100
     const ship = n(f.shipping_charges)
-    return { sub, da, ma, va, ship, total: sub - da + ma + va + ship }
-  }, [rows, f.discount_pct, f.markup_pct, f.vat_pct, f.shipping_charges])
+    // The second price's total gets the same discount, markup and VAT, but
+    // never the shipping charge: a delivered (DDP) price already includes it.
+    const sub2 = rows.reduce((a, r) => a + total2(r), 0)
+    const goods2 = sub2 - sub2 * n(f.discount_pct) / 100 + sub2 * n(f.markup_pct) / 100
+    return { sub, da, ma, va, ship, total: sub - da + ma + va + ship, total2: goods2 + goods2 * n(f.vat_pct) / 100 }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, f.discount_pct, f.markup_pct, f.vat_pct, f.shipping_charges, pair?.price.key])
 
   // ── client choice fills in what is still blank ──
   const pickClient = (c: string) => {
@@ -155,6 +188,101 @@ export default function QuoteForm() {
     const next = { ...r, ...patch }
     return 'quantity' in patch || 'unit_price' in patch || 'tax_rate' in patch ? { ...next, line_total: lineTotal(next) } : next
   }))
+
+  // ── this quote's columns ──
+  // The first change copies the standard layout; from then on the quote keeps its own.
+  const editCols = (fn: (c: Col[]) => Col[]) => setCols(c => fn(c ?? defaultCols(isNlng)))
+  const renameCol = (key: string, label: string) => editCols(cs => cs.map(c => {
+    if (c.key !== key) return c
+    // A blank name puts a built-in heading back to its standard name; an added column keeps its old one.
+    return { ...c, label: label || (isAdded(key) ? c.label : '') }
+  }))
+  // A second price goes as a pair: its total means nothing without it.
+  const dropKeys = (key: string) => {
+    const col = layout.find(c => c.key === key)
+    return col?.kind && pair ? [pair.price.key, pair.total.key] : [key]
+  }
+  const removeCol = (key: string) => { const gone = dropKeys(key); editCols(cs => cs.filter(c => !gone.includes(c.key))) }
+  const colAction = (key: string, a: Action) => {
+    if (a === 'remove') {
+      const col = layout.find(c => c.key === key)
+      // An added column's values go with it, so ask first if there are any.
+      if (col && isAdded(key) && rows.some(r => dropKeys(key).some(k => (r.extra[k] || '').trim()))) setDropCol(col)
+      else removeCol(key)
+      return
+    }
+    editCols(cs => {
+      const i = cs.findIndex(c => c.key === key)
+      const next = [...cs]
+      if (a === 'add-price') {
+        if (secondPrice(cs) || cs.filter(c => isAdded(c.key)).length > MAX_ADDED - 2) return cs
+        next.splice(i + 1, 0, ...newPricePair(cs))
+        return next
+      }
+      if (a === 'left' || a === 'right') {
+        const j = a === 'left' ? i - 1 : i + 1
+        if (i < 0 || j < 0 || j >= cs.length) return cs
+        ;[next[i], next[j]] = [next[j], next[i]]
+        return next
+      }
+      if (cs.filter(c => isAdded(c.key)).length >= MAX_ADDED) return cs
+      const k = newKey(cs)
+      next.splice(a === 'add-left' ? i : i + 1, 0, { key: k, label: 'New column' })
+      setRenameKey(k)
+      return next
+    })
+  }
+  const addColAtEnd = () => {
+    if (addedCount >= MAX_ADDED) return
+    const k = newKey(layout)
+    editCols(cs => [...cs, { key: k, label: 'New column' }])
+    setRenameKey(k)
+  }
+  // UOM or Product No. taken off earlier: put back where it normally sits.
+  const restoreCol = (key: string) => editCols(cs => {
+    const after = key === 'product_no' ? 'description' : cs.some(c => c.key === 'product_no') ? 'product_no' : 'description'
+    const i = cs.findIndex(c => c.key === after)
+    const next = [...cs]
+    next.splice(i + 1, 0, { key, label: '' })
+    return next
+  })
+  // Product No. is only standard on NLNG quotes; elsewhere it was never there to put back.
+  const removedBuiltIns = REMOVABLE.filter(k => !layout.some(c => c.key === k) && (k !== 'product_no' || isNlng))
+
+  /** Where pasted "New column" values go: a column of that name already on the
+      quote, a new one, or - past the limit - a line in the description. */
+  const placePasted = (items: Item[]) => {
+    const next = [...layout]
+    const keyOf: Record<string, string | null> = {}
+    // New columns go in after the text columns, before UOM and the figures.
+    let at = next.findIndex(c => ['uom', 'quantity', 'unit_price', 'line_total'].includes(c.key))
+    if (at < 0) at = next.length
+    for (const label of [...new Set(items.flatMap(it => it.cols.map(c => c.label)))]) {
+      const have = next.find(c => isAdded(c.key) && labelOf(c).toLowerCase() === label.trim().toLowerCase())
+      if (have) { keyOf[label] = have.key; continue }
+      if (next.filter(c => isAdded(c.key)).length >= MAX_ADDED) { keyOf[label] = null; continue }
+      const k = newKey(next)
+      next.splice(at++, 0, { key: k, label: label.trim().slice(0, 40) || 'New column' })
+      keyOf[label] = k
+    }
+    const changed = next.length !== layout.length
+    if (changed) setCols(next)
+    const spill = Object.values(keyOf).filter(v => v === null).length
+    const apply = (it: Item, r: { description: string; extra: Record<string, string> }) => {
+      const extra = { ...r.extra }
+      const notes: string[] = []
+      for (const c of it.cols) {
+        if (!c.value.trim()) continue
+        const k = keyOf[c.label]
+        const kind = k ? next.find(x => x.key === k)?.kind : undefined
+        if (kind === 'total') continue                         // worked out from the price, never pasted over
+        if (k) extra[k] = kind === 'price' ? String(priceOf(c.value)) : c.value.trim()
+        else notes.push(`${esc(c.label)}: ${esc(c.value.trim())}`)
+      }
+      return { extra, description: [r.description, ...notes].filter(Boolean).join('<br>') }
+    }
+    return { apply, spill }
+  }
 
   // ── what goes to the server (_collectQData) ──
   const collect = useCallback((st: string) => {
@@ -177,10 +305,17 @@ export default function QuoteForm() {
       line_items: rows.map((r, i) => ({
         item_no: i + 1, product_no: r.product_no || '', description: clean(r.description || ''), uom: r.uom || 'EA',
         quantity: Number(r.quantity) || 0, unit_price: Number(r.unit_price) || 0, tax_rate: Number(r.tax_rate) || 0, line_total: Number(r.line_total) || 0,
+        // Only the columns still on the quote; a removed column's values go with it.
+        // A second price's total is saved as worked out, so it reads right anywhere.
+        ...(addedKeys.length ? { extra: Object.fromEntries(addedKeys.map(k => [k, k === pair?.total.key ? total2(r).toFixed(2) : (r.extra[k] || '').trim()])) } : {}),
       })),
+      // Sent only by a quote that has (or had) its own layout, so a standard
+      // quote saves exactly as it always did.
+      ...(cols || hadCols.current ? { line_columns: cols } : {}),
       ...Object.fromEntries(TC.map(([k]) => ['show_' + k, tcShow[k]])),
     }
-  }, [rows, f, markupShow, vatShow, tcShow])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, f, markupShow, vatShow, tcShow, cols, addedKeys])
 
   const save = async () => {
     if (!f.client) { alert('Please select a client before saving.'); return }
@@ -253,40 +388,44 @@ export default function QuoteForm() {
   // Empty lines - the blank starter row - are simply replaced. Filled ones
   // are kept unless the person chose Replace.
   const addPasted = (items: Item[], replace: boolean) => {
+    const { apply, spill } = placePasted(items)
     const fresh = items.map(it => {
-      const r = newRow({ product_no: it.product_no, description: it.description, uom: it.uom, quantity: it.quantity, unit_price: it.unit_price })
+      const r = newRow({ product_no: it.product_no, uom: it.uom, quantity: it.quantity, unit_price: it.unit_price, ...apply(it, { description: it.description, extra: {} }) })
       return { ...r, line_total: lineTotal(r) }
     })
     setRows(rs => (replace ? fresh : [...rs.filter(filled), ...fresh]))
     setPasting(false)
-    setBanner({ ok: true, msg: `${fresh.length} line item${fresh.length === 1 ? '' : 's'} ${replace ? 'replaced the old lines' : 'added from the paste'}. Check them before saving.` })
+    setBanner({ ok: true, msg: `${fresh.length} line item${fresh.length === 1 ? '' : 's'} ${replace ? 'replaced the old lines' : 'added from the paste'}.${spillNote(spill)} Check them before saving.` })
   }
+  const spillNote = (n: number) => (n ? ` Only ${MAX_ADDED} added columns fit, so ${n} went into the description instead.` : '')
 
   // Fill: the pasted columns go into the lines already there, first pasted
   // row into the first line, and so on. Only matched columns with something
   // in them change; a column set as "Add to description" goes under the text.
   const fillPasted = (items: Item[], rowCols: Field[][]) => {
+    const { apply, spill } = placePasted(items)
     let i = 0
     setRows(rs => rs.map(r => {
       if (!filled(r) || i >= items.length) return r
       const cols = rowCols[i]
       const it = items[i++]
       const { _k, ...rest } = r
+      const description = cols.includes('description') ? it.description
+        : it.description ? [r.description, it.description].filter(Boolean).join('<br>') : r.description
       const next = newRow({
         ...rest,  // a new key, so the description box shows the new text
-        ...(cols.includes('product_no') && isNlng ? { product_no: it.product_no } : {}),
+        ...(cols.includes('product_no') && hasProductNo ? { product_no: it.product_no } : {}),
         ...(cols.includes('uom') ? { uom: it.uom } : {}),
         ...(cols.includes('quantity') ? { quantity: it.quantity } : {}),
         ...(cols.includes('unit_price') ? { unit_price: it.unit_price } : {}),
-        description: cols.includes('description') ? it.description
-          : it.description ? [r.description, it.description].filter(Boolean).join('<br>') : r.description,
+        ...apply(it, { description, extra: r.extra }),
       })
       return { ...next, line_total: lineTotal(next) }
     }))
     const used = Math.min(items.length, rows.filter(filled).length)
     const left = items.length - used
     setPasting(false)
-    setBanner({ ok: true, msg: `${used} line${used === 1 ? '' : 's'} filled from the paste${left ? ` - ${left} pasted row${left === 1 ? ' was' : 's were'} left over, as there were more than lines` : ''}. Check them before saving.` })
+    setBanner({ ok: true, msg: `${used} line${used === 1 ? '' : 's'} filled from the paste${left ? ` - ${left} pasted row${left === 1 ? ' was' : 's were'} left over, as there were more than lines` : ''}.${spillNote(spill)} Check them before saving.` })
   }
 
   // ── export the lines to Excel ──
@@ -325,6 +464,7 @@ export default function QuoteForm() {
         const next = d.line_items.map(it => newRow({
           product_no: it.product_no || '', description: it.description || '', uom: it.uom || 'EA', quantity: Number(it.quantity) || 0,
           unit_price: Number(it.unit_price) || 0, tax_rate: Number(it.tax_rate) || 0, line_total: Number(it.line_total) || 0,
+          extra: readExtra(it.extra),
         }))
         setRows(next)
         setBanner({ ok: true, msg: `${next.length} line item${next.length === 1 ? '' : 's'} updated with imported prices.` })
@@ -343,6 +483,31 @@ export default function QuoteForm() {
   const field = (label: React.ReactNode, control: React.ReactNode, key?: string) => (
     <label className="qf-f" key={key}><span className="qf-lbl">{label}</span>{control}</label>
   )
+  // One line's cell in one column.
+  const cell = (r: Row, c: Col) => {
+    switch (c.key) {
+      case 'description':
+        return <Rich key={`${formKey}-${r._k}`} html={r.description} placeholder="Item description…" onChange={h => setRows(rs => rs.map(x => (x._k === r._k ? { ...x, description: h } : x)))} />
+      case 'product_no':
+        return <input className="qf-cell" value={r.product_no} placeholder={labelOf(c)} onChange={e => updateRow(r._k, { product_no: e.target.value })} />
+      case 'uom':
+        return <select className="qf-cell" value={r.uom || 'EA'} onChange={e => updateRow(r._k, { uom: e.target.value })}>{UOMS.map(u => <option key={u}>{u}</option>)}</select>
+      case 'quantity':
+        return <input className="qf-cell r" type="number" min={0} step="0.01" value={r.quantity} onChange={e => updateRow(r._k, { quantity: parseFloat(e.target.value) || 0 })} />
+      case 'unit_price':
+        return <input className="qf-cell r" type="number" min={0} step="0.01" value={r.unit_price || ''} placeholder="0.00" onChange={e => updateRow(r._k, { unit_price: parseFloat(e.target.value) || 0 })} />
+      case 'line_total':
+        return money(r.line_total)
+      default:
+        if (c.kind === 'total') return money(total2(r))
+        if (c.kind === 'price') {
+          return <input className="qf-cell r" type="number" min={0} step="0.01" value={r.extra[c.key] || ''} placeholder="0.00" aria-label={labelOf(c)}
+                        onChange={e => setRows(rs => rs.map(x => (x._k === r._k ? { ...x, extra: { ...x.extra, [c.key]: e.target.value } } : x)))} />
+        }
+        return <input className="qf-cell" value={r.extra[c.key] || ''} maxLength={200} aria-label={labelOf(c)}
+                      onChange={e => setRows(rs => rs.map(x => (x._k === r._k ? { ...x, extra: { ...x.extra, [c.key]: e.target.value } } : x)))} />
+    }
+  }
 
   return (
     <div className="page quotes qf">
@@ -417,7 +582,19 @@ export default function QuoteForm() {
         </div>
 
         <div className="qf-sec row">
-          <h3>Line items <span className="count">{rows.length}</span></h3>
+          <h3>Line items <span className="count">{rows.length}</span>
+            {/* In the heading row, so it never pushes the table down when it appears. */}
+            {cols && (
+              <span className="qf-cols-bar">
+                Own columns
+                {removedBuiltIns.map(k => (
+                  <button key={k} type="button" className="link" onClick={() => restoreCol(k)}>Put back {DEFAULT_LABEL[k as 'uom' | 'product_no']}</button>
+                ))}
+                <button type="button" className="link" onClick={() => setCols(null)}
+                        title="Standard columns and names; values typed into added columns are dropped on save">Back to standard</button>
+              </span>
+            )}
+          </h3>
           <div className="qf-li-acts">
             <button type="button" className="btn ghost sm" onClick={exportXlsx} title="Export line items to Excel">↓ Export .xlsx</button>
             <input ref={priceInput} type="file" accept=".xls,.xlsx" hidden onChange={e => { const x = e.target.files?.[0]; if (x) importPrices(x) }} />
@@ -425,37 +602,55 @@ export default function QuoteForm() {
               {importing === 'prices' ? 'Importing…' : '↑ Import prices'}
             </button>
             <button type="button" className="btn ghost sm" onClick={() => setPasting(true)} title="Paste a table copied from an email, Word, Excel or a PDF">⧉ Paste items</button>
+            <button type="button" className="btn ghost sm" onClick={addColAtEnd} disabled={addedCount >= MAX_ADDED}
+                    title={addedCount >= MAX_ADDED ? `Up to ${MAX_ADDED} added columns fit on the PDF` : 'Add a column at the end of the table'}>+ Add column</button>
             <button type="button" className="btn sm" onClick={() => setRows(rs => [...rs, newRow()])}>+ Add row</button>
           </div>
         </div>
-        {pasting && <PasteItems lineCount={rows.filter(filled).length} showsProductNo={isNlng} onClose={() => setPasting(false)} onAdd={addPasted} onFill={fillPasted} />}
+        {pasting && <PasteItems lineCount={rows.filter(filled).length} showsProductNo={hasProductNo} onClose={() => setPasting(false)} onAdd={addPasted} onFill={fillPasted} />}
         <div className="qf-items-wrap">
-          <table className={`qf-items${isNlng ? ' nlng' : ''}`}>
+          <table className={`qf-items${hasProductNo ? ' nlng' : ''}`} style={{ minWidth: 760 + addedCount * 120 }}>
             <colgroup>
-              <col style={{ width: '3%' }} /><col style={{ width: isNlng ? '22%' : '37%' }} />{isNlng && <col style={{ width: '15%' }} />}
-              <col style={{ width: '7%' }} /><col style={{ width: '8%' }} /><col style={{ width: '15%' }} /><col style={{ width: '14%' }} /><col style={{ width: '13%' }} /><col style={{ width: '3%' }} />
+              <col style={{ width: '3%' }} />
+              {layout.map(c => {
+                const used = 3 + 14 + 3 + layout.reduce((a, x) => a + (x.key === 'description' ? 0 : COL_W[x.key] ?? ADDED_W), 0)
+                const w = c.key === 'description' ? Math.max(16, 100 - used) : COL_W[c.key] ?? ADDED_W
+                return [
+                  c.key === 'line_total' && <col key="tax" style={{ width: '14%' }} />,
+                  <col key={c.key} style={{ width: `${w}%` }} />,
+                ]
+              })}
+              <col style={{ width: '3%' }} />
             </colgroup>
             <thead>
               <tr>
-                <th>#</th><th>Item description</th>{isNlng && <th>Product No.</th>}<th className="c">U.O.M</th><th className="r">QTY</th>
-                <th className="r">Unit price ({s})</th><th>Tax</th><th className="r">Total ({s})</th><th aria-label="Remove" />
+                <th>#</th>
+                {layout.map((c, ci) => [
+                  c.key === 'line_total' && <th key="tax">Tax</th>,
+                  <th key={c.key} className={c.key === 'uom' ? 'c' : ['quantity', 'unit_price', 'line_total'].includes(c.key) || c.kind ? 'r' : ''}>
+                    <ColumnHead key={c.key === renameKey ? 'rn-' + c.key : c.key} col={c} index={ci} count={layout.length} added={addedCount}
+                                canPrice={canPrice} startRenaming={c.key === renameKey} onRenamed={() => setRenameKey('')}
+                                suffix={c.key === 'unit_price' || c.key === 'line_total' || c.kind ? ` (${s})` : ''}
+                                onRename={l => renameCol(c.key, l)} onAction={a => colAction(c.key, a)} />
+                  </th>,
+                ])}
+                <th aria-label="Remove" />
               </tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
                 <tr key={r._k}>
                   <td className="c mono no">{i + 1}</td>
-                  <td><Rich key={`${formKey}-${r._k}`} html={r.description} placeholder="Item description…" onChange={h => setRows(rs => rs.map(x => (x._k === r._k ? { ...x, description: h } : x)))} /></td>
-                  {isNlng && <td><input className="qf-cell" value={r.product_no} placeholder="Product No." onChange={e => updateRow(r._k, { product_no: e.target.value })} /></td>}
-                  <td><select className="qf-cell" value={r.uom || 'EA'} onChange={e => updateRow(r._k, { uom: e.target.value })}>{UOMS.map(u => <option key={u}>{u}</option>)}</select></td>
-                  <td><input className="qf-cell r" type="number" min={0} step="0.01" value={r.quantity} onChange={e => updateRow(r._k, { quantity: parseFloat(e.target.value) || 0 })} /></td>
-                  <td><input className="qf-cell r" type="number" min={0} step="0.01" value={r.unit_price || ''} placeholder="0.00" onChange={e => updateRow(r._k, { unit_price: parseFloat(e.target.value) || 0 })} /></td>
-                  <td>
-                    <select className="qf-cell" value={String(Number(r.tax_rate) === 0.075 ? 0.075 : 0)} onChange={e => updateRow(r._k, { tax_rate: parseFloat(e.target.value) })}>
-                      <option value="0">No Tax</option><option value="0.075">VAT (7.5%)</option>
-                    </select>
-                  </td>
-                  <td className="r mono tot">{money(r.line_total)}</td>
+                  {layout.map(c => [
+                    c.key === 'line_total' && (
+                      <td key="tax">
+                        <select className="qf-cell" value={String(Number(r.tax_rate) === 0.075 ? 0.075 : 0)} onChange={e => updateRow(r._k, { tax_rate: parseFloat(e.target.value) })}>
+                          <option value="0">No Tax</option><option value="0.075">VAT (7.5%)</option>
+                        </select>
+                      </td>
+                    ),
+                    <td key={c.key} className={c.key === 'line_total' || c.kind === 'total' ? 'r mono tot' : undefined}>{cell(r, c)}</td>,
+                  ])}
                   <td className="c"><button type="button" className="row-del" onClick={() => setRows(rs => rs.filter(x => x._k !== r._k))} title="Remove" aria-label={`Remove line ${i + 1}`}>×</button></td>
                 </tr>
               ))}
@@ -475,7 +670,12 @@ export default function QuoteForm() {
             <div><label><Eye on={markupShow} onToggle={() => setMarkupShow(v => !v)} what="Markup" />Markup <input className="qf-inline" type="number" min={0} step="0.1" value={f.markup_pct} onChange={e => set('markup_pct', e.target.value)} /> %</label><b className="mono">+ {money(t.ma)}</b></div>
             <div><label><Eye on={vatShow} onToggle={() => setVatShow(v => !v)} what="VAT" />VAT <input className="qf-inline" type="number" min={0} max={100} step="0.1" value={f.vat_pct} onChange={e => set('vat_pct', e.target.value)} /> %</label><b className="mono">+ {money(t.va)}</b></div>
             <div><label>Shipping charges <input className="qf-inline wide" type="number" min={0} step="0.01" value={f.shipping_charges} onChange={e => set('shipping_charges', e.target.value)} /></label><b className="mono">{money(t.ship)}</b></div>
-            <div className="grand"><span>TOTAL ({s})</span><b className="mono">{money(t.total)}</b></div>
+            <div className="grand"><span>{grandLabel} ({s})</span><b className="mono">{money(t.total)}</b></div>
+            {pair && (
+              <div className="grand second" title="Same discount, markup and VAT as above; no shipping charge, as this price already includes delivery">
+                <span>{labelOf(pair.total).toUpperCase()} ({s})</span><b className="mono">{money(t.total2)}</b>
+              </div>
+            )}
           </div>
         </div>
 
@@ -487,6 +687,13 @@ export default function QuoteForm() {
         </div>
       </div>
       <FormatBar />
+      {dropCol && (
+        <ConfirmBox title={dropCol.kind ? 'Remove the second price?' : `Remove the ${labelOf(dropCol)} column?`} confirmLabel="Remove"
+                    onCancel={() => setDropCol(null)} onConfirm={() => { removeCol(dropCol.key); setDropCol(null) }}>
+          {dropCol.kind ? 'Both its columns and the prices typed into them go, once the quote is saved.'
+            : "What's typed in it on each line goes too, once the quote is saved."}
+        </ConfirmBox>
+      )}
     </div>
   )
 }

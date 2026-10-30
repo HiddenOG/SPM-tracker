@@ -17,11 +17,11 @@ import { clean, esc } from './rich'
   before anything is added.
 */
 
-export type Field = 'item_no' | 'product_no' | 'description' | 'uom' | 'quantity' | 'unit_price' | 'extra' | 'skip'
+export type Field = 'item_no' | 'product_no' | 'description' | 'uom' | 'quantity' | 'unit_price' | 'extra' | 'column' | 'skip'
 
 export const FIELD_LABEL: Record<Field, string> = {
   product_no: 'Product no.', description: 'Description', uom: 'UOM', quantity: 'Qty', unit_price: 'Unit price',
-  extra: 'Add to description', item_no: 'Item no. (skip)', skip: 'Skip',
+  extra: 'Add to description', column: 'New column', item_no: 'Item no. (skip)', skip: 'Skip',
 }
 // Each of these can hold one column; extra and skip can hold any number.
 const SINGLE: Field[] = ['item_no', 'product_no', 'description', 'uom', 'quantity', 'unit_price']
@@ -32,7 +32,8 @@ export type Table = {
   hadHeader: boolean
 }
 
-export type Item = { product_no: string; description: string; uom: string; quantity: number; unit_price: number }
+// cols: columns set as "New column" - each becomes a column of its own on the quote.
+export type Item = { product_no: string; description: string; uom: string; quantity: number; unit_price: number; cols: { label: string; value: string }[] }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9$#/ ]+/g, ' ').replace(/\s+/g, ' ').trim()
 const plain = (html: string) => {
@@ -221,6 +222,8 @@ export function toItems(t: Table, fields: Field[], keep: boolean[], productInDes
       uom: unit.uom,
       quantity: qty > 0 ? qty : 1,
       unit_price: num(cell('unit_price')),
+      cols: fields.map((f, i) => (f === 'column' ? { label: t.headers[i], value: plain(row[i] || '').replace(/\n+/g, ' ') } : null))
+        .filter((c): c is { label: string; value: string } => !!c),
     }
   })
 }
