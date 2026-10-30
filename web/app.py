@@ -3759,7 +3759,8 @@ def _parse_nlng_pdf(pdf_bytes: bytes) -> dict:
     in_rfx_section = False
 
     _item_row = re.compile(r"^(\d{1,3})\s+((?:[A-Z]{1,3})?\d{4,})")
-    _qty_line = re.compile(r"^([\d.]+)\s+([A-Z]{1,5})$")
+    # Quantities over 999 print with a thousands comma ("1,133 PC").
+    _qty_line = re.compile(r"^(\d[\d,]*(?:\.\d+)?)\s+([A-Z]{1,5})$")
     _spec_noise = re.compile(
         r"^("
         r"Page \d+/\d+"
@@ -3795,7 +3796,7 @@ def _parse_nlng_pdf(pdf_bytes: bytes) -> dict:
             else:
                 m = _qty_line.match(line)
                 if m:
-                    current["qty"] = float(m.group(1))
+                    current["qty"] = float(m.group(1).replace(",", ""))
                     current["uom"] = m.group(2)
         elif state == "IN_SPECS":
             m = _item_row.match(line)
