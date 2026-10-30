@@ -193,6 +193,12 @@ def test_a_laid_out_note_keeps_its_lines_and_blank_lines():
                                     "Packing and Crating $1,979.75", "Freight $2,900.50", "SUBTOTAL $4,880.25"]
 
 
+def test_notes_come_before_the_purchase_order_instruction():
+    from quotation_pdf import generate_quotation_pdf
+    text = " ".join(_lines(generate_quotation_pdf(_quote(notes="Prices valid 30 days"), _ITEMS)))
+    assert text.index("Notes:") < text.index("Quote number must appear")
+
+
 def test_a_one_line_note_stays_beside_the_label():
     from quotation_pdf import generate_quotation_pdf
     lines = _lines(generate_quotation_pdf(_quote(notes="Prices valid 30 days"), _ITEMS))

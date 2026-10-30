@@ -733,19 +733,20 @@ def generate_quotation_pdf(quotation: dict, line_items: list[dict]) -> bytes:
     story.append(HRFlowable(width="100%", thickness=0.5, color=SPM_BDRY,
                             spaceBefore=2 * mm, spaceAfter=3 * mm))
 
-    po_note = brand["po_note"].format(primary=primary_hex)
-    story.append(_p(
-        f"<b>Quote number must appear on purchase order and all correspondence. "
-        f"{po_note}</b>",
-        body,
-    ))
-    story.append(Spacer(1, 3 * mm))
+    # The customer's notes first, then the standing purchase-order instruction.
     notes = _rich_text(quotation.get("notes"), "Looking forward to your business.")
     # A note laid out over several lines (a cost breakdown) starts on a line of
     # its own, so its first line isn't run in beside the label; a one-liner
     # stays beside it as before.
     sep = "<br/>" if "<br/>" in notes else "  "
     story.append(_p(f"<b>Notes:</b>{sep}{notes}", body))
+    story.append(Spacer(1, 3 * mm))
+    po_note = brand["po_note"].format(primary=primary_hex)
+    story.append(_p(
+        f"<b>Quote number must appear on purchase order and all correspondence. "
+        f"{po_note}</b>",
+        body,
+    ))
     story.append(Spacer(1, 5 * mm))
 
     # ── 9. Signature block ───────────────────────────────────────────────────
