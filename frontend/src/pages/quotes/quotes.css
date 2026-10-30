@@ -93,7 +93,7 @@
 .qf-ce{min-height:34px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:13px;line-height:1.5;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;outline:0}
 .qf-ce:focus{border-color:var(--accent)}
 .qf-ce:empty::before{content:attr(data-ph);color:var(--ink-3)}
-.qf-ce.notes{min-height:110px;padding:10px 12px}
+.qf-ce.qf-notes-ce{min-height:110px;padding:10px 12px}
 
 .qf-bottom{display:grid;grid-template-columns:minmax(0,1fr) 380px;border-top:1px solid var(--line)}
 .qf-notes{display:flex;flex-direction:column;gap:6px;padding:16px 20px;border-right:1px solid var(--line)}

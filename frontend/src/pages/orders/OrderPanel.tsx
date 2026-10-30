@@ -274,7 +274,7 @@ function Notes({ client, id }: { client: Client; id: string }) {
   const preview = (s: string) => (s.length > 120 ? s.slice(0, 117).trimEnd() + '…' : s)
 
   return (
-    <div className="notes">
+    <div className="op-notes">
       {asking && (
         <ConfirmBox title="Delete this note?" busy={deleting} error={delErr} confirmLabel="Delete note"
                     onConfirm={remove} onCancel={closeAsk}>

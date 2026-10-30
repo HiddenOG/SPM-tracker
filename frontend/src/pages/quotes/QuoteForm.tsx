@@ -740,7 +740,7 @@ export default function QuoteForm() {
         <div className="qf-bottom">
           <div className="qf-notes">
             <span className="qf-lbl">Customer notes</span>
-            <Rich key={`notes-${formKey}`} html={notesInit} placeholder="Looking forward to your business." className="notes" onChange={h => { notes.current = h }} />
+            <Rich key={`notes-${formKey}`} html={notesInit} placeholder="Looking forward to your business." className="qf-notes-ce" onChange={h => { notes.current = h }} />
           </div>
           <div className="qf-totals">
             <div><span>Sub total</span><b className="mono">{money(t.sub)}</b></div>
