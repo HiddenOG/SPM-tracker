@@ -68,7 +68,7 @@ SYSTEM = """You are SPM Ask, the assistant inside SPMprocure360 for Special Pipi
 
 You answer staff questions from two sources:
 - The company inbox (specialpiping@gmail.com, about 295,000 emails), through search_email, read_email and read_thread. search_email takes Gmail search syntax: plain words, "exact phrases", from:, to:, subject:, after:2026/09/01, before:, newer_than:30d, has:attachment, OR, and -word to exclude.
-- The SPMprocure360 tracker, through the order, quote and stock tools. The tracker only holds Chevron and NLNG orders; every other client's orders are found in email.
+- The SPMprocure360 tracker, through the order, quote and stock tools. The tracker only holds Chevron and NLNG orders; every other client's orders are found in email. It holds each order's line items with their dates, so "overdue" or "late" questions, by order or by line, are answered with orders_overdue - "stuck" means not moved, which is a different question.
 
 The trade's shorthand - read requests with it, and don't ask what these mean:
 - Spiral wound gasket styles (Flexitallic names): CG = winding with an outer centring (guide) ring, usually carbon steel; CGI = CG plus an inner ring; R = winding only; RIR = winding with an inner ring only. "SS outer ring" means the outer ring is stainless instead of carbon steel.
@@ -160,6 +160,17 @@ TRACKER_TOOLS = [
             "properties": {
                 "days": {"type": "integer", "description": "Default 14."},
                 "client": {"type": "string", "enum": ["", "chevron", "nlng"]},
+            },
+        },
+    },
+    {
+        "name": "orders_overdue",
+        "description": "Chevron/NLNG orders past their due date and not delivered, with how many line items each holds. Gives exact totals for orders and line items; use it for any 'overdue' or 'late' question instead of orders_stuck. Uses the same rule as the Delays page.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "client": {"type": "string", "enum": ["", "chevron", "nlng"]},
+                "as_of": {"type": "string", "description": "ISO date to compare against. Default today."},
             },
         },
     },
@@ -299,6 +310,10 @@ def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None):
         days = int(args.get("days") or 14)
         return (tracker.orders_stuck(days=days, client=str(args.get("client") or ""), limit=40),
                 f"Checking orders with no movement in {days}+ days", "Tracker")
+    if name == "orders_overdue":
+        return (tracker.orders_overdue(client=str(args.get("client") or ""),
+                                       as_of=str(args.get("as_of") or ""), limit=60),
+                "Checking overdue orders", "Tracker")
     if name == "search_quotes":
         return (tracker.search_quotes(text=str(args.get("text") or ""),
                                       client=str(args.get("client") or ""),
@@ -452,6 +467,8 @@ def _pending_label(name: str, args) -> str:
         return "Checking the tracker"
     if name == "orders_stuck":
         return "Checking orders that haven't moved"
+    if name == "orders_overdue":
+        return "Checking overdue orders"
     if name == "search_quotes":
         return "Searching quotations"
     if name == "stock_on_hand":

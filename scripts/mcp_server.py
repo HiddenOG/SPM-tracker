@@ -326,6 +326,92 @@ def orders_stuck(days: int = 14, client: str = "", limit: int = 25) -> str:
     return head + ":\n" + "\n".join(line for _, line in shown)
 
 
+def _due_date(row: dict, lines: list) -> str | None:
+    """When an order is due - the same rule as the Delays page (otdDate).
+
+    The latest promised date across its lines, since an order is complete when
+    its last line is; failing that, the order's required delivery date.
+    """
+    promised = [str(l["promised_date"])[:10] for l in lines if l.get("promised_date")]
+    if promised:
+        return max(promised)
+    return _d(row.get("required_delivery_date")) if row.get("required_delivery_date") else None
+
+
+@mcp.tool()
+def orders_overdue(client: str = "", as_of: str = "", limit: int = 40) -> str:
+    """Orders and line items past their due date and not yet delivered.
+
+    The same rule as the Delays page: an order is overdue when it has no
+    delivered date and its due date (latest line promised date, else the
+    required delivery date) is before `as_of`. Cancelled orders are left out.
+    Lines are counted two ways - all lines on overdue orders, and lines past
+    their OWN date, which also catches an early line on an order not yet due.
+
+    Args:
+        client: "chevron" or "nlng"; blank for both.
+        as_of: ISO date to compare against; blank for today.
+        limit: most orders to list. The totals always cover every order.
+    """
+    db = get_client()
+    want = (client or "").strip().lower()
+    cutoff = (as_of or "").strip()[:10] or datetime.now(timezone.utc).date().isoformat()
+    out = []
+
+    for table, otype, po_col, li_table, li_fk, li_date, li_no in (
+        ("orders", "chevron", "buyer_po_number", "order_line_items", "order_id",
+         "required_delivery_date", "line_no"),
+        ("nlng_orders", "nlng", "po_number", "nlng_order_line_items", "nlng_order_id",
+         "delivery_date", "item_no"),
+    ):
+        if want and want != otype:
+            continue
+        try:
+            rows = db.table(table).select("*").execute().data or []
+            items = db.table(li_table).select(
+                f"{li_fk},{li_no},description,quantity,{li_date},promised_date"
+            ).execute().data or []
+        except Exception as exc:
+            return f"Could not read {table}: {exc}"
+        by_order: dict = {}
+        for it in items:
+            by_order.setdefault(it.get(li_fk), []).append(it)
+
+        late, lines_on_late, lines_own, no_date = [], 0, 0, 0
+        for r in rows:
+            if r.get("delivered_at") or (r.get("overall_status") or "").lower() == "cancelled":
+                continue
+            lines = by_order.get(r["id"], [])
+            # NLNG lines carry no promised date, so the Delays page dates NLNG
+            # orders by the order's own required date - match it.
+            due = _due_date(r, lines if otype == "chevron" else [])
+            for l in lines:
+                own = l.get("promised_date") or l.get(li_date) or r.get("required_delivery_date")
+                if own and str(own)[:10] < cutoff:
+                    lines_own += 1
+            if not due:
+                no_date += 1
+                continue
+            if due < cutoff:
+                n = len(lines) or 1
+                lines_on_late += n
+                late.append((due, r, n))
+
+        late.sort(key=lambda t: t[0])
+        out.append(f"{otype.upper()}: {len(late)} overdue order(s) as of {cutoff}, "
+                   f"holding {lines_on_late} line(s). {lines_own} line(s) are past their "
+                   f"own date." + (f" {no_date} open order(s) have no date at all." if no_date else ""))
+        for due, r, n in late[:min(limit, MAX_ROWS)]:
+            label, _, _ = _where_it_sits(r, _CHEVRON_STAGES if otype == "chevron" else _NLNG_STAGES)
+            days = _days_since(due)
+            out.append("  PO %-12s due %s (%s days late)  %2d line(s)  at: %s"
+                       % (r.get(po_col) or "?", due, days if days is not None else "?", n, label))
+        if len(late) > min(limit, MAX_ROWS):
+            out.append(f"  ... and {len(late) - min(limit, MAX_ROWS)} more, not listed.")
+
+    return "\n".join(out) or "No orders to check."
+
+
 @mcp.tool()
 def find_orders(query: str, limit: int = 20) -> str:
     """Find orders by PO number, SO number, SPM PO number or buyer name.
