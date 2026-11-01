@@ -425,6 +425,26 @@ def _live_user(user_id: str):
         return hit[1] if hit else _USER_UNKNOWN
 
 
+# last_login_at doubles as "last active". Stamped only at sign-in, it froze for
+# the whole 7-day life of a token: someone using the platform all day still
+# showed "3 days ago" on the Team page. Every signed-in request now refreshes
+# it, at most once per user per few minutes so polling tabs cost almost nothing.
+_SEEN_AT: dict[str, float] = {}
+_SEEN_EVERY = 300.0
+
+
+def _note_activity(user_id: str) -> None:
+    now = time.time()
+    if not user_id or now - _SEEN_AT.get(user_id, 0.0) < _SEEN_EVERY:
+        return
+    _SEEN_AT[user_id] = now
+    try:
+        get_client().table("users").update(
+            {"last_login_at": datetime.now(timezone.utc).isoformat()}).eq("id", user_id).execute()
+    except Exception as exc:
+        print(f"  [warn] could not record activity for {user_id}: {exc}")
+
+
 def verify_jwt(request: Request) -> dict:
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
@@ -442,6 +462,7 @@ def verify_jwt(request: Request) -> dict:
             # The live role wins over the one in the token, so a demotion
             # takes effect without waiting for the token to expire.
             payload["role"] = row.get("role") or payload.get("role")
+            _note_activity(str(payload.get("sub", "")))
             return payload
     raise HTTPException(status_code=401, detail="unauthorized")
 

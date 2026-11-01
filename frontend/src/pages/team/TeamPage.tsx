@@ -204,7 +204,7 @@ export default function TeamPage() {
                   <small>{u.email}</small>
                 </span>
                 <span className={`rbadge ${u.role}`}>{u.role}</span>
-                <span className="tm-login" title={u.last_login_at ? new Date(u.last_login_at).toLocaleString('en-GB') : 'Never signed in'}>{relTime(u.last_login_at)}</span>
+                <span className="tm-login" title={u.last_login_at ? `Last active ${new Date(u.last_login_at).toLocaleString('en-GB')}` : 'Never signed in'}>{relTime(u.last_login_at)}</span>
                 <span className="tm-acts">
                   {!isMe && <button type="button" className="icon-btn" title="Preview as this role" aria-label={`Preview as ${name}`} onClick={() => preview(u)}>{EYE}</button>}
                   <button type="button" className="icon-btn" title="Reset password" aria-label={`Reset ${name}'s password`} onClick={() => setResetting(u)}>{LOCK}</button>
