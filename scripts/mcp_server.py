@@ -347,6 +347,8 @@ def orders_overdue(client: str = "", as_of: str = "", limit: int = 40) -> str:
     required delivery date) is before `as_of`. Cancelled orders are left out.
     Lines are counted two ways - all lines on overdue orders, and lines past
     their OWN date, which also catches an early line on an order not yet due.
+    Orders past the client's required date but not SPM's promised date are
+    listed separately, since "overdue" can be meant either way.
 
     Args:
         client: "chevron" or "nlng"; blank for both.
@@ -378,6 +380,12 @@ def orders_overdue(client: str = "", as_of: str = "", limit: int = 40) -> str:
             by_order.setdefault(it.get(li_fk), []).append(it)
 
         late, lines_on_late, lines_own, no_date = [], 0, 0, 0
+        # Two things the counts above hide, and that people ask about: a single
+        # late line inside an order not yet due, and orders past what the client
+        # REQUIRED but not past what SPM PROMISED (PO 0061466745: required 31 Oct,
+        # promised 30 Nov - not overdue by this rule, though the client may
+        # chase it).
+        stray, req_passed = [], []
         for r in rows:
             if r.get("delivered_at") or (r.get("overall_status") or "").lower() == "cancelled":
                 continue
@@ -385,10 +393,12 @@ def orders_overdue(client: str = "", as_of: str = "", limit: int = 40) -> str:
             # NLNG lines carry no promised date, so the Delays page dates NLNG
             # orders by the order's own required date - match it.
             due = _due_date(r, lines if otype == "chevron" else [])
+            own_late = []
             for l in lines:
                 own = l.get("promised_date") or l.get(li_date) or r.get("required_delivery_date")
                 if own and str(own)[:10] < cutoff:
                     lines_own += 1
+                    own_late.append((l, str(own)[:10]))
             if not due:
                 no_date += 1
                 continue
@@ -396,6 +406,11 @@ def orders_overdue(client: str = "", as_of: str = "", limit: int = 40) -> str:
                 n = len(lines) or 1
                 lines_on_late += n
                 late.append((due, r, n))
+                continue
+            stray += [(r, l, d) for l, d in own_late]
+            req = _d(r.get("required_delivery_date")) if r.get("required_delivery_date") else None
+            if req and req < cutoff:
+                req_passed.append((req, due, r, len(lines) or 1))
 
         late.sort(key=lambda t: t[0])
         out.append(f"{otype.upper()}: {len(late)} overdue order(s) as of {cutoff}, "
@@ -408,6 +423,20 @@ def orders_overdue(client: str = "", as_of: str = "", limit: int = 40) -> str:
                        % (r.get(po_col) or "?", due, days if days is not None else "?", n, label))
         if len(late) > min(limit, MAX_ROWS):
             out.append(f"  ... and {len(late) - min(limit, MAX_ROWS)} more, not listed.")
+        if stray:
+            out.append("  Late lines inside orders not yet due as a whole:")
+            for r, l, d in stray:
+                out.append("    PO %-12s line %s, due %s - order due %s"
+                           % (r.get(po_col) or "?", l.get(li_no) or "?", d,
+                              _due_date(r, by_order.get(r["id"], []) if otype == "chevron" else [])))
+        if req_passed:
+            req_passed.sort(key=lambda t: t[0])
+            out.append(f"  Not counted above: {len(req_passed)} open order(s), "
+                       f"{sum(t[3] for t in req_passed)} line(s), are past the client's "
+                       f"REQUIRED date but not yet past SPM's PROMISED date:")
+            for req, due, r, n in req_passed[:min(limit, MAX_ROWS)]:
+                out.append("    PO %-12s required %s, promised %s  %2d line(s)"
+                           % (r.get(po_col) or "?", req, due, n))
 
     return "\n".join(out) or "No orders to check."
 
@@ -504,8 +533,21 @@ def order_detail(po_number: str) -> str:
                 lines.append(f"  enquiry#: {row['enquiry_number']}")
         lines.append(f"  SPM PO: {row.get('spm_po_number') or '—'}   "
                      f"SO: {row.get('so_number') or '—'}")
-        lines.append(f"  required delivery: {_d(row.get('required_delivery_date'))}   "
-                     f"promised: {_d(row.get('promised_date'))}")
+        # Named as the Delays page names them. A bare "promised" here once led
+        # Ask to treat the supplier's SO date as SPM's promise to the client
+        # (PO 0061466745: PO promised 30 Nov, SO promised 2 Sep).
+        po_lines = []
+        if otype == "chevron":
+            try:
+                po_lines = db.table("order_line_items").select("promised_date") \
+                             .eq("order_id", row["id"]).execute().data or []
+            except Exception:
+                pass
+        po_promised = _due_date({}, po_lines) if po_lines else None
+        lines.append(f"  required delivery (client): {_d(row.get('required_delivery_date'))}")
+        if otype == "chevron":
+            lines.append(f"  PO promised (SPM to client, counts for overdue/OTD): {po_promised or '—'}")
+        lines.append(f"  SO promised (supplier to SPM): {_d(row.get('promised_date'))}")
 
         lines.append("\n  pipeline:")
         for col, label in stages:

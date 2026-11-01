@@ -165,7 +165,7 @@ TRACKER_TOOLS = [
     },
     {
         "name": "orders_overdue",
-        "description": "Chevron/NLNG orders past their due date and not delivered, with how many line items each holds. Gives exact totals for orders and line items; use it for any 'overdue' or 'late' question instead of orders_stuck. Uses the same rule as the Delays page.",
+        "description": "Chevron/NLNG orders past their due date and not delivered, with how many line items each holds. Gives exact totals for orders and line items; use it for any 'overdue' or 'late' question instead of orders_stuck. Uses the same rule as the Delays page: due means SPM's promised date. It also names late lines inside orders not yet due, and lists orders past the client's required date but not yet the promised date - mention those when counts are questioned.",
         "input_schema": {
             "type": "object",
             "properties": {
