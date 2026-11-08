@@ -162,11 +162,15 @@ export function stockText(v: unknown): string | null {
   return s
 }
 
+const OUT_OF_STOCK = /not\s*in[\s-]*stock|out of stock|no stock/g
+
 function partialStock(o: ChevronOrder): boolean {
   const lo = (stockText(o.stock_check_raw) || '').toLowerCase()
   if (!lo) return false
-  const hasIn = lo.includes('in stock') || lo.includes('rfd') || lo.includes('in-stock')
-  const hasOut = lo.includes('not in stock') || lo.includes('not instock') || lo.includes('out of stock') || lo.includes('no stock')
+  // "not in stock" contains "in stock", so look for the in-stock words with the out-of-stock phrases taken out.
+  const rest = lo.replace(OUT_OF_STOCK, ' ')
+  const hasOut = rest !== lo
+  const hasIn = /in[\s-]*stock|rfd/.test(rest)
   return hasIn && hasOut
 }
 
@@ -176,9 +180,12 @@ function notInStock(o: ChevronOrder): boolean {
   return !!lo && ['not in stock', 'not instock', 'out of stock', 'no stock', 'unavailable', 'not available'].some(w => lo.includes(w))
 }
 
-// The stock check's answer, while it still matters (before the SPM PO goes out).
+const STOCK_CHECK_STATUSES = new Set(['awaiting_warehouse_stock_check', 'stock_check_needs_review', 'stock_check_complete'])
+
+// The stock check's answer, while the order is still at the stock check. Once it moves on
+// (or never needs an SPM PO), its real step shows instead.
 function stockStage(o: ChevronOrder | NlngOrder): Stage | null {
-  if (o.spm_po_sent_at) return null
+  if (o.spm_po_sent_at || !STOCK_CHECK_STATUSES.has(o.overall_status || '')) return null
   if (notInStock(o as ChevronOrder)) return { lbl: 'Not in stock', tone: 'crit' }
   if (partialStock(o as ChevronOrder)) return { lbl: 'Partial stock', tone: 'w' }
   if (o.overall_status === 'stock_check_needs_review') {
