@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Icon } from '../../shell/TopBar'
 import { clean, pasteHtml } from './rich'
 
 /*
@@ -11,6 +12,13 @@ import { clean, pasteHtml } from './rich'
 // vanished in dark mode.
 const FMT_COLOURS: [string, string][] = [['', 'Default'], ['#CC0000', 'Red'], ['#0055BB', 'Blue'], ['#CC6600', 'Orange'], ['#006620', 'Green']]
 const MARK = '#010203'   // a colour no one picks, used to find and unwrap a Default
+
+// Alignment applies to the whole line(s) the selection touches, and prints on the PDF.
+const ALIGNS: [string, string, string][] = [
+  ['justifyLeft', 'Align left', 'M4 6h16M4 10h10M4 14h16M4 18h10'],
+  ['justifyCenter', 'Centre', 'M4 6h16M7 10h10M4 14h16M7 18h10'],
+  ['justifyFull', 'Justify', 'M4 6h16M4 10h16M4 14h16M4 18h16'],
+]
 
 /** Take the colour off the selected text, then save the cell. */
 function plainColour() {
@@ -44,7 +52,7 @@ export function Rich({ html, onChange, placeholder, className }: { html: string;
   )
 }
 
-/** The floating bold / italic / colour bar over a selection inside a rich cell. */
+/** The floating bold / italic / colour / alignment bar over a selection inside a rich cell. */
 export function FormatBar() {
   const bar = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
@@ -75,6 +83,11 @@ export function FormatBar() {
         <button key={name} type="button" className={`clr${c ? '' : ' default'}`} style={c ? { background: c } : undefined}
                 title={c ? name : 'Default colour (follows light or dark mode)'} aria-label={c ? name : 'Default colour'}
                 onMouseDown={keep} onClick={() => (c ? document.execCommand('foreColor', false, c) : plainColour())} />
+      ))}
+      <span className="sep" />
+      {ALIGNS.map(([cmd, name, d]) => (
+        <button key={cmd} type="button" title={name} aria-label={name}
+                onMouseDown={keep} onClick={() => document.execCommand(cmd)}><Icon d={d} size={16} /></button>
       ))}
     </div>
   )

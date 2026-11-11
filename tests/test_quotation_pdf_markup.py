@@ -9,7 +9,9 @@ error. The fixtures below are real descriptions from SPM-00001-TEN.
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 
-from quotation_pdf import _html_to_rl, _balance_tags, _p, _rich_text
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
+
+from quotation_pdf import _html_to_rl, _balance_tags, _p, _rich_paras, _rich_text
 
 STYLE = getSampleStyleSheet()["Normal"]
 
@@ -209,3 +211,76 @@ def test_the_notes_label_survives_a_formatted_note():
     from quotation_pdf import generate_quotation_pdf
     q = _quote(notes='<b><font color="#0b5">All items FIRM</font></b>')
     assert any(l.startswith("Notes:") for l in _lines(generate_quotation_pdf(q, _ITEMS)))
+
+
+# ── alignment set with the format bar ────────────────────────────────────────
+
+ALIGNED = ('<div style="text-align:center"><b>GASKET SCHEDULE</b></div>'
+           'Spiral wound, 316 SS<br>Class 300'
+           '<div style="text-align:justify">Delivery <font color="#cc0000">FCA UK</font></div>')
+
+
+def test_aligned_lines_print_as_their_own_paragraphs():
+    paras = _rich_paras(ALIGNED, STYLE)
+    assert [p.style.alignment for p in paras] == [TA_CENTER, STYLE.alignment, TA_JUSTIFY]
+    assert "GASKET SCHEDULE" in paras[0].text and "FCA UK" in paras[2].text
+
+
+def test_left_is_kept_even_where_the_field_is_justified():
+    paras = _rich_paras('<div style="text-align:left">one</div>', STYLE)
+    assert paras[0].style.alignment == TA_LEFT
+
+
+def test_text_without_alignment_is_one_paragraph_as_before():
+    paras = _rich_paras(EDITED_ROW, STYLE)
+    assert len(paras) == 1 and paras[0].style is STYLE
+
+
+def test_an_empty_description_still_gives_a_cell():
+    assert len(_rich_paras("", STYLE)) == 1
+
+
+# ── a whole quote, as the editor now saves it ────────────────────────────────
+
+# Row 1 of a table pasted from Word (Material.docx), after the paste cleaner:
+# one line per <br>, no stray newlines.
+PASTED_ROW = ("KIT:GASKET;INSUL;3X1/4IN;316LSS;CL600<br>KIT:GASKET<br>TYPE: INSULATION<br>"
+              "SIZE: 3 ID X 1/4 IN THK<br>MATERIAL: 316 STAINLESS STEEL (CORE)<br>"
+              "FIRE SAFETY API 6FB,EXCEEDS MESC SPE 85/300-2017 FUGITIVE EMISSIONS<br>CLASS A")
+
+
+def test_a_pasted_word_row_converts_cleanly():
+    rl = _html_to_rl(PASTED_ROW)
+    assert _parses(rl)
+    assert rl.count("<br/>") == PASTED_ROW.count("<br>")
+
+
+def test_aligned_text_inside_bold_and_colour_still_parses():
+    html = ('<div style="text-align:center"><b><font color="#cc0000">HEADING</font></b></div>'
+            '<div style="text-align:justify">one<br>two &amp; three</div>')
+    for p in _rich_paras(html, STYLE):
+        assert "<" not in p.text or _parses(p.text)
+
+
+def test_the_whole_quote_pdf_builds_with_pasted_and_aligned_text():
+    from quotation_pdf import generate_quotation_pdf
+    quote = {
+        "quote_number": "TEST-0001", "client_name": "Chevron Nigeria Limited", "currency": "USD",
+        "brand": "spm", "sub_total": 100, "total": 100,
+        "notes": ('<div style="text-align:center"><b>Thank you</b></div>'
+                  '<div style="text-align:left">Prices valid for 30 days.</div>Looking forward to your business.'),
+    }
+    items = [
+        {"description": PASTED_ROW, "quantity": 35, "unit_price": 1, "uom": "EA"},
+        {"description": ALIGNED, "quantity": 2, "unit_price": 10, "uom": "EA"},
+        {"description": EDITED_ROW, "quantity": 1, "unit_price": 5, "uom": "EA"},
+        {"description": "", "quantity": 1, "unit_price": 0, "uom": "EA"},
+    ]
+    pdf = generate_quotation_pdf(quote, items)
+    assert pdf[:5] == b"%PDF-" and len(pdf) > 10_000
+
+
+def test_old_notes_without_alignment_print_as_before():
+    from quotation_pdf import generate_quotation_pdf
+    pdf = generate_quotation_pdf({"quote_number": "TEST-0002", "notes": "Plain note & more\nsecond line"}, [])
+    assert pdf[:5] == b"%PDF-"

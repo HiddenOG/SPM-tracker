@@ -249,6 +249,43 @@ def _rich_text(value: Any, fallback: str = "") -> str:
     return _html_to_rl(src) or fallback
 
 
+# A line aligned with the editor's format bar is saved as its own block,
+# <div style="text-align:center">...</div>. The editor's cleaner never nests
+# one inside another, so the first </div> closes it.
+_ALIGNED_RE = re.compile(
+    r'<div\s+style\s*=\s*"\s*text-align\s*:\s*(left|center|justify)\s*;?\s*"\s*>(.*?)</div>',
+    re.IGNORECASE | re.DOTALL)
+_ALIGN = {"left": TA_LEFT, "center": TA_CENTER, "justify": TA_JUSTIFY}
+
+
+def _rich_paras(html: str, style: ParagraphStyle) -> list[Paragraph]:
+    """Editor markup as paragraphs, each aligned the way its lines were set.
+
+    A ReportLab paragraph has one alignment, so a description with a centred
+    heading over justified text is printed as a run of paragraphs. Lines with
+    no alignment of their own take the style's.
+    """
+    src = str(html or "")
+    runs: list[tuple[str | None, str]] = []
+    at = 0
+    for m in _ALIGNED_RE.finditer(src):
+        if m.start() > at:
+            runs.append((None, src[at:m.start()]))
+        runs.append((m.group(1).lower(), m.group(2)))
+        at = m.end()
+    if at < len(src):
+        runs.append((None, src[at:]))
+    paras = []
+    for align, part in runs:
+        rl = _html_to_rl(part)
+        if not rl:
+            continue
+        sty = style if align is None else ParagraphStyle(
+            f"{style.name}_{align}", parent=style, alignment=_ALIGN[align])
+        paras.append(_p(rl, sty))
+    return paras or [_p("", style)]
+
+
 # ── Shared palette constants ──────────────────────────────────────────────────
 WHITE    = colors.white
 BLACK    = colors.black
@@ -586,7 +623,7 @@ def generate_quotation_pdf(quotation: dict, line_items: list[dict]) -> bytes:
     ]
     rows = [hrow]
     for item in line_items:
-        desc_cell: list[Any] = [_p(_html_to_rl(item.get("description") or ""), td_desc)]
+        desc_cell: list[Any] = _rich_paras(item.get("description") or "", td_desc)
         mfr_parts = " | ".join(filter(None, [
             ("Mfr: " + item["manufacturer"]) if item.get("manufacturer") else "",
             ("P/N: " + item["part_number"])  if item.get("part_number")  else "",
@@ -734,12 +771,18 @@ def generate_quotation_pdf(quotation: dict, line_items: list[dict]) -> bytes:
                             spaceBefore=2 * mm, spaceAfter=3 * mm))
 
     # The customer's notes first, then the standing purchase-order instruction.
-    notes = _rich_text(quotation.get("notes"), "Looking forward to your business.")
-    # A note laid out over several lines (a cost breakdown) starts on a line of
-    # its own, so its first line isn't run in beside the label; a one-liner
-    # stays beside it as before.
-    sep = "<br/>" if "<br/>" in notes else "  "
-    story.append(_p(f"<b>Notes:</b>{sep}{notes}", body))
+    raw_notes = str(quotation.get("notes") or "")
+    if _ALIGNED_RE.search(raw_notes):
+        # Lines aligned in the editor print as their own paragraphs, under the label.
+        story.append(_p("<b>Notes:</b>", body))
+        story.extend(_rich_paras(raw_notes, body))
+    else:
+        notes = _rich_text(raw_notes, "Looking forward to your business.")
+        # A note laid out over several lines (a cost breakdown) starts on a line of
+        # its own, so its first line isn't run in beside the label; a one-liner
+        # stays beside it as before.
+        sep = "<br/>" if "<br/>" in notes else "  "
+        story.append(_p(f"<b>Notes:</b>{sep}{notes}", body))
     story.append(Spacer(1, 3 * mm))
     po_note = brand["po_note"].format(primary=primary_hex)
     story.append(_p(

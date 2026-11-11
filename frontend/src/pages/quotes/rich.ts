@@ -3,7 +3,8 @@
   web/script.js (_ceClean and friends).
 
   The PDF understands exactly four things: bold, italic, underline and colour,
-  plus line breaks. A paste from Word or Outlook arrives carrying font names,
+  plus line breaks and a line's alignment (left, centre, justify), kept as
+  <div style="text-align:...">. A paste from Word or Outlook arrives carrying font names,
   point sizes and nested tables, and each shape broke the PDF a new way. So
   everything is cleaned on the way in and again on the way out, and only
   markup the PDF can render survives.
@@ -56,6 +57,12 @@ const NAMED: Record<string, string> = {
 
 const BLOCK = new Set(['DIV', 'P', 'LI', 'TR', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'])
 
+/** The alignment chosen for a line (the format bar, or a pasted paragraph), if the PDF can print it. */
+function alignOf(el: HTMLElement): string | null {
+  const a = String(el.style?.textAlign || el.getAttribute('align') || '').trim().toLowerCase()
+  return a === 'left' || a === 'center' || a === 'justify' ? a : null
+}
+
 export function clean(html: string | null | undefined): string {
   if (html == null || html === '') return ''
   const src = String(html)
@@ -72,6 +79,7 @@ export function clean(html: string | null | undefined): string {
   // browser's placeholder for an empty line, so it isn't counted twice.
   let open = false        // the current line has something on it
   let pending = false     // a line ended; break before whatever comes next
+  let aligned = false     // inside an aligned block; lines within it take its alignment
   const flush = () => { if (pending) { out.push('<br>'); pending = false } }
   const endLine = () => { if (open) { pending = true; open = false } }
 
@@ -80,7 +88,13 @@ export function clean(html: string | null | undefined): string {
     for (let i = 0; i < kids.length; i++) {
       const n = kids[i]
       if (n.nodeType === 3) {
-        const v = n.nodeValue || ''
+        const raw = n.nodeValue || ''
+        // Word and Outlook wrap their HTML source, so a pasted cell holds newlines
+        // and indents that are only spaces in the original - and the PDF prints
+        // them as spaces. The editor shows newlines as they are, so each line came
+        // out with a blank line and an indent after it. Lines are <br> and blocks.
+        let v = raw.replace(/[ \t]*[\r\n]+[ \t\r\n]*/g, ' ')
+        if (!open && /^[ \t]*[\r\n]/.test(raw)) v = v.replace(/^ /, '')
         // Whitespace between blocks (Word's newlines between paragraphs) isn't text.
         if (!/[^ \t\r\n]/.test(v)) { if (open) out.push(esc(v)); continue }
         flush(); out.push(esc(v)); open = true
@@ -92,7 +106,11 @@ export function clean(html: string | null | undefined): string {
       if (tag === 'BR') { flush(); out.push('<br>'); open = false; continue }
       if (tag === 'SCRIPT' || tag === 'STYLE') continue
       const block = BLOCK.has(tag)
-      if (block) endLine()
+      // An aligned block stays a block: it starts and ends its own lines, so no
+      // break is written around it. One inside another just follows the outer.
+      const align = block && !aligned ? alignOf(el) : null
+      if (align) { pending = false; open = false; aligned = true; out.push(`<div style="text-align:${align}">`) }
+      else if (block) endLine()
       const st = el.style || ({} as CSSStyleDeclaration)
       const weight = String(st.fontWeight || '')
       const wraps: [string, string][] = []
@@ -106,8 +124,9 @@ export function clean(html: string | null | undefined): string {
       wraps.forEach(w => out.push(w[0]))
       walk(el)
       for (let k = wraps.length - 1; k >= 0; k--) out.push(wraps[k][1])
+      if (align) { out.push('</div>'); pending = false; open = false; aligned = false }
       // A block ends a line, or "<p>one</p><p>two</p>" becomes "onetwo".
-      if (block) endLine()
+      else if (block) endLine()
       // Table cells sit on one line but need separating, or a pasted row reads "2IN300#".
       else if ((tag === 'TD' || tag === 'TH') && open && i < kids.length - 1) out.push(' ')
     }
@@ -118,6 +137,7 @@ export function clean(html: string | null | undefined): string {
   // An empty bold/coloured wrapper is what pressing Enter with bold on leaves behind.
   for (let pass = 0; pass < 3; pass++) {
     s = s.replace(/<(b|i|u)>((?:\s|<br>)*)<\/\1>/g, '$2').replace(/<font [^>]*>((?:\s|<br>)*)<\/font>/g, '$1')
+      .replace(/<div style="text-align:\w+">((?:\s|<br>)*)<\/div>/g, '$1')
   }
   return s.replace(/(?:\s*<br>\s*){3,}/g, '<br><br>').replace(/^(?:\s*<br>)+|(?:<br>\s*)+$/g, '').trim()
 }
