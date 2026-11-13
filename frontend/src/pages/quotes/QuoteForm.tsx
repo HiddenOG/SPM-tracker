@@ -6,6 +6,7 @@ import { todayLocal } from '../../lib/orders'
 import { clean, esc, notesToHtml } from './rich'
 import { FormatBar, Rich } from './RichEditor'
 import PasteItems from './PasteItems'
+import { SUGGEST_FIELDS, type Suggestions, SuggestInput, buildSuggestions } from './Suggest'
 import { type Field, type Item, headKey } from './pasteTable'
 import ColumnHead, { type Action } from './ColumnHead'
 import ConfirmBox from '../../lib/ConfirmBox'
@@ -109,6 +110,9 @@ export default function QuoteForm() {
   const enquiryInput = useRef<HTMLInputElement>(null)
   const priceInput = useRef<HTMLInputElement>(null)
   const status = useRef('draft')
+  // Earlier quotes, for the suggestions under the text fields.
+  const past = useRef<Record<string, unknown>[]>([])
+  const [sugg, setSugg] = useState<Suggestions>({})
 
   const set = (k: string, v: string) => setF(x => ({ ...x, [k]: v }))
   const isNlng = f.client === 'nlng'
@@ -124,6 +128,32 @@ export default function QuoteForm() {
   const total2 = (r: Row) => (pair ? Math.round((Number(r.quantity) || 0) * priceOf(r.extra[pair.price.key]) * 100) / 100 : 0)
   const s = sym(f.currency)
   const money = (v: number) => s + (Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  // Suggestions are a convenience: if they fail to load, the fields work as before.
+  useEffect(() => {
+    let gone = false
+    getJson<Record<string, unknown>[]>('/api/quotations').then(qs => {
+      if (gone || !Array.isArray(qs)) return
+      past.current = qs
+      setSugg(buildSuggestions(qs, currentUser()))
+    }, () => { /* no suggestions */ })
+    return () => { gone = true }
+  }, [])
+
+  /** A past recipient picked: their department, company, email and tel from the
+      last quote to them, into whichever of those fields are still empty. */
+  const fillRecipient = (name: string) => {
+    const k = (s: unknown) => String(s ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+    const q = past.current.find(x => k(x.recipient_name) === k(name))
+    if (!q) return
+    setF(x => {
+      const y = { ...x }
+      for (const f of ['recipient_dept', 'recipient_company', 'recipient_email', 'recipient_tel']) {
+        if (!String(y[f] ?? '').trim() && String(q[f] ?? '').trim()) y[f] = String(q[f]).trim()
+      }
+      return y
+    })
+  }
 
   // ── loading a saved quote ──
   useEffect(() => {
@@ -546,8 +576,11 @@ export default function QuoteForm() {
   if (loadErr) return <div className="page quotes"><p className="err-text">{loadErr}</p><Link to="/quotes" className="link">← Back to quotations</Link></div>
 
   const saveLabel = saving === 'saving' ? 'Saving…' : saving === 'saved' ? 'Saved ✓' : 'Save draft'
-  const inp = (k: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
-    <input className="qf-inp" value={f[k] ?? ''} onChange={e => set(k, e.target.value)} {...props} />
+  const inp = (k: string, props: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> = {}) => (
+    (SUGGEST_FIELDS as readonly string[]).includes(k)
+      ? <SuggestInput value={f[k] ?? ''} onChange={v => set(k, v)} options={sugg[k] || []}
+                      onPick={k === 'recipient_name' ? fillRecipient : undefined} {...props} />
+      : <input className="qf-inp" value={f[k] ?? ''} onChange={e => set(k, e.target.value)} {...props} />
   )
   const field = (label: React.ReactNode, control: React.ReactNode, key?: string) => (
     <label className="qf-f" key={key}><span className="qf-lbl">{label}</span>{control}</label>
