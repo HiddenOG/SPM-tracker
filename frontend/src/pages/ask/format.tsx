@@ -2,11 +2,30 @@ import { Fragment, type ReactNode } from 'react'
 
 /*
   Turning a finished answer into paragraphs. The first sentence is the answer
-  and gets the weight; blocks where every line is a bullet become lists; [n]
-  becomes a link to source card n.
+  and gets the weight; blocks where every line is a bullet become lists, and
+  blocks of "| a | b |" lines become tables; [n] becomes a link to source card n.
 */
 
 const BULLET = /^\s*([-•*]|\d+[.)])\s+/
+const ROW = /^\s*\|.*\|\s*$/
+const RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/
+const cells = (l: string) => l.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim())
+
+function table(ls: string[], onCite: (n: number) => void, key: string): ReactNode {
+  const [head, ...rest] = ls.filter(l => !RULE.test(l)).map(cells)
+  return (
+    <div className="ans-tw" key={key}>
+      <table>
+        <thead><tr>{head.map((c, i) => <th key={i}>{inline(c, onCite, `${key}-h${i}`)}</th>)}</tr></thead>
+        <tbody>
+          {rest.map((r, ri) => (
+            <tr key={ri}>{head.map((_, ci) => <td key={ci}>{inline(r[ci] ?? '', onCite, `${key}-${ri}-${ci}`)}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
 // **label** becomes bold (Sonnet labels list items that way); citations inside work too.
 function inline(s: string, onCite: (n: number) => void, key: string): ReactNode {
@@ -52,6 +71,10 @@ export function formatAnswer(text: string, onCite: (n: number) => void): ReactNo
     const ls = block.split('\n').filter(l => l.trim())
     if (!ls.length) return
     const k = `b${bi}`
+    if (ls.length >= 2 && ls.every(l => ROW.test(l) || RULE.test(l))) {
+      out.push(table(ls, onCite, k))
+      return
+    }
     if (ls.every(l => BULLET.test(l))) {
       out.push(<ul key={k}>{ls.map((l, i) => <li key={i}>{inline(l.replace(BULLET, ''), onCite, `${k}-${i}`)}</li>)}</ul>)
       return

@@ -7,6 +7,7 @@ import { clean, esc, notesToHtml } from './rich'
 import { FormatBar, Rich } from './RichEditor'
 import PasteItems from './PasteItems'
 import { SUGGEST_FIELDS, type Suggestions, SuggestInput, buildSuggestions } from './Suggest'
+import { type Result as PriceResult, PriceTag, checkLines } from '../pricebook/priceBook'
 import { type Field, type Item, headKey } from './pasteTable'
 import ColumnHead, { type Action } from './ColumnHead'
 import ConfirmBox from '../../lib/ConfirmBox'
@@ -113,6 +114,11 @@ export default function QuoteForm() {
   // Earlier quotes, for the suggestions under the text fields.
   const past = useRef<Record<string, unknown>[]>([])
   const [sugg, setSugg] = useState<Suggestions>({})
+  // Each line's answer from the gasket price lists, by row key.
+  const [pb, setPb] = useState<Record<number, PriceResult | 'loading' | null>>({})
+  const [pbErr, setPbErr] = useState('')
+  // Buying prices: the same roles the server allows (web/app.py _PRICE_ROLES).
+  const canPriceList = ['admin', 'procurement'].includes(currentUser()?.role || '')
 
   const set = (k: string, v: string) => setF(x => ({ ...x, [k]: v }))
   const isNlng = f.client === 'nlng'
@@ -259,6 +265,30 @@ export default function QuoteForm() {
       }
     })
   }
+
+  /** Look every filled line up in the gasket price lists. */
+  const checkPrices = async () => {
+    const todo = rows.filter(filled)
+    if (!todo.length) return
+    setPbErr('')
+    setPb(Object.fromEntries(todo.map(r => [r._k, 'loading' as const])))
+    const text = (h: string) => { const d = document.createElement('div'); d.innerHTML = h.replace(/<br\s*\/?>/gi, '\n'); return (d.textContent || '').trim() }
+    try {
+      const res = await checkLines(todo.map(r => [r.product_no, text(r.description)].filter(Boolean).join(' ')))
+      setPb(Object.fromEntries(todo.map((r, i) => [r._k, res[i]])))
+    } catch (e) {
+      setPb({}); setPbErr('The price lists could not be checked — ' + (e as Error).message)
+    }
+  }
+  const pbSum = useMemo(() => {
+    const done = rows.map(r => ({ r, res: pb[r._k] })).filter(x => x.res && x.res !== 'loading') as { r: Row; res: PriceResult }[]
+    if (!done.length) return null
+    const found = done.filter(x => x.res.status === 'found')
+    // Weight per line: the first match's weight each, times the quantity.
+    const weighed = found.filter(x => x.res.matches[0]?.weight_kg != null)
+    const kgTotal = weighed.reduce((a, x) => a + (x.res.matches[0].weight_kg || 0) * (Number(x.r.quantity) || 0), 0)
+    return { checked: done.length, found: found.length, missing: done.length - found.length, kgTotal, weighed: weighed.length }
+  }, [rows, pb])
 
   const updateRow = (k: number, patch: Partial<Row>) => setRows(rs => rs.map(r => {
     if (r._k !== k) return r
@@ -592,7 +622,12 @@ export default function QuoteForm() {
   const cell = (r: Row, c: Col) => {
     switch (c.key) {
       case 'description':
-        return <Rich key={`${formKey}-${r._k}`} html={r.description} placeholder="Item description…" onChange={h => setRows(rs => rs.map(x => (x._k === r._k ? { ...x, description: h } : x)))} />
+        return (
+          <>
+            <Rich key={`${formKey}-${r._k}`} html={r.description} placeholder="Item description…" onChange={h => setRows(rs => rs.map(x => (x._k === r._k ? { ...x, description: h } : x)))} />
+            <PriceTag result={pb[r._k] ?? null} onUse={m => m.quote_usd != null && updateRow(r._k, { unit_price: m.quote_usd })} />
+          </>
+        )
       case 'product_no':
         return <input className="qf-cell" value={r.product_no} placeholder={labelOf(c)} onChange={e => updateRow(r._k, { product_no: e.target.value })} />
       case 'uom':
@@ -707,6 +742,12 @@ export default function QuoteForm() {
               {importing === 'prices' ? 'Importing…' : '↑ Import prices'}
             </button>
             <button type="button" className="btn ghost sm" onClick={() => setPasting(true)} title="Paste a table copied from an email, Word, Excel or a PDF">⧉ Paste items</button>
+            {canPriceList && (
+              <button type="button" className="btn ghost sm" onClick={checkPrices} disabled={Object.values(pb).includes('loading') || !rows.some(filled)}
+                      title="Find each gasket on the Flexitallic and SPM price lists, with its weight">
+                {Object.values(pb).includes('loading') ? 'Checking…' : '✓ Check price list'}
+              </button>
+            )}
             <button type="button" className="btn ghost sm" onClick={addColAtEnd} disabled={addedCount >= MAX_ADDED}
                     title={addedCount >= MAX_ADDED ? `Up to ${MAX_ADDED} added columns fit on the PDF` : 'Add a column at the end of the table'}>+ Add column</button>
             <button type="button" className="btn sm" onClick={() => setRows(rs => [...rs, newRow()])}>+ Add row</button>
@@ -714,6 +755,20 @@ export default function QuoteForm() {
         </div>
         {pasting && <PasteItems lineCount={rows.filter(filled).length} showsProductNo={hasProductNo}
                                  targets={layout.filter(c => isAdded(c.key))} canPrice2={canPrice} onClose={() => setPasting(false)} onAdd={addPasted} onFill={fillPasted} />}
+        {(pbSum || pbErr) && (
+          <div className="pb-sum" role="status">
+            {pbErr ? <span className="err">{pbErr}</span> : pbSum && (
+              <>
+                <span><b>{pbSum.found} of {pbSum.checked}</b> found on the price lists{pbSum.missing ? ` · ${pbSum.missing} not listed — ask Flexitallic` : ''}</span>
+                {pbSum.weighed > 0 && (
+                  <button type="button" className="link" onClick={() => set('weight', `${pbSum.kgTotal.toFixed(2)} KGS`)}
+                          title="Each found line's weight times its quantity">Put {pbSum.kgTotal.toFixed(2)} kg in Total Weight</button>
+                )}
+                <button type="button" className="link" onClick={() => setPb({})}>Hide</button>
+              </>
+            )}
+          </div>
+        )}
         <div className="qf-items-wrap" ref={wrapRef}>
           {/* The standard columns keep their usual widths; each added column
               makes the table wider and the box scrolls sideways, rather than

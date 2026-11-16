@@ -71,6 +71,12 @@
 .ask .ans .lead{font-size:17px;font-weight:500;line-height:1.5;color:var(--ink)}
 .ask .ans ul{margin:0 0 .8em;padding-left:1.2em;display:flex;flex-direction:column;gap:5px}
 .ask .ans .live{white-space:pre-wrap}
+/* a table in an answer (priced lines and the like): wider than the text, scrolls sideways on its own */
+.ask .ans-tw{margin:0 0 .9em;overflow-x:auto;max-width:min(100%, 1100px);width:max-content;border:1px solid var(--line-2);border-radius:10px}
+.ask .ans-tw table{border-collapse:collapse;font-size:13.5px;line-height:1.45}
+.ask .ans-tw th{position:sticky;top:0;background:var(--surface-2);color:var(--ink-2);font-weight:600;font-size:12.5px;text-align:left;padding:8px 12px;white-space:nowrap}
+.ask .ans-tw td{padding:7px 12px;border-top:1px solid var(--line);vertical-align:top;min-width:60px}
+.ask .ans-tw td:nth-child(2){min-width:260px;max-width:460px}
 .ask .cite{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;margin:0 1px;border-radius:6px;
   background:var(--accent-soft);color:var(--accent-ink);font:500 11px var(--mono);text-decoration:none;vertical-align:2px}
 .ask .cite:hover{background:var(--accent);color:var(--on-accent)}

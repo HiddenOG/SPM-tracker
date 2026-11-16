@@ -498,7 +498,7 @@ def test_the_endpoint_wants_a_sensible_question(monkeypatch):
     APP, c = _client_as("procurement", monkeypatch)
     try:
         assert c.post("/api/ask", json={"question": "  "}).status_code == 400
-        assert c.post("/api/ask", json={"question": "x" * 2001}).status_code == 400
+        assert c.post("/api/ask", json={"question": "x" * (APP.ASK_MAX_CHARS + 1)}).status_code == 400
     finally:
         APP.app.dependency_overrides.clear()
 

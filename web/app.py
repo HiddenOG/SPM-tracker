@@ -2080,6 +2080,9 @@ class _AskRecord:
             self._fail("answer", exc)
 
 
+ASK_MAX_CHARS = 20_000
+
+
 @app.post("/api/ask")
 def ask(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
     """SPM Ask: answer a question from the whole inbox and the tracker.
@@ -2092,9 +2095,11 @@ def ask(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
     question = str(body.get("question") or "").strip()
     if not question:
         raise HTTPException(status_code=400, detail="Type a question first.")
-    if len(question) > 2000:
+    # Long enough for a client's whole enquiry pasted in to be priced (44 items
+    # ran to about 9,000 characters); longer than this, paste it in parts.
+    if len(question) > ASK_MAX_CHARS:
         raise HTTPException(status_code=400,
-                            detail="That question is too long - keep it under 2,000 characters.")
+                            detail=f"That question is too long - keep it under {ASK_MAX_CHARS:,} characters, or paste it in parts.")
     scope = body.get("scope") if body.get("scope") in ("both", "mail", "tracker") else "both"
     history = body.get("history") if isinstance(body.get("history"), list) else []
     if not os.environ.get("ANTHROPIC_API_KEY"):
@@ -3064,6 +3069,45 @@ def parse_paste(body: dict = Body(default={}), user: dict = Depends(verify_jwt))
     if not headers or not rows:
         raise HTTPException(status_code=422, detail="No table could be found in what was pasted.")
     return _ok({"headers": headers, "rows": rows})
+
+
+# ── Gasket price lists ───────────────────────────────────────────────────────
+# Flexitallic's 2022 list and SPM's 2026 list, with the weights workbook, loaded
+# by scripts/load_price_book.py. A client's description is read into its fields
+# (size, class, grade...) and looked up - see scripts/price_book.py. These are
+# buying prices, so only the people who quote see them.
+_PRICE_ROLES = ("admin", "procurement")
+_PRICE_MAX_LINES = 80
+
+
+def _price_access(user: dict) -> None:
+    if user.get("role") not in _PRICE_ROLES:
+        raise HTTPException(status_code=403, detail="The price lists are for admin and procurement only.")
+
+
+@app.post("/api/price-book/check")
+def price_book_check(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
+    _price_access(user)
+    lines = [str(x or "") for x in (body.get("lines") or [])]
+    if not any(x.strip() for x in lines):
+        raise HTTPException(status_code=400, detail="Nothing to look up.")
+    if len(lines) > _PRICE_MAX_LINES:
+        raise HTTPException(status_code=400, detail=f"Check up to {_PRICE_MAX_LINES} lines at a time.")
+    import price_book
+    # Blank lines keep their place in the answer, so results line up with the rows.
+    keep = [i for i, x in enumerate(lines) if x.strip()]
+    try:
+        found = price_book.check([lines[i] for i in keep])
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    except Exception as exc:
+        print(f"  [error] price_book_check: {exc}")
+        raise HTTPException(status_code=500, detail="The price lists couldn't be read. If they're new, run "
+                            "migrations/create_price_book.sql and scripts/load_price_book.py.")
+    out: list = [None] * len(lines)
+    for i, r in zip(keep, found):
+        out[i] = r
+    return _ok({"results": out})
 
 
 @app.post("/api/quotations/parse-enquiry")

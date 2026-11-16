@@ -69,6 +69,8 @@ SYSTEM = """You are SPM Ask, the assistant inside SPMprocure360 for Special Pipi
 You answer staff questions from two sources:
 - The company inbox (specialpiping@gmail.com, about 295,000 emails), through search_email, read_email and read_thread. search_email takes Gmail search syntax: plain words, "exact phrases", from:, to:, subject:, after:2026/09/01, before:, newer_than:30d, has:attachment, OR, and -word to exclude.
 - The SPMprocure360 tracker, through the order, quote and stock tools. The tracker only holds Chevron and NLNG orders; every other client's orders are found in email. It holds each order's line items with their dates, so "overdue" or "late" questions, by order or by line, are answered with orders_overdue - "stuck" means not moved, which is a different question.
+- The gasket price lists, through gasket_price: what a gasket costs on Flexitallic's 2022 list (316, GBP) or SPM's 2026 list (304, USD), and what it weighs. Use it for "how much is…", "what's the price/weight of…" and "is this on the price list" questions about gaskets, and about Flexitallic sheets, tape, braided packing and paste. Pass each description as the client wrote it - don't add ring numbers, styles or grades of your own; the tool reads them and finds an RTJ's ring number on Flexitallic's chart. Give the price exactly as listed with its currency and list, say these are list prices before SPM's markup, and pass on any doubt the second check raised.
+- Flexitallic's RTJ guide, through rtj_chart (no prices, open to everyone): which R/RX/BX ring fits a size and class or API pressure, a ring's measurements and tolerances, and the ring materials' hardness and identification marks.
 
 The trade's shorthand - read requests with it, and don't ask what these mean:
 - Spiral wound gasket styles (Flexitallic names): CG = winding with an outer centring (guide) ring, usually carbon steel; CGI = CG plus an inner ring; R = winding only; RIR = winding with an inner ring only. "SS outer ring" means the outer ring is stainless instead of carbon steel.
@@ -89,7 +91,8 @@ How to work:
 
 How to answer:
 - The first sentence is the direct answer.
-- Then short paragraphs, or lines starting with "- " for lists. Plain language. No headings or tables. A list line may start with a short **bold** label, like "**QU-677580 (Seplat):**"; no other bold.
+- Then short paragraphs, or lines starting with "- " for lists. Plain language. No headings. A list line may start with a short **bold** label, like "**QU-677580 (Seplat):**"; no other bold.
+- Use a table only when the person asks for one, or to set out several priced lines from gasket_price: a markdown table ("| Item | Description | Qty | Price | Weight |" then "|---|---|---|---|---|" then one row per line), with the client's description as written and the price with its currency. Nothing inside a table cell but plain text and [n] citations.
 - Cite emails by their reference number in square brackets, like [2], straight after the fact it supports.
 - Write PO numbers, SO numbers, amounts and dates exactly as the source has them."""
 
@@ -191,7 +194,34 @@ TRACKER_TOOLS = [
         "description": "What the warehouse has counted, filtered by description words.",
         "input_schema": {"type": "object", "properties": {"text": {"type": "string"}}},
     },
+    {
+        "name": "gasket_price",
+        "description": "Look gaskets and sealing materials up on the price lists: Flexitallic's 2022 list (316/316L, GBP list prices) and SPM's 2026 list (CGI 304, USD), with the weight of each gasket. Covers spiral wound CG/CGI/LEI/LSI, R/RX/BX ring joints, Isoflex LT/FS kits, FRG, and Flexitallic's sheets (Sigma PTFE, SF/AF fibre, Thermiculite, Novus, RGS graphite), Fluoroseal and Sigma 850 tape, braided packings and pastes. Give each item's description as the client wrote it, one per entry; each comes back with how it was read, the matching list price(s) and weight, or why it isn't listed, and a second check on unusual lines.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"descriptions": {"type": "array", "items": {"type": "string"},
+                                            "description": "Up to 60 gasket descriptions - a whole enquiry in one call."}},
+            "required": ["descriptions"],
+        },
+    },
+    {
+        "name": "rtj_chart",
+        "description": "Flexitallic's Ring Type Joint guide (no prices): which R/RX/BX ring fits a pipe size and ASME class or API 6A pressure, a ring's measurements (pitch diameter, OD, width, oval/octagonal height, flange gap, weight) and tolerances, and the RTJ materials table (UNS number, maximum hardness, identification mark). Give a ring number, or a size with a class/pressure, or materials=true.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ring_no": {"type": "string", "description": "e.g. R45, RX24, BX152"},
+                "size": {"type": "string", "description": "nominal pipe size in inches, e.g. 4, 1 1/2, 2 1/16"},
+                "rating": {"type": "string", "description": "ASME class (150...2500) or API pressure in psi (2000...20000); leave out for every class"},
+                "style": {"type": "string", "description": "R, RX or BX to limit the answer"},
+                "materials": {"type": "boolean", "description": "the materials / hardness / identification table"},
+            },
+        },
+    },
 ]
+
+# The price lists are buying prices: the same roles as the quote form's check.
+PRICE_ROLES = ("admin", "procurement")
 
 SCOPES = {
     "both": EMAIL_TOOLS + TRACKER_TOOLS,
@@ -234,9 +264,48 @@ def _q(s: str, n=60) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
-def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None):
+def _price_text(descriptions: list[str], results: list[dict]) -> str:
+    """The price-list answer, laid out for the model to read."""
+    out = []
+    for d, r in zip(descriptions, results):
+        read = {k: v for k, v in (r.get("spec") or {}).items() if v not in ("unknown", None, [], "none")}
+        lines = [f"Gasket: {d.strip()[:300]}", f"  read as: {json.dumps(read)}"]
+        if r["status"] == "found":
+            for m in r["matches"]:
+                price = "price on application" if m["poa"] else f'{m["currency"]} {m["price"]:.2f}'
+                weight = f'{m["weight_kg"]} kg each' if m["weight_kg"] is not None else "weight not on the weights list"
+                lines.append(f'  - {m["label"]}' + (f', class {m["rating"]}' if m.get("rating") else "")
+                             + f': list price {price}; {weight}' + (f' ({m["note"]})' if m.get("note") else ""))
+        else:
+            lines.append(f'  not on the price lists: {r.get("reason")}')
+        if r.get("notes"):
+            lines.append("  assumed: " + "; ".join(r["notes"]))
+        if r.get("ai_check"):
+            lines.append(f'  second check: {r["ai_check"]["verdict"]} - {r["ai_check"]["comment"]}')
+        out.append("\n".join(lines))
+    return "\n\n".join(out)
+
+
+def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None, user=None):
     """Run one tool. Returns (text for the model, step label, step detail)."""
     args = args or {}
+    if name == "gasket_price":
+        label = "Checking the gasket price lists"
+        if (user or {}).get("role") not in PRICE_ROLES:
+            return ("The price lists are only open to admin and procurement staff. Tell the person that, "
+                    "without giving any price.", label, "Not allowed")
+        descs = [str(d) for d in (args.get("descriptions") or []) if str(d).strip()][:60]
+        if not descs:
+            return "No gasket descriptions were given.", label, "Nothing to look up"
+        import price_book
+        results = price_book.check(descs)
+        found = sum(r["status"] == "found" for r in results)
+        return _price_text(descs, results), label, f"{found} of {len(descs)} found"
+    if name == "rtj_chart":
+        import price_book
+        text = price_book.chart_answer(args.get("ring_no"), args.get("size"), args.get("rating"),
+                                       args.get("style"), bool(args.get("materials")))
+        return text, "Checking Flexitallic's RTJ chart", ""
     if name in ("search_email", "read_email", "read_thread", "read_attachment"):
         if mail is None:
             import mail_search as mail
@@ -421,7 +490,7 @@ def run(question: str, history=None, scope: str = "both", user=None,
                 yield {"t": "step", "id": sid, "label": _pending_label(block.name, block.input),
                        "state": "run"}
                 try:
-                    text, label, detail = execute(block.name, block.input, refs, mail, tracker)
+                    text, label, detail = execute(block.name, block.input, refs, mail, tracker, user)
                     yield {"t": "step", "id": sid, "label": label, "state": "done",
                            "detail": detail, "secs": round(time.time() - t0, 1)}
                     results.append({"type": "tool_result", "tool_use_id": block.id, "content": text})
@@ -473,5 +542,9 @@ def _pending_label(name: str, args) -> str:
         return "Searching quotations"
     if name == "stock_on_hand":
         return "Checking counted stock"
+    if name == "gasket_price":
+        return "Checking the gasket price lists"
+    if name == "rtj_chart":
+        return "Checking Flexitallic's RTJ chart"
     return name
 

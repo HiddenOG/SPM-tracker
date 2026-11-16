@@ -1,0 +1,24 @@
+/* A line's answer from the price lists, under its description */
+.pb-tag{margin-top:6px;padding:6px 8px;border-radius:8px;font-size:12.5px;line-height:1.45;animation:pb-in .2s ease-out}
+.pb-tag.busy{color:var(--ink-3)}
+.pb-tag.hit{background:var(--surface-2)}
+.pb-tag.miss{background:var(--crit-soft);color:var(--ink)}
+.pb-hit{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.pb-hit + .pb-hit{margin-top:4px;padding-top:4px;border-top:1px dashed var(--line-2)}
+.pb-mark{font-weight:700;margin-right:2px}
+.pb-tag.hit .pb-mark{color:var(--ok)}
+.pb-tag.miss .pb-mark{color:var(--crit)}
+.pb-what{flex:1 1 220px;min-width:0;color:var(--ink-2)}
+.pb-kg{color:var(--ink-2)}
+.pb-read{margin-bottom:4px;font-size:11.5px;color:var(--ink-3)}
+.pb-tag.miss .pb-read{margin:4px 0 0}
+.pb-note{flex-basis:100%;font-size:11.5px;color:var(--ink-3)}
+.pb-doubt{margin-top:5px;padding:5px 8px;border-radius:6px;background:var(--warn-soft);color:var(--ink);font-size:12px}
+.pb-doubt span{color:var(--warn);font-weight:700}
+.pb-tag .link:disabled{opacity:.45;cursor:not-allowed;text-decoration:none}
+@keyframes pb-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.pb-tag{animation:none}}
+
+/* the summary over the quote's line items */
+.pb-sum{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:0 0 10px;padding:9px 12px;border-radius:10px;background:var(--surface-2);font-size:13px}
+.pb-sum .err{color:var(--crit)}

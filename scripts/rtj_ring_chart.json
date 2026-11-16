@@ -1,0 +1,2874 @@
+{
+"by_size": [
+{
+"ring_no": "R11",
+"rating": "300",
+"size_in": 0.5
+},
+{
+"ring_no": "R11",
+"rating": "600",
+"size_in": 0.5
+},
+{
+"ring_no": "R12",
+"rating": "900",
+"size_in": 0.5
+},
+{
+"ring_no": "R12",
+"rating": "1500",
+"size_in": 0.5
+},
+{
+"ring_no": "R13",
+"rating": "300",
+"size_in": 0.75
+},
+{
+"ring_no": "R13",
+"rating": "600",
+"size_in": 0.75
+},
+{
+"ring_no": "R13",
+"rating": "2500",
+"size_in": 0.5
+},
+{
+"ring_no": "R14",
+"rating": "900",
+"size_in": 0.75
+},
+{
+"ring_no": "R14",
+"rating": "1500",
+"size_in": 0.75
+},
+{
+"ring_no": "R15",
+"rating": "150",
+"size_in": 1.0
+},
+{
+"ring_no": "R16",
+"rating": "300",
+"size_in": 1.0
+},
+{
+"ring_no": "R16",
+"rating": "600",
+"size_in": 1.0
+},
+{
+"ring_no": "R16",
+"rating": "900",
+"size_in": 1.0
+},
+{
+"ring_no": "R16",
+"rating": "1500",
+"size_in": 1.0
+},
+{
+"ring_no": "R16",
+"rating": "2500",
+"size_in": 0.75
+},
+{
+"ring_no": "R17",
+"rating": "150",
+"size_in": 1.25
+},
+{
+"ring_no": "R18",
+"rating": "300",
+"size_in": 1.25
+},
+{
+"ring_no": "R18",
+"rating": "600",
+"size_in": 1.25
+},
+{
+"ring_no": "R18",
+"rating": "900",
+"size_in": 1.25
+},
+{
+"ring_no": "R18",
+"rating": "1500",
+"size_in": 1.25
+},
+{
+"ring_no": "R18",
+"rating": "2500",
+"size_in": 1.0
+},
+{
+"ring_no": "R19",
+"rating": "150",
+"size_in": 1.5
+},
+{
+"ring_no": "R20",
+"rating": "300",
+"size_in": 1.5
+},
+{
+"ring_no": "R20",
+"rating": "600",
+"size_in": 1.5
+},
+{
+"ring_no": "R20",
+"rating": "900",
+"size_in": 1.5
+},
+{
+"ring_no": "R20",
+"rating": "1500",
+"size_in": 1.5
+},
+{
+"ring_no": "R21",
+"rating": "2500",
+"size_in": 1.25
+},
+{
+"ring_no": "R22",
+"rating": "150",
+"size_in": 2.0
+},
+{
+"ring_no": "R23",
+"rating": "300",
+"size_in": 2.0
+},
+{
+"ring_no": "R23",
+"rating": "600",
+"size_in": 2.0
+},
+{
+"ring_no": "R23",
+"rating": "2500",
+"size_in": 1.5
+},
+{
+"ring_no": "R24",
+"rating": "900",
+"size_in": 2.0
+},
+{
+"ring_no": "R24",
+"rating": "1500",
+"size_in": 2.0
+},
+{
+"ring_no": "R24",
+"rating": "2000",
+"size_in": 2.0625
+},
+{
+"ring_no": "R24",
+"rating": "3000",
+"size_in": 2.0625
+},
+{
+"ring_no": "R24",
+"rating": "5000",
+"size_in": 2.0
+},
+{
+"ring_no": "R25",
+"rating": "150",
+"size_in": 2.5
+},
+{
+"ring_no": "R26",
+"rating": "300",
+"size_in": 2.5
+},
+{
+"ring_no": "R26",
+"rating": "600",
+"size_in": 2.5
+},
+{
+"ring_no": "R26",
+"rating": "2500",
+"size_in": 2.0
+},
+{
+"ring_no": "R26",
+"rating": "2000",
+"size_in": 2.5625
+},
+{
+"ring_no": "R26",
+"rating": "3000",
+"size_in": 2.5625
+},
+{
+"ring_no": "R27",
+"rating": "900",
+"size_in": 2.5
+},
+{
+"ring_no": "R27",
+"rating": "1500",
+"size_in": 2.5
+},
+{
+"ring_no": "R27",
+"rating": "3000",
+"size_in": 2.5625
+},
+{
+"ring_no": "R27",
+"rating": "5000",
+"size_in": 2.5625
+},
+{
+"ring_no": "R28",
+"rating": "2500",
+"size_in": 2.5
+},
+{
+"ring_no": "R29",
+"rating": "150",
+"size_in": 3.0
+},
+{
+"ring_no": "R30",
+"rating": "300",
+"size_in": 3.0,
+"only": "lapped flanges"
+},
+{
+"ring_no": "R30",
+"rating": "600",
+"size_in": 3.0,
+"only": "lapped flanges"
+},
+{
+"ring_no": "R31",
+"rating": "300",
+"size_in": 3.0
+},
+{
+"ring_no": "R31",
+"rating": "600",
+"size_in": 3.0
+},
+{
+"ring_no": "R31",
+"rating": "900",
+"size_in": 3.0
+},
+{
+"ring_no": "R31",
+"rating": "2000",
+"size_in": 3.125
+},
+{
+"ring_no": "R31",
+"rating": "3000",
+"size_in": 3.125
+},
+{
+"ring_no": "R32",
+"rating": "2500",
+"size_in": 3.0
+},
+{
+"ring_no": "R33",
+"rating": "150",
+"size_in": 3.5
+},
+{
+"ring_no": "R34",
+"rating": "300",
+"size_in": 3.5
+},
+{
+"ring_no": "R34",
+"rating": "600",
+"size_in": 3.5
+},
+{
+"ring_no": "R35",
+"rating": "1500",
+"size_in": 3.0
+},
+{
+"ring_no": "R35",
+"rating": "5000",
+"size_in": 3.125
+},
+{
+"ring_no": "R36",
+"rating": "150",
+"size_in": 4.0
+},
+{
+"ring_no": "R37",
+"rating": "300",
+"size_in": 4.0
+},
+{
+"ring_no": "R37",
+"rating": "600",
+"size_in": 4.0
+},
+{
+"ring_no": "R37",
+"rating": "900",
+"size_in": 4.0
+},
+{
+"ring_no": "R37",
+"rating": "2000",
+"size_in": 4.0625
+},
+{
+"ring_no": "R37",
+"rating": "3000",
+"size_in": 4.0625
+},
+{
+"ring_no": "R38",
+"rating": "2500",
+"size_in": 4.0
+},
+{
+"ring_no": "R39",
+"rating": "1500",
+"size_in": 4.0
+},
+{
+"ring_no": "R39",
+"rating": "5000",
+"size_in": 4.0625
+},
+{
+"ring_no": "R40",
+"rating": "150",
+"size_in": 5.0
+},
+{
+"ring_no": "R41",
+"rating": "300",
+"size_in": 5.0
+},
+{
+"ring_no": "R41",
+"rating": "600",
+"size_in": 5.0
+},
+{
+"ring_no": "R41",
+"rating": "900",
+"size_in": 5.0
+},
+{
+"ring_no": "R42",
+"rating": "2500",
+"size_in": 5.0
+},
+{
+"ring_no": "R43",
+"rating": "150",
+"size_in": 6.0
+},
+{
+"ring_no": "R44",
+"rating": "1500",
+"size_in": 5.0
+},
+{
+"ring_no": "R45",
+"rating": "300",
+"size_in": 6.0
+},
+{
+"ring_no": "R45",
+"rating": "600",
+"size_in": 6.0
+},
+{
+"ring_no": "R45",
+"rating": "900",
+"size_in": 6.0
+},
+{
+"ring_no": "R45",
+"rating": "2000",
+"size_in": 7.0625
+},
+{
+"ring_no": "R45",
+"rating": "3000",
+"size_in": 7.0625
+},
+{
+"ring_no": "R46",
+"rating": "1500",
+"size_in": 6.0
+},
+{
+"ring_no": "R46",
+"rating": "5000",
+"size_in": 7.0625
+},
+{
+"ring_no": "R47",
+"rating": "2500",
+"size_in": 6.0
+},
+{
+"ring_no": "R48",
+"rating": "150",
+"size_in": 8.0
+},
+{
+"ring_no": "R49",
+"rating": "300",
+"size_in": 8.0
+},
+{
+"ring_no": "R49",
+"rating": "600",
+"size_in": 8.0
+},
+{
+"ring_no": "R49",
+"rating": "900",
+"size_in": 8.0
+},
+{
+"ring_no": "R49",
+"rating": "2000",
+"size_in": 9.0
+},
+{
+"ring_no": "R49",
+"rating": "3000",
+"size_in": 9.0
+},
+{
+"ring_no": "R50",
+"rating": "1500",
+"size_in": 8.0
+},
+{
+"ring_no": "R50",
+"rating": "5000",
+"size_in": 9.0
+},
+{
+"ring_no": "R51",
+"rating": "2500",
+"size_in": 8.0
+},
+{
+"ring_no": "R52",
+"rating": "150",
+"size_in": 10.0
+},
+{
+"ring_no": "R53",
+"rating": "300",
+"size_in": 10.0
+},
+{
+"ring_no": "R53",
+"rating": "600",
+"size_in": 10.0
+},
+{
+"ring_no": "R53",
+"rating": "900",
+"size_in": 10.0
+},
+{
+"ring_no": "R53",
+"rating": "2000",
+"size_in": 11.0
+},
+{
+"ring_no": "R53",
+"rating": "3000",
+"size_in": 11.0
+},
+{
+"ring_no": "R54",
+"rating": "1500",
+"size_in": 10.0
+},
+{
+"ring_no": "R54",
+"rating": "5000",
+"size_in": 11.0
+},
+{
+"ring_no": "R55",
+"rating": "2500",
+"size_in": 10.0
+},
+{
+"ring_no": "R56",
+"rating": "150",
+"size_in": 12.0
+},
+{
+"ring_no": "R57",
+"rating": "300",
+"size_in": 12.0
+},
+{
+"ring_no": "R57",
+"rating": "600",
+"size_in": 12.0
+},
+{
+"ring_no": "R57",
+"rating": "900",
+"size_in": 12.0
+},
+{
+"ring_no": "R57",
+"rating": "2000",
+"size_in": 13.625
+},
+{
+"ring_no": "R57",
+"rating": "3000",
+"size_in": 13.625
+},
+{
+"ring_no": "R58",
+"rating": "1500",
+"size_in": 12.0
+},
+{
+"ring_no": "R59",
+"rating": "150",
+"size_in": 14.0
+},
+{
+"ring_no": "R60",
+"rating": "2500",
+"size_in": 12.0
+},
+{
+"ring_no": "R61",
+"rating": "300",
+"size_in": 14.0
+},
+{
+"ring_no": "R61",
+"rating": "600",
+"size_in": 14.0
+},
+{
+"ring_no": "R62",
+"rating": "900",
+"size_in": 14.0
+},
+{
+"ring_no": "R63",
+"rating": "1500",
+"size_in": 14.0
+},
+{
+"ring_no": "R64",
+"rating": "150",
+"size_in": 16.0
+},
+{
+"ring_no": "R65",
+"rating": "300",
+"size_in": 16.0
+},
+{
+"ring_no": "R65",
+"rating": "600",
+"size_in": 16.0
+},
+{
+"ring_no": "R65",
+"rating": "2000",
+"size_in": 16.75
+},
+{
+"ring_no": "R66",
+"rating": "900",
+"size_in": 16.0
+},
+{
+"ring_no": "R66",
+"rating": "3000",
+"size_in": 16.0
+},
+{
+"ring_no": "R67",
+"rating": "1500",
+"size_in": 16.0
+},
+{
+"ring_no": "R68",
+"rating": "150",
+"size_in": 18.0
+},
+{
+"ring_no": "R69",
+"rating": "300",
+"size_in": 18.0
+},
+{
+"ring_no": "R69",
+"rating": "600",
+"size_in": 18.0
+},
+{
+"ring_no": "R70",
+"rating": "900",
+"size_in": 18.0
+},
+{
+"ring_no": "R70",
+"rating": "3000",
+"size_in": 18.0
+},
+{
+"ring_no": "R71",
+"rating": "1500",
+"size_in": 18.0
+},
+{
+"ring_no": "R72",
+"rating": "150",
+"size_in": 20.0
+},
+{
+"ring_no": "R73",
+"rating": "300",
+"size_in": 20.0
+},
+{
+"ring_no": "R73",
+"rating": "600",
+"size_in": 20.0
+},
+{
+"ring_no": "R73",
+"rating": "2000",
+"size_in": 21.25
+},
+{
+"ring_no": "R74",
+"rating": "900",
+"size_in": 20.0
+},
+{
+"ring_no": "R74",
+"rating": "3000",
+"size_in": 20.75
+},
+{
+"ring_no": "R75",
+"rating": "1500",
+"size_in": 20.0
+},
+{
+"ring_no": "R76",
+"rating": "150",
+"size_in": 24.0
+},
+{
+"ring_no": "R77",
+"rating": "300",
+"size_in": 24.0
+},
+{
+"ring_no": "R77",
+"rating": "600",
+"size_in": 24.0
+},
+{
+"ring_no": "R78",
+"rating": "900",
+"size_in": 24.0
+},
+{
+"ring_no": "R79",
+"rating": "1500",
+"size_in": 24.0
+},
+{
+"ring_no": "R80",
+"rating": "150",
+"size_in": 22.0
+},
+{
+"ring_no": "R81",
+"rating": "300",
+"size_in": 22.0
+},
+{
+"ring_no": "R81",
+"rating": "600",
+"size_in": 22.0
+},
+{
+"ring_no": "R93",
+"rating": "300",
+"size_in": 26.0
+},
+{
+"ring_no": "R93",
+"rating": "600",
+"size_in": 26.0
+},
+{
+"ring_no": "R94",
+"rating": "300",
+"size_in": 28.0
+},
+{
+"ring_no": "R94",
+"rating": "600",
+"size_in": 28.0
+},
+{
+"ring_no": "R95",
+"rating": "300",
+"size_in": 30.0
+},
+{
+"ring_no": "R95",
+"rating": "600",
+"size_in": 30.0
+},
+{
+"ring_no": "R96",
+"rating": "300",
+"size_in": 32.0
+},
+{
+"ring_no": "R96",
+"rating": "600",
+"size_in": 32.0
+},
+{
+"ring_no": "R97",
+"rating": "300",
+"size_in": 34.0
+},
+{
+"ring_no": "R97",
+"rating": "600",
+"size_in": 34.0
+},
+{
+"ring_no": "R98",
+"rating": "300",
+"size_in": 36.0
+},
+{
+"ring_no": "R98",
+"rating": "600",
+"size_in": 36.0
+},
+{
+"ring_no": "R100",
+"rating": "900",
+"size_in": 26.0
+},
+{
+"ring_no": "R101",
+"rating": "900",
+"size_in": 28.0
+},
+{
+"ring_no": "R102",
+"rating": "900",
+"size_in": 30.0
+},
+{
+"ring_no": "R103",
+"rating": "900",
+"size_in": 32.0
+},
+{
+"ring_no": "R104",
+"rating": "900",
+"size_in": 34.0
+},
+{
+"ring_no": "R105",
+"rating": "900",
+"size_in": 36.0
+},
+{
+"ring_no": "RX20",
+"rating": "5000",
+"size_in": 2.0625,
+"only": "segmented flanges (dual completions)"
+},
+{
+"ring_no": "RX23",
+"rating": "2000",
+"size_in": 2.0625
+},
+{
+"ring_no": "RX24",
+"rating": "3000",
+"size_in": 2.0625
+},
+{
+"ring_no": "RX24",
+"rating": "5000",
+"size_in": 2.0625
+},
+{
+"ring_no": "RX25",
+"rating": "5000",
+"size_in": 3.125,
+"only": "segmented flanges (dual completions)"
+},
+{
+"ring_no": "RX26",
+"rating": "2000",
+"size_in": 2.5625
+},
+{
+"ring_no": "RX27",
+"rating": "3000",
+"size_in": 2.5625
+},
+{
+"ring_no": "RX27",
+"rating": "5000",
+"size_in": 2.5625
+},
+{
+"ring_no": "RX31",
+"rating": "2000",
+"size_in": 3.125
+},
+{
+"ring_no": "RX31",
+"rating": "3000",
+"size_in": 3.125
+},
+{
+"ring_no": "RX35",
+"rating": "5000",
+"size_in": 3.125
+},
+{
+"ring_no": "RX37",
+"rating": "2000",
+"size_in": 4.0625
+},
+{
+"ring_no": "RX37",
+"rating": "3000",
+"size_in": 4.0625
+},
+{
+"ring_no": "RX39",
+"rating": "5000",
+"size_in": 4.0625
+},
+{
+"ring_no": "RX45",
+"rating": "2000",
+"size_in": 7.0625
+},
+{
+"ring_no": "RX45",
+"rating": "3000",
+"size_in": 7.0625
+},
+{
+"ring_no": "RX46",
+"rating": "5000",
+"size_in": 7.0625
+},
+{
+"ring_no": "RX49",
+"rating": "2000",
+"size_in": 9.0
+},
+{
+"ring_no": "RX49",
+"rating": "3000",
+"size_in": 9.0
+},
+{
+"ring_no": "RX50",
+"rating": "5000",
+"size_in": 9.0
+},
+{
+"ring_no": "RX53",
+"rating": "2000",
+"size_in": 11.0
+},
+{
+"ring_no": "RX53",
+"rating": "3000",
+"size_in": 11.0
+},
+{
+"ring_no": "RX54",
+"rating": "5000",
+"size_in": 11.0
+},
+{
+"ring_no": "RX57",
+"rating": "2000",
+"size_in": 13.625
+},
+{
+"ring_no": "RX57",
+"rating": "3000",
+"size_in": 13.625
+},
+{
+"ring_no": "RX65",
+"rating": "2000",
+"size_in": 16.75
+},
+{
+"ring_no": "RX66",
+"rating": "3000",
+"size_in": 16.75
+},
+{
+"ring_no": "RX73",
+"rating": "2000",
+"size_in": 21.25
+},
+{
+"ring_no": "RX74",
+"rating": "3000",
+"size_in": 20.75
+},
+{
+"ring_no": "RX201",
+"rating": "5000",
+"size_in": 1.375,
+"only": "segmented flanges (dual completions)"
+},
+{
+"ring_no": "RX205",
+"rating": "5000",
+"size_in": 1.8125,
+"only": "segmented flanges (dual completions)"
+},
+{
+"ring_no": "RX210",
+"rating": "5000",
+"size_in": 2.5625,
+"only": "segmented flanges (dual completions)"
+},
+{
+"ring_no": "RX215",
+"rating": "5000",
+"size_in": 4.0625
+},
+{
+"ring_no": "RX215",
+"rating": "5000",
+"size_in": 4.0625,
+"only": "segmented flanges (dual completions)"
+},
+{
+"ring_no": "BX151",
+"rating": "10000",
+"size_in": 1.8125
+},
+{
+"ring_no": "BX151",
+"rating": "15000",
+"size_in": 1.8125
+},
+{
+"ring_no": "BX151",
+"rating": "20000",
+"size_in": 1.8125
+},
+{
+"ring_no": "BX152",
+"rating": "10000",
+"size_in": 2.0625
+},
+{
+"ring_no": "BX152",
+"rating": "15000",
+"size_in": 2.0625
+},
+{
+"ring_no": "BX152",
+"rating": "20000",
+"size_in": 2.0625
+},
+{
+"ring_no": "BX153",
+"rating": "10000",
+"size_in": 2.5625
+},
+{
+"ring_no": "BX153",
+"rating": "15000",
+"size_in": 2.5625
+},
+{
+"ring_no": "BX153",
+"rating": "20000",
+"size_in": 2.5625
+},
+{
+"ring_no": "BX154",
+"rating": "10000",
+"size_in": 3.0625
+},
+{
+"ring_no": "BX154",
+"rating": "15000",
+"size_in": 3.0625
+},
+{
+"ring_no": "BX154",
+"rating": "20000",
+"size_in": 3.0625
+},
+{
+"ring_no": "BX155",
+"rating": "10000",
+"size_in": 4.0625
+},
+{
+"ring_no": "BX155",
+"rating": "15000",
+"size_in": 4.0625
+},
+{
+"ring_no": "BX155",
+"rating": "20000",
+"size_in": 4.0625
+},
+{
+"ring_no": "BX156",
+"rating": "10000",
+"size_in": 7.0625
+},
+{
+"ring_no": "BX156",
+"rating": "15000",
+"size_in": 7.0625
+},
+{
+"ring_no": "BX156",
+"rating": "20000",
+"size_in": 7.0625
+},
+{
+"ring_no": "BX157",
+"rating": "10000",
+"size_in": 9.0
+},
+{
+"ring_no": "BX157",
+"rating": "15000",
+"size_in": 9.0
+},
+{
+"ring_no": "BX157",
+"rating": "20000",
+"size_in": 9.0
+},
+{
+"ring_no": "BX158",
+"rating": "10000",
+"size_in": 11.0
+},
+{
+"ring_no": "BX158",
+"rating": "15000",
+"size_in": 11.0
+},
+{
+"ring_no": "BX158",
+"rating": "20000",
+"size_in": 11.0
+},
+{
+"ring_no": "BX159",
+"rating": "10000",
+"size_in": 13.625
+},
+{
+"ring_no": "BX159",
+"rating": "15000",
+"size_in": 13.625
+},
+{
+"ring_no": "BX159",
+"rating": "20000",
+"size_in": 13.625
+},
+{
+"ring_no": "BX160",
+"rating": "5000",
+"size_in": 13.625
+},
+{
+"ring_no": "BX161",
+"rating": "5000",
+"size_in": 16.75
+},
+{
+"ring_no": "BX162",
+"rating": "5000",
+"size_in": 16.75
+},
+{
+"ring_no": "BX162",
+"rating": "10000",
+"size_in": 16.75
+},
+{
+"ring_no": "BX162",
+"rating": "15000",
+"size_in": 16.75
+},
+{
+"ring_no": "BX163",
+"rating": "5000",
+"size_in": 18.75
+},
+{
+"ring_no": "BX164",
+"rating": "10000",
+"size_in": 18.75
+},
+{
+"ring_no": "BX164",
+"rating": "15000",
+"size_in": 18.75
+},
+{
+"ring_no": "BX165",
+"rating": "5000",
+"size_in": 21.25
+},
+{
+"ring_no": "BX166",
+"rating": "10000",
+"size_in": 21.25
+},
+{
+"ring_no": "BX167",
+"rating": "2000",
+"size_in": 26.75
+},
+{
+"ring_no": "BX169",
+"rating": "10000",
+"size_in": 5.75
+},
+{
+"ring_no": "BX168",
+"rating": "3000",
+"size_in": 26.75
+},
+{
+"ring_no": "BX303",
+"rating": "2000",
+"size_in": 30.0
+},
+{
+"ring_no": "BX303",
+"rating": "3000",
+"size_in": 30.0
+}
+],
+"rings": {
+"R11": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 34.13,
+"width_mm": 6.35,
+"oval_height_mm": 11.1,
+"oct_height_mm": 9.5,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.111,
+"weight_oct_lb": 0.104
+},
+"R12": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 39.69,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.216,
+"weight_oct_lb": 0.2
+},
+"R13": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 42.86,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.234,
+"weight_oct_lb": 0.216
+},
+"R14": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 44.45,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.242,
+"weight_oct_lb": 0.224
+},
+"R15": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 47.63,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.26,
+"weight_oct_lb": 0.24
+},
+"R16": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 50.8,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.278,
+"weight_oct_lb": 0.256
+},
+"R17": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 57.15,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.311,
+"weight_oct_lb": 0.288
+},
+"R18": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 60.33,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.328,
+"weight_oct_lb": 0.304
+},
+"R19": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 65.09,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.354,
+"weight_oct_lb": 0.328
+},
+"R20": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 68.28,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": 4.1,
+"weight_oval_lb": 0.372,
+"weight_oct_lb": 0.344
+},
+"R21": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 72.23,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.66,
+"weight_oct_lb": 0.643
+},
+"R22": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 82.55,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.45,
+"weight_oct_lb": 0.415
+},
+"R23": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 82.55,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 0.755,
+"weight_oct_lb": 0.734
+},
+"R24": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 95.25,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 0.87,
+"weight_oct_lb": 0.846
+},
+"R25": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 101.6,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.553,
+"weight_oct_lb": 0.51
+},
+"R26": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 101.6,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 0.93,
+"weight_oct_lb": 0.904
+},
+"R27": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 107.95,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 1.05,
+"weight_oct_lb": 0.96
+},
+"R28": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 111.13,
+"width_mm": 12.7,
+"oval_height_mm": 19.1,
+"oct_height_mm": 17.5,
+"flange_gap_mm": null,
+"weight_oval_lb": 1.255,
+"weight_oct_lb": 1.23
+},
+"R29": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 114.3,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.622,
+"weight_oct_lb": 0.575
+},
+"R30": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 117.48,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": null,
+"weight_oval_lb": 1.075,
+"weight_oct_lb": 1.047,
+"only": "lapped flanges"
+},
+"R31": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 123.83,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 1.13,
+"weight_oct_lb": 1.1
+},
+"R32": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 127.0,
+"width_mm": 12.7,
+"oval_height_mm": 19.1,
+"oct_height_mm": 17.5,
+"flange_gap_mm": null,
+"weight_oval_lb": 1.435,
+"weight_oct_lb": 1.405
+},
+"R33": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 131.76,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.718,
+"weight_oct_lb": 0.664
+},
+"R34": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 131.76,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": null,
+"weight_oval_lb": 1.2,
+"weight_oct_lb": 1.17
+},
+"R35": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 136.53,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 1.25,
+"weight_oct_lb": 1.21
+},
+"R36": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 149.23,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.813,
+"weight_oct_lb": 0.735
+},
+"R37": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 149.23,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 1.36,
+"weight_oct_lb": 1.33
+},
+"R38": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 157.16,
+"width_mm": 15.88,
+"oval_height_mm": 22.4,
+"oct_height_mm": 20.6,
+"flange_gap_mm": null,
+"weight_oval_lb": 2.56,
+"weight_oct_lb": 2.52
+},
+"R39": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 161.93,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 1.48,
+"weight_oct_lb": 1.44
+},
+"R40": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 171.45,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 0.935,
+"weight_oct_lb": 0.865
+},
+"R41": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 180.98,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 1.66,
+"weight_oct_lb": 1.61
+},
+"R42": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 190.5,
+"width_mm": 19.05,
+"oval_height_mm": 25.4,
+"oct_height_mm": 23.9,
+"flange_gap_mm": null,
+"weight_oval_lb": 4.21,
+"weight_oct_lb": 4.16
+},
+"R43": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 193.68,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 1.055,
+"weight_oct_lb": 0.975
+},
+"R44": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 193.68,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 1.77,
+"weight_oct_lb": 1.73
+},
+"R45": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 211.14,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 1.93,
+"weight_oct_lb": 1.88
+},
+"R46": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 211.14,
+"width_mm": 12.7,
+"oval_height_mm": 19.1,
+"oct_height_mm": 17.5,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 2.39,
+"weight_oct_lb": 2.33
+},
+"R47": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 228.6,
+"width_mm": 19.05,
+"oval_height_mm": 25.4,
+"oct_height_mm": 23.9,
+"flange_gap_mm": 4.1,
+"weight_oval_lb": 5.06,
+"weight_oct_lb": 4.99
+},
+"R48": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 247.65,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 1.35,
+"weight_oct_lb": 1.24
+},
+"R49": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 269.88,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 2.47,
+"weight_oct_lb": 2.4
+},
+"R50": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 269.88,
+"width_mm": 15.88,
+"oval_height_mm": 22.4,
+"oct_height_mm": 20.6,
+"flange_gap_mm": 4.1,
+"weight_oval_lb": 4.4,
+"weight_oct_lb": 4.32
+},
+"R51": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 279.4,
+"width_mm": 22.23,
+"oval_height_mm": 28.6,
+"oct_height_mm": 27.0,
+"flange_gap_mm": null,
+"weight_oval_lb": 8.05,
+"weight_oct_lb": 8.17
+},
+"R52": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 304.8,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 1.66,
+"weight_oct_lb": 1.53
+},
+"R53": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 323.85,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 3.0,
+"weight_oct_lb": 2.88
+},
+"R54": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 323.85,
+"width_mm": 15.88,
+"oval_height_mm": 22.4,
+"oct_height_mm": 20.6,
+"flange_gap_mm": 4.1,
+"weight_oval_lb": 5.29,
+"weight_oct_lb": 5.18
+},
+"R55": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 342.9,
+"width_mm": 28.58,
+"oval_height_mm": 36.5,
+"oct_height_mm": 34.9,
+"flange_gap_mm": null,
+"weight_oval_lb": 16.23,
+"weight_oct_lb": 17.04
+},
+"R56": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 381.0,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 2.07,
+"weight_oct_lb": 1.92
+},
+"R57": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 381.0,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 3.48,
+"weight_oct_lb": 3.38
+},
+"R58": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 381.0,
+"width_mm": 22.23,
+"oval_height_mm": 28.6,
+"oct_height_mm": 27.0,
+"flange_gap_mm": null,
+"weight_oval_lb": 11.0,
+"weight_oct_lb": 11.13
+},
+"R59": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 396.88,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 2.16,
+"weight_oct_lb": 2.0
+},
+"R60": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 406.4,
+"width_mm": 31.75,
+"oval_height_mm": 39.7,
+"oct_height_mm": 38.1,
+"flange_gap_mm": null,
+"weight_oval_lb": 23.1,
+"weight_oct_lb": 23.5
+},
+"R61": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 419.1,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": null,
+"weight_oval_lb": 3.83,
+"weight_oct_lb": 3.73
+},
+"R62": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 419.1,
+"width_mm": 15.88,
+"oval_height_mm": 22.2,
+"oct_height_mm": 20.6,
+"flange_gap_mm": null,
+"weight_oval_lb": 6.84,
+"weight_oct_lb": 6.71
+},
+"R63": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 419.1,
+"width_mm": 25.4,
+"oval_height_mm": 33.3,
+"oct_height_mm": 31.8,
+"flange_gap_mm": 5.6,
+"weight_oval_lb": 16.2,
+"weight_oct_lb": 16.67
+},
+"R64": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 454.03,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 2.47,
+"weight_oct_lb": 2.29
+},
+"R65": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 469.9,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 4.3,
+"weight_oct_lb": 4.18
+},
+"R66": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 469.9,
+"width_mm": 15.88,
+"oval_height_mm": 22.2,
+"oct_height_mm": 20.6,
+"flange_gap_mm": 4.1,
+"weight_oval_lb": 7.67,
+"weight_oct_lb": 7.53
+},
+"R67": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 469.9,
+"width_mm": 28.58,
+"oval_height_mm": 36.5,
+"oct_height_mm": 34.9,
+"flange_gap_mm": null,
+"weight_oval_lb": 22.3,
+"weight_oct_lb": 23.4
+},
+"R68": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 517.53,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 2.82,
+"weight_oct_lb": 2.6
+},
+"R69": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 533.4,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 4.87,
+"weight_oct_lb": 4.74
+},
+"R70": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 533.4,
+"width_mm": 19.05,
+"oval_height_mm": 25.4,
+"oct_height_mm": 23.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 11.8,
+"weight_oct_lb": 11.64
+},
+"R71": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 533.4,
+"width_mm": 28.58,
+"oval_height_mm": 36.5,
+"oct_height_mm": 34.9,
+"flange_gap_mm": null,
+"weight_oval_lb": 25.2,
+"weight_oct_lb": 26.5
+},
+"R72": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 558.8,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 3.04,
+"weight_oct_lb": 2.81
+},
+"R73": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 584.2,
+"width_mm": 12.7,
+"oval_height_mm": 19.1,
+"oct_height_mm": 17.5,
+"flange_gap_mm": 3.3,
+"weight_oval_lb": 6.6,
+"weight_oct_lb": 6.47
+},
+"R74": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 584.2,
+"width_mm": 19.05,
+"oval_height_mm": 25.4,
+"oct_height_mm": 23.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": 12.95,
+"weight_oct_lb": 12.75
+},
+"R75": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 584.2,
+"width_mm": 31.75,
+"oval_height_mm": 39.7,
+"oct_height_mm": 38.1,
+"flange_gap_mm": null,
+"weight_oval_lb": 33.3,
+"weight_oct_lb": 35.3
+},
+"R76": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 673.1,
+"width_mm": 7.95,
+"oval_height_mm": 14.3,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": 3.66,
+"weight_oct_lb": 3.38
+},
+"R77": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 692.15,
+"width_mm": 15.88,
+"oval_height_mm": 22.4,
+"oct_height_mm": 20.6,
+"flange_gap_mm": null,
+"weight_oval_lb": 11.3,
+"weight_oct_lb": 11.1
+},
+"R78": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 692.15,
+"width_mm": 25.4,
+"oval_height_mm": 33.3,
+"oct_height_mm": 31.8,
+"flange_gap_mm": null,
+"weight_oval_lb": 27.1,
+"weight_oct_lb": 27.58
+},
+"R79": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 692.15,
+"width_mm": 34.93,
+"oval_height_mm": 44.5,
+"oct_height_mm": 41.3,
+"flange_gap_mm": null,
+"weight_oval_lb": 48.7,
+"weight_oct_lb": 49.75
+},
+"R80": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 615.95,
+"width_mm": 7.95,
+"oval_height_mm": null,
+"oct_height_mm": 12.7,
+"flange_gap_mm": null,
+"weight_oval_lb": null,
+"weight_oct_lb": 3.11
+},
+"R81": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 635.0,
+"width_mm": 14.29,
+"oval_height_mm": null,
+"oct_height_mm": 19.1,
+"flange_gap_mm": null,
+"weight_oval_lb": null,
+"weight_oct_lb": 8.55
+},
+"R82": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 57.14,
+"width_mm": 11.11,
+"oval_height_mm": null,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": null,
+"weight_oct_lb": 0.508
+},
+"R84": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 63.5,
+"width_mm": 11.11,
+"oval_height_mm": null,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": null,
+"weight_oct_lb": 0.564
+},
+"R85": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 79.38,
+"width_mm": 12.7,
+"oval_height_mm": null,
+"oct_height_mm": 17.5,
+"flange_gap_mm": 3.3,
+"weight_oval_lb": null,
+"weight_oct_lb": 0.978
+},
+"R86": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 90.5,
+"width_mm": 15.88,
+"oval_height_mm": null,
+"oct_height_mm": 20.6,
+"flange_gap_mm": 4.1,
+"weight_oval_lb": null,
+"weight_oct_lb": 1.447
+},
+"R87": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 100.03,
+"width_mm": 15.88,
+"oval_height_mm": null,
+"oct_height_mm": 20.6,
+"flange_gap_mm": 4.1,
+"weight_oval_lb": null,
+"weight_oct_lb": 1.597
+},
+"R88": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 122.83,
+"width_mm": 19.05,
+"oval_height_mm": null,
+"oct_height_mm": 23.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": null,
+"weight_oct_lb": 2.735
+},
+"R89": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 114.3,
+"width_mm": 19.05,
+"oval_height_mm": null,
+"oct_height_mm": 23.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": null,
+"weight_oct_lb": 2.528
+},
+"R90": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 155.58,
+"width_mm": 22.23,
+"oval_height_mm": null,
+"oct_height_mm": 26.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": null,
+"weight_oct_lb": 4.55
+},
+"R91": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 260.25,
+"width_mm": 31.75,
+"oval_height_mm": null,
+"oct_height_mm": 38.1,
+"flange_gap_mm": 4.1,
+"weight_oval_lb": null,
+"weight_oct_lb": 15.05
+},
+"R92": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 228.6,
+"width_mm": 11.11,
+"oval_height_mm": 17.5,
+"oct_height_mm": 15.9,
+"flange_gap_mm": null,
+"weight_oval_lb": 2.07,
+"weight_oct_lb": 2.02
+},
+"R93": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 749.3,
+"width_mm": 19.05,
+"oval_height_mm": null,
+"oct_height_mm": 23.9,
+"flange_gap_mm": null,
+"weight_oval_lb": null,
+"weight_oct_lb": 16.33
+},
+"R94": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 800.1,
+"width_mm": 19.05,
+"oval_height_mm": null,
+"oct_height_mm": 23.9,
+"flange_gap_mm": null,
+"weight_oval_lb": null,
+"weight_oct_lb": 17.44
+},
+"R95": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 857.25,
+"width_mm": 19.05,
+"oval_height_mm": null,
+"oct_height_mm": 23.9,
+"flange_gap_mm": null,
+"weight_oval_lb": null,
+"weight_oct_lb": 18.69
+},
+"R96": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 914.4,
+"width_mm": 22.23,
+"oval_height_mm": null,
+"oct_height_mm": 27.0,
+"flange_gap_mm": null,
+"weight_oval_lb": null,
+"weight_oct_lb": 26.65
+},
+"R97": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 965.2,
+"width_mm": 22.23,
+"oval_height_mm": null,
+"oct_height_mm": 27.0,
+"flange_gap_mm": null,
+"weight_oval_lb": null,
+"weight_oct_lb": 28.13
+},
+"R98": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 1022.35,
+"width_mm": 22.23,
+"oval_height_mm": null,
+"oct_height_mm": 27.0,
+"flange_gap_mm": null,
+"weight_oval_lb": null,
+"weight_oct_lb": 29.79
+},
+"R99": {
+"style": "R",
+"api_6a": true,
+"pitch_mm": 234.95,
+"width_mm": 11.11,
+"oval_height_mm": null,
+"oct_height_mm": 15.9,
+"flange_gap_mm": 4.8,
+"weight_oval_lb": null,
+"weight_oct_lb": 2.08
+},
+"R100": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 749.3,
+"width_mm": 28.58,
+"oval_height_mm": null,
+"oct_height_mm": 34.9,
+"flange_gap_mm": null
+},
+"R101": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 800.1,
+"width_mm": 31.75,
+"oval_height_mm": null,
+"oct_height_mm": 38.1,
+"flange_gap_mm": null
+},
+"R102": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 857.25,
+"width_mm": 31.75,
+"oval_height_mm": null,
+"oct_height_mm": 38.1,
+"flange_gap_mm": null
+},
+"R103": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 914.4,
+"width_mm": 31.75,
+"oval_height_mm": null,
+"oct_height_mm": 38.1,
+"flange_gap_mm": null
+},
+"R104": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 965.2,
+"width_mm": 34.93,
+"oval_height_mm": null,
+"oct_height_mm": 41.3,
+"flange_gap_mm": null
+},
+"R105": {
+"style": "R",
+"api_6a": false,
+"pitch_mm": 1022.35,
+"width_mm": 34.93,
+"oval_height_mm": null,
+"oct_height_mm": 41.3,
+"flange_gap_mm": null
+},
+"RX20": {
+"style": "RX",
+"pitch_mm": 68.26,
+"od_mm": 76.2,
+"width_mm": 8.73,
+"height_mm": 19.05,
+"weight_lb": 0.527
+},
+"RX20\u2020": {
+"style": "RX",
+"pitch_mm": 68.26,
+"od_mm": 76.2,
+"width_mm": 8.73,
+"height_mm": 19.05,
+"weight_lb": 0.527,
+"only": "segmented flanges (dual completions)"
+},
+"RX23": {
+"style": "RX",
+"pitch_mm": 82.55,
+"od_mm": 93.27,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 1.15
+},
+"RX24": {
+"style": "RX",
+"pitch_mm": 95.25,
+"od_mm": 105.97,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 1.33
+},
+"RX25\u2020": {
+"style": "RX",
+"pitch_mm": 101.6,
+"od_mm": 109.54,
+"width_mm": 8.73,
+"height_mm": 19.05,
+"weight_lb": 1.42,
+"only": "segmented flanges (dual completions)"
+},
+"RX26": {
+"style": "RX",
+"pitch_mm": 101.6,
+"od_mm": 111.92,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 1.5
+},
+"RX27": {
+"style": "RX",
+"pitch_mm": 107.95,
+"od_mm": 118.27,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 1.73
+},
+"RX31": {
+"style": "RX",
+"pitch_mm": 123.83,
+"od_mm": 134.54,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 1.91
+},
+"RX35": {
+"style": "RX",
+"pitch_mm": 136.53,
+"od_mm": 147.24,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 2.09
+},
+"RX37": {
+"style": "RX",
+"pitch_mm": 149.23,
+"od_mm": 159.94,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 2.27
+},
+"RX39": {
+"style": "RX",
+"pitch_mm": 161.93,
+"od_mm": 172.64,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 2.54
+},
+"RX41": {
+"style": "RX",
+"pitch_mm": 180.98,
+"od_mm": 191.69,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 2.72
+},
+"RX44": {
+"style": "RX",
+"pitch_mm": 193.68,
+"od_mm": 204.39,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 2.96
+},
+"RX45": {
+"style": "RX",
+"pitch_mm": 211.14,
+"od_mm": 221.84,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 3.66
+},
+"RX46": {
+"style": "RX",
+"pitch_mm": 211.14,
+"od_mm": 222.25,
+"width_mm": 13.49,
+"height_mm": 28.58,
+"weight_lb": 8.56
+},
+"RX47": {
+"style": "RX",
+"pitch_mm": 228.6,
+"od_mm": 245.27,
+"width_mm": 19.84,
+"height_mm": 41.28,
+"weight_lb": 3.79
+},
+"RX49": {
+"style": "RX",
+"pitch_mm": 269.88,
+"od_mm": 280.59,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 5.36
+},
+"RX50": {
+"style": "RX",
+"pitch_mm": 269.88,
+"od_mm": 283.37,
+"width_mm": 16.67,
+"height_mm": 31.75,
+"weight_lb": 4.56
+},
+"RX53": {
+"style": "RX",
+"pitch_mm": 323.85,
+"od_mm": 334.57,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 6.45
+},
+"RX54": {
+"style": "RX",
+"pitch_mm": 323.85,
+"od_mm": 337.34,
+"width_mm": 16.67,
+"height_mm": 31.75,
+"weight_lb": 5.36
+},
+"RX57": {
+"style": "RX",
+"pitch_mm": 381.0,
+"od_mm": 391.72,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 26.4
+},
+"RX63": {
+"style": "RX",
+"pitch_mm": 419.1,
+"od_mm": 441.72,
+"width_mm": 26.99,
+"height_mm": 50.8,
+"weight_lb": 6.63
+},
+"RX65": {
+"style": "RX",
+"pitch_mm": 469.9,
+"od_mm": 480.62,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 9.39
+},
+"RX66": {
+"style": "RX",
+"pitch_mm": 469.9,
+"od_mm": 457.99,
+"width_mm": 16.67,
+"height_mm": 31.75,
+"weight_lb": 7.52
+},
+"RX69": {
+"style": "RX",
+"pitch_mm": 533.4,
+"od_mm": 544.12,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 20.14
+},
+"RX70": {
+"style": "RX",
+"pitch_mm": 533.4,
+"od_mm": 550.07,
+"width_mm": 19.84,
+"height_mm": 41.28,
+"weight_lb": 11.63
+},
+"RX73": {
+"style": "RX",
+"pitch_mm": 584.2,
+"od_mm": 596.11,
+"width_mm": 13.49,
+"height_mm": 31.75,
+"weight_lb": 22.1
+},
+"RX74": {
+"style": "RX",
+"pitch_mm": 584.2,
+"od_mm": 600.87,
+"width_mm": 19.84,
+"height_mm": 41.28,
+"weight_lb": 0.79
+},
+"RX82": {
+"style": "RX",
+"pitch_mm": 57.15,
+"od_mm": 67.87,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 0.88
+},
+"RX84": {
+"style": "RX",
+"pitch_mm": 63.5,
+"od_mm": 74.22,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": 0.88
+},
+"RX85": {
+"style": "RX",
+"pitch_mm": 79.38,
+"od_mm": 90.09,
+"width_mm": 13.49,
+"height_mm": 25.4,
+"weight_lb": 1.79
+},
+"RX86": {
+"style": "RX",
+"pitch_mm": 90.49,
+"od_mm": 103.58,
+"width_mm": 15.08,
+"height_mm": 28.58,
+"weight_lb": 1.98
+},
+"RX87": {
+"style": "RX",
+"pitch_mm": 100.01,
+"od_mm": 113.11,
+"width_mm": 15.08,
+"height_mm": 28.58,
+"weight_lb": 3.22
+},
+"RX88": {
+"style": "RX",
+"pitch_mm": 123.83,
+"od_mm": 139.3,
+"width_mm": 17.46,
+"height_mm": 31.75,
+"weight_lb": 2.98
+},
+"RX89": {
+"style": "RX",
+"pitch_mm": 114.3,
+"od_mm": 129.78,
+"width_mm": 18.26,
+"height_mm": 31.75,
+"weight_lb": 6.82
+},
+"RX90": {
+"style": "RX",
+"pitch_mm": 155.58,
+"od_mm": 174.63,
+"width_mm": 19.84,
+"height_mm": 44.45,
+"weight_lb": 17.1
+},
+"RX91": {
+"style": "RX",
+"pitch_mm": 260.35,
+"od_mm": 286.94,
+"width_mm": 30.16,
+"height_mm": 45.24,
+"weight_lb": 3.31
+},
+"RX99": {
+"style": "RX",
+"pitch_mm": 234.95,
+"od_mm": 245.67,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": null
+},
+"RX201\u2020": {
+"style": "RX",
+"pitch_mm": 46.04,
+"od_mm": 51.46,
+"width_mm": 5.74,
+"height_mm": 11.3,
+"weight_lb": null,
+"only": "segmented flanges (dual completions)"
+},
+"RX205\u2020": {
+"style": "RX",
+"pitch_mm": 57.15,
+"od_mm": 62.31,
+"width_mm": 5.56,
+"height_mm": 11.1,
+"weight_lb": null,
+"only": "segmented flanges (dual completions)"
+},
+"RX210\u2020": {
+"style": "RX",
+"pitch_mm": 88.9,
+"od_mm": 97.63,
+"width_mm": 9.53,
+"height_mm": 19.05,
+"weight_lb": null,
+"only": "segmented flanges (dual completions)"
+},
+"RX215": {
+"style": "RX",
+"pitch_mm": 130.18,
+"od_mm": 140.89,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": null
+},
+"RX215\u2020": {
+"style": "RX",
+"pitch_mm": 130.18,
+"od_mm": 140.89,
+"width_mm": 11.91,
+"height_mm": 25.4,
+"weight_lb": null,
+"only": "segmented flanges (dual completions)"
+},
+"BX150": {
+"style": "BX",
+"od_mm": 72.19,
+"height_mm": 9.3,
+"width_mm": 9.3,
+"hole_mm": 1.59,
+"weight_lb": 0.295
+},
+"BX151": {
+"style": "BX",
+"od_mm": 76.4,
+"height_mm": 9.63,
+"width_mm": 9.63,
+"hole_mm": 1.59,
+"weight_lb": 0.337
+},
+"BX152": {
+"style": "BX",
+"od_mm": 84.68,
+"height_mm": 10.24,
+"width_mm": 10.24,
+"hole_mm": 1.59,
+"weight_lb": 0.425
+},
+"BX153": {
+"style": "BX",
+"od_mm": 100.94,
+"height_mm": 11.38,
+"width_mm": 11.38,
+"hole_mm": 1.59,
+"weight_lb": 0.632
+},
+"BX154": {
+"style": "BX",
+"od_mm": 116.84,
+"height_mm": 12.4,
+"width_mm": 12.4,
+"hole_mm": 1.59,
+"weight_lb": 0.875
+},
+"BX155": {
+"style": "BX",
+"od_mm": 147.96,
+"height_mm": 14.22,
+"width_mm": 14.22,
+"hole_mm": 1.59,
+"weight_lb": 1.22
+},
+"BX156": {
+"style": "BX",
+"od_mm": 237.92,
+"height_mm": 18.62,
+"width_mm": 18.62,
+"hole_mm": 3.18,
+"weight_lb": 4.14
+},
+"BX157": {
+"style": "BX",
+"od_mm": 294.46,
+"height_mm": 20.98,
+"width_mm": 20.98,
+"hole_mm": 3.18,
+"weight_lb": 6.55
+},
+"BX158": {
+"style": "BX",
+"od_mm": 352.04,
+"height_mm": 23.14,
+"width_mm": 23.14,
+"hole_mm": 3.18,
+"weight_lb": 9.6
+},
+"BX159": {
+"style": "BX",
+"od_mm": 426.72,
+"height_mm": 25.7,
+"width_mm": 25.7,
+"hole_mm": 3.18,
+"weight_lb": 14.41
+},
+"BX160": {
+"style": "BX",
+"od_mm": 402.59,
+"height_mm": 23.83,
+"width_mm": 13.74,
+"hole_mm": 3.18,
+"weight_lb": 6.75
+},
+"BX161": {
+"style": "BX",
+"od_mm": 491.41,
+"height_mm": 28.07,
+"width_mm": 16.21,
+"hole_mm": 3.18,
+"weight_lb": null
+},
+"BX162": {
+"style": "BX",
+"od_mm": 475.49,
+"height_mm": 14.22,
+"width_mm": 14.22,
+"hole_mm": 1.59,
+"weight_lb": null
+},
+"BX163": {
+"style": "BX",
+"od_mm": 556.16,
+"height_mm": 30.1,
+"width_mm": 17.37,
+"hole_mm": 3.18,
+"weight_lb": null
+},
+"BX164": {
+"style": "BX",
+"od_mm": 570.56,
+"height_mm": 30.1,
+"width_mm": 24.59,
+"hole_mm": 3.18,
+"weight_lb": null
+},
+"BX165": {
+"style": "BX",
+"od_mm": 624.71,
+"height_mm": 32.03,
+"width_mm": 18.49,
+"hole_mm": 3.18,
+"weight_lb": null
+},
+"BX166": {
+"style": "BX",
+"od_mm": 640.03,
+"height_mm": 32.03,
+"width_mm": 26.14,
+"hole_mm": 3.18,
+"weight_lb": null
+},
+"BX167": {
+"style": "BX",
+"od_mm": 759.36,
+"height_mm": 35.87,
+"width_mm": 13.11,
+"hole_mm": 1.59,
+"weight_lb": null
+},
+"BX168": {
+"style": "BX",
+"od_mm": 765.25,
+"height_mm": 35.87,
+"width_mm": 16.05,
+"hole_mm": 1.59,
+"weight_lb": null
+},
+"BX169": {
+"style": "BX",
+"od_mm": 173.51,
+"height_mm": 15.85,
+"width_mm": 12.93,
+"hole_mm": 1.59,
+"weight_lb": null
+},
+"BX170": {
+"style": "BX",
+"od_mm": 218.03,
+"height_mm": 14.22,
+"width_mm": 14.22,
+"hole_mm": 1.59,
+"weight_lb": null
+},
+"BX171": {
+"style": "BX",
+"od_mm": 267.44,
+"height_mm": 14.22,
+"width_mm": 14.22,
+"hole_mm": 1.59,
+"weight_lb": null
+},
+"BX172": {
+"style": "BX",
+"od_mm": 333.07,
+"height_mm": 14.22,
+"width_mm": 14.22,
+"hole_mm": 1.59,
+"weight_lb": null
+},
+"BX303": {
+"style": "BX",
+"od_mm": 852.75,
+"height_mm": 37.95,
+"width_mm": 16.97,
+"hole_mm": 1.59,
+"weight_lb": null
+}
+},
+"materials": [
+{
+"material": "Soft Iron",
+"brinell_max": 90,
+"rockwell_b_max": 56,
+"identification": "D"
+},
+{
+"material": "Low Carbon Steel",
+"brinell_max": 120,
+"rockwell_b_max": 68,
+"identification": "S"
+},
+{
+"material": "4\u20136% Chrome 1/2% Moly",
+"uns": "K42544",
+"brinell_max": 130,
+"rockwell_b_max": 72,
+"identification": "F5"
+},
+{
+"material": "Type 304 Stainless Steel",
+"uns": "S30400",
+"brinell_max": 160,
+"rockwell_b_max": 83,
+"identification": "S304"
+},
+{
+"material": "Type 316 Stainless Steel",
+"uns": "S31600",
+"brinell_max": 160,
+"rockwell_b_max": 83,
+"identification": "S316"
+},
+{
+"material": "Type 347 Stainless Steel",
+"uns": "S34700",
+"brinell_max": 160,
+"rockwell_b_max": 83,
+"identification": "S347"
+},
+{
+"material": "Type 410 Stainless Steel",
+"uns": "S41000",
+"brinell_max": 170,
+"rockwell_b_max": 86,
+"identification": "S410"
+},
+{
+"material": "Titanium Grade 2",
+"uns": "R50400"
+},
+{
+"material": "Alloy 600",
+"uns": "N06600",
+"brinell_max": 200
+},
+{
+"material": "Alloy 625",
+"uns": "N06625",
+"brinell_max": 200
+},
+{
+"material": "Alloy 800",
+"uns": "N08800",
+"brinell_max": 200
+},
+{
+"material": "Alloy 825",
+"uns": "N08825",
+"brinell_max": 160
+},
+{
+"material": "Hastelloy",
+"uns": "N10001",
+"brinell_max": 200
+},
+{
+"material": "Alloy C276",
+"uns": "N10276",
+"brinell_max": 200
+},
+{
+"material": "SMO 254",
+"uns": "S32154",
+"brinell_max": 180
+},
+{
+"material": "Zeron 100",
+"brinell_max": 200
+},
+{
+"material": "Super Duplex",
+"uns": "S31803"
+}
+],
+"tolerances": {
+"R": "A (width) \u00b10.008in; B, H (height) \u00b10.020in; P (pitch diameter) \u00b10.007in; 23\u00b0 angle \u00b11/2\u00b0",
+"RX": "A (width) +0.008/-0in; H (height) +0.008/-0in; OD +0.020/-0in; 23\u00b0 angle \u00b11/2\u00b0",
+"BX": "A (width) +0.008/-0in; H (height) +0.008/-0in; OD +0/-0.005in; hole D \u00b10.02in; 23\u00b0 angle \u00b11/4\u00b0"
+},
+"notes": [
+"Hardness: Brinell measured with a 3000 kg load (soft iron 500 kg); Rockwell B with 100 kg and a 1/16in ball.",
+"Soft iron and low carbon steel rings are zinc plated, at most 8 \u00b5m."
+]
+}
