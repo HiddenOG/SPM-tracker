@@ -240,103 +240,229 @@ def _material_label(r: dict) -> str:
     return f"{r['style']}, {r.get('variant') or 'each'}"
 
 
-# SPM's selling price in USD from a Flexitallic 2022 list price (GBP):
-#   [(GBP x 1.35 conversion x 1.47 SPM markup x 1.13 Flexitallic markup)
-#     + ((weight kg + 0.05 extra) x 12 shipping per kg)] x 1.36 SPM markup
+# SPM's selling price in USD, written as a formula a person can read and edit
+# like a spreadsheet cell: the list price (GBP or USD) and the weight (kg).
+#   Flexitallic 2022 (GBP): [(GBP x 1.35 conversion x 1.47 SPM markup x 1.13 Flexitallic markup)
+#                            + ((kg + 0.05 extra) x 12 shipping per kg)] x 1.36 SPM markup
+#   SPM 2026 (USD, 304):    [(USD x 1.47 SPM markup) + ((kg + 0.05 extra) x 12 shipping per kg)] x 1.36
+DEFAULT_FORMULAS = {
+    "flex_2022": "[(GBP × 1.35 × 1.47 × 1.13) + ((kg + 0.05) × 12)] × 1.36",
+    "spm_2026": "[(USD × 1.47) + ((kg + 0.05) × 12)] × 1.36",
+}
+FORMULAS = DEFAULT_FORMULAS
+_PRICE_WORD = {"flex_2022": "GBP", "spm_2026": "USD"}
+
+# The default as numbers, for the tests and for reading.
 FLEX_2022_USD = {"conv": 1.35, "spm": 1.47, "flex": 1.13, "extra_kg": 0.05, "ship_per_kg": 12.0, "final": 1.36}
-# And from SPM's 2026 list (already USD, 304):
-#   [(USD x 1.47 SPM markup) + ((weight kg + 0.05 extra) x 12 shipping per kg)] x 1.36 SPM markup
 SPM_2026_USD = {"conv": 1.0, "spm": 1.47, "flex": 1.0, "extra_kg": 0.05, "ship_per_kg": 12.0, "final": 1.36}
 
 
-FORMULAS = {"flex_2022": FLEX_2022_USD, "spm_2026": SPM_2026_USD}
-FORMULA_NAMES = {"conv": "GBP to USD conversion", "spm": "SPM markup", "flex": "Flexitallic markup",
-                 "extra_kg": "extra weight (kg)", "ship_per_kg": "shipping per kg", "final": "final SPM markup"}
-# The parts a person may change for one question (Ask): multipliers between 0
-# and 10 (1 removes one), kg and shipping between 0 and 100 (0 removes one).
-_FORMULA_RANGE = {"conv": (0, 10), "spm": (0, 10), "flex": (0, 10), "final": (0, 10),
-                  "extra_kg": (0, 100), "ship_per_kg": (0, 100)}
+def quote_usd(price: float | None, kg: float | None, f: dict = FLEX_2022_USD) -> float | None:
+    """The default formula from its numbers (see DEFAULT_FORMULAS)."""
+    if price is None or kg is None:
+        return None
+    return round((price * f["conv"] * f["spm"] * f["flex"] + (kg + f["extra_kg"]) * f["ship_per_kg"]) * f["final"], 2)
 
+
+# ── reading a typed formula ──────────────────────────────────────────────────
+# Numbers, + - × x * / ÷, any brackets, and two words: the list price (GBP,
+# USD or PRICE) and the weight (KG or WEIGHT). Nothing else is accepted, and
+# nothing is ever passed to eval.
 import contextvars  # noqa: E402
+import re as _re  # noqa: E402
+
+_TOKEN = _re.compile(r"\s*(?:(\d+(?:\.\d*)?|\.\d+)|([A-Za-z]+)|(.))")
+_OPEN, _CLOSE = "([{", ")]}"
+
+
+def _tokens(text: str) -> list:
+    out = []
+    for m in _TOKEN.finditer(text or ""):
+        num, word, sym = m.groups()
+        if num:
+            out.append(("n", float(num)))
+        elif word:
+            w = word.upper()
+            if w == "X":
+                out.append(("op", "*"))
+            elif w in ("GBP", "USD", "PRICE"):
+                out.append(("v", "price"))
+            elif w in ("KG", "KGS", "WEIGHT"):
+                out.append(("v", "kg"))
+            else:
+                raise ValueError(f'"{word}" isn\'t something the formula knows - use the price (GBP/USD) and kg')
+        elif sym is not None and sym.strip():
+            sym = {"×": "*", "÷": "/", "−": "-", "–": "-"}.get(sym, sym)
+            if sym in "+-*/":
+                out.append(("op", sym))
+            elif sym in _OPEN or sym in _CLOSE:
+                out.append(("b", sym))
+            else:
+                raise ValueError(f'"{sym}" can\'t be used in the formula')
+    return out
+
+
+def parse_formula(text: str):
+    """The formula as a small tree, or ValueError with a plain message."""
+    toks = _tokens(text)
+    if not toks:
+        raise ValueError("the formula is empty")
+    pos = 0
+
+    def peek():
+        return toks[pos] if pos < len(toks) else (None, None)
+
+    def take():
+        nonlocal pos
+        pos += 1
+        return toks[pos - 1]
+
+    def expr():
+        node = term()
+        while peek() in (("op", "+"), ("op", "-")):
+            node = (take()[1], node, term())
+        return node
+
+    def term():
+        node = factor()
+        while peek() in (("op", "*"), ("op", "/")):
+            node = (take()[1], node, factor())
+        return node
+
+    def factor():
+        kind, val = peek()
+        if kind == "op" and val == "-":
+            take()
+            return ("neg", factor())
+        if kind in ("n", "v"):
+            take()
+            return (kind, val)
+        if kind == "b" and val in _OPEN:
+            take()
+            node = expr()
+            k2, v2 = peek()
+            if k2 != "b" or v2 not in _CLOSE or _CLOSE.index(v2) != _OPEN.index(val):
+                raise ValueError("a bracket isn't closed")
+            take()
+            return node
+        raise ValueError("the formula isn't complete" if kind is None else "two signs or values are next to each other")
+
+    tree = expr()
+    if pos != len(toks):
+        raise ValueError("there's something extra at the end, or a bracket too many")
+    return tree
+
+
+def _uses(tree, var: str) -> bool:
+    if tree[0] == "v":
+        return tree[1] == var
+    return any(_uses(t, var) for t in tree[1:] if isinstance(t, tuple))
+
+
+def _eval(tree, price: float, kg: float) -> float:
+    k = tree[0]
+    if k == "n":
+        return tree[1]
+    if k == "v":
+        return price if tree[1] == "price" else kg
+    if k == "neg":
+        return -_eval(tree[1], price, kg)
+    a, b = _eval(tree[1], price, kg), _eval(tree[2], price, kg)
+    if k == "/":
+        if b == 0:
+            raise ValueError("the formula divides by zero")
+        return a / b
+    return {"+": a + b, "-": a - b, "*": a * b}[k]
+
+
+def check_formula(text: str, source: str) -> str:
+    """The formula tidied, after checking it reads and gives a sensible price.
+    Raises ValueError with a plain message."""
+    tree = parse_formula(text)
+    if not _uses(tree, "price"):
+        raise ValueError(f"the formula must use the list price ({_PRICE_WORD[source]})")
+    test = _eval(tree, 10.0, 1.0)
+    if not 0 < test < 1_000_000:
+        raise ValueError("the formula doesn't give a sensible price")
+    return " ".join((text or "").split())
+
+
+def formula_usd(text: str, price: float, kg: float | None) -> float | None:
+    """The formula's price for one line; None when it uses kg and there's no weight."""
+    tree = parse_formula(text)
+    if _uses(tree, "kg") and kg is None:
+        return None
+    return round(_eval(tree, price, kg or 0.0), 2)
+
 
 _FORMULA: contextvars.ContextVar = contextvars.ContextVar("price_formula", default=None)
 
 
+def _norm(t) -> str:
+    return _re.sub(r"\s+", "", str(t or "")).lower().replace("x", "×").replace("*", "×")
+
+
 def formula_overrides(raw) -> dict:
-    """{'flex_2022': {'spm': 1.5}, ...} from whatever Ask sent, keeping only
-    known parts with sensible numbers. Raises ValueError with a plain message."""
+    """{'flex_2022': '<formula>'} from what a person saved or Ask sent: each one
+    checked, and dropped when it's just the default. ValueError on a bad one."""
     out: dict = {}
-    for src, parts in (raw or {}).items():
-        if src not in FORMULAS or not isinstance(parts, dict):
+    for src, text in (raw or {}).items():
+        if src not in DEFAULT_FORMULAS or not isinstance(text, str) or not text.strip():
             continue
-        for k, v in parts.items():
-            if k not in _FORMULA_RANGE or (src == "spm_2026" and k in ("conv", "flex")):
-                continue
-            try:
-                v = float(v)
-            except (TypeError, ValueError):
-                raise ValueError(f"{FORMULA_NAMES[k]} must be a number")
-            lo, hi = _FORMULA_RANGE[k]
-            if not lo <= v <= hi:
-                raise ValueError(f"{FORMULA_NAMES[k]} must be between {lo} and {hi}")
-            if v != FORMULAS[src][k]:
-                out.setdefault(src, {})[k] = v
+        try:
+            tidy = check_formula(text, src)
+        except ValueError as exc:
+            raise ValueError(f"{'Flexitallic 2022' if src == 'flex_2022' else 'SPM 2026'} formula: {exc}")
+        if _norm(tidy) != _norm(DEFAULT_FORMULAS[src]):
+            out[src] = tidy
     return out
 
 
-def formula_for(source: str) -> dict:
-    return {**FORMULAS[source], **((_FORMULA.get() or {}).get(source) or {})}
+def merge_formulas(*layers) -> dict:
+    """Later layers win list by list: a person's saved formula, then one asked
+    for in this conversation (which may be the default again, undoing it)."""
+    raw: dict = {}
+    for layer in layers:
+        for src, text in (layer or {}).items():
+            if isinstance(text, str) and text.strip():
+                raw[src] = text
+    return formula_overrides(raw)
 
 
-def formula_text(source: str, f: dict | None = None) -> str:
-    """The formula with its numbers, as a person would write it."""
-    f = f or formula_for(source)
-    price = "GBP" if source == "flex_2022" else "USD"
-    mult = " x ".join(f"{f[k]:g}" for k in ("conv", "spm", "flex") if not (source == "spm_2026" and k in ("conv", "flex")))
-    return f"[({price} x {mult}) + ((kg + {f['extra_kg']:g}) x {f['ship_per_kg']:g})] x {f['final']:g}"
+def formula_defaults() -> dict:
+    return dict(DEFAULT_FORMULAS)
+
+
+def formula_text(source: str) -> str:
+    return ((_FORMULA.get() or {}).get(source)) or DEFAULT_FORMULAS[source]
 
 
 def formula_changes(source: str) -> str:
-    """'SPM markup 1.5 instead of 1.47' for the parts changed for this question, or ''."""
-    ch = (_FORMULA.get() or {}).get(source) or {}
-    return "; ".join(f"{FORMULA_NAMES[k]} {v:g} instead of {FORMULAS[source][k]:g}" for k, v in ch.items())
-
-
-def quote_usd(price: float | None, kg: float | None, f: dict = FLEX_2022_USD) -> float | None:
-    """The final USD price for a list line, or None when the list price or the
-    weight is missing - the shipping part needs the weight."""
-    if price is None or kg is None:
-        return None
-    return round((price * f["conv"] * f["spm"] * f["flex"] + (kg + f["extra_kg"]) * f["ship_per_kg"]) * f["final"], 2)
+    """This question's formula when it isn't the default, with the default beside it."""
+    mine = (_FORMULA.get() or {}).get(source)
+    return f"{mine} (default {DEFAULT_FORMULAS[source]})" if mine else ""
 
 
 def _hit(r: dict, weight: float | None, note: str | None = None, factor: float = 1.0) -> dict:
     price = _num(r.get("price"))
     price = round(price * factor, 2) if price is not None else None
     usd, why_not = None, None
-    if r["source"] == "flex_2022":
-        if r["currency"] != "GBP":
-            why_not = "listed in dollars, not pounds - the formula is for GBP prices"
-        elif price is None:
-            why_not = "no list price"
-        elif weight is None:
-            why_not = "no weight on the weights list"
-        else:
-            usd = quote_usd(price, weight, formula_for("flex_2022"))
-    elif r["source"] == "spm_2026":
-        if price is None:
-            why_not = "no list price"
-        elif weight is None:
-            why_not = "no weight on the weights list"
-        else:
-            usd = quote_usd(price, weight, formula_for("spm_2026"))
-    else:
+    src = r["source"]
+    if src not in DEFAULT_FORMULAS:
         why_not = "no formula for this list"
-    changed = formula_changes(r["source"]) if r["source"] in FORMULAS else ""
+    elif src == "flex_2022" and r["currency"] != "GBP":
+        why_not = "listed in dollars, not pounds - the formula is for GBP prices"
+    elif price is None:
+        why_not = "no list price"
+    else:
+        usd = formula_usd(formula_text(src), price, weight)
+        if usd is None:
+            why_not = "no weight on the weights list"
+    changed = formula_changes(src) if src in DEFAULT_FORMULAS else ""
     return {
-        "source": r["source"], "page": r.get("page"), "label": _label(r), "rating": r.get("rating"),
+        "source": src, "page": r.get("page"), "label": _label(r), "rating": r.get("rating"),
         "price": price, "currency": r["currency"], "quote_usd": usd, "quote_usd_missing": why_not,
-        "formula": formula_text(r["source"]) if r["source"] in FORMULAS else None, "formula_changed": changed or None,
+        "formula": formula_text(src) if src in DEFAULT_FORMULAS else None, "formula_changed": changed or None,
         "poa": bool(r.get("poa")), "weight_kg": weight, "note": "; ".join(x for x in (r.get("note"), note) if x) or None,
     }
 

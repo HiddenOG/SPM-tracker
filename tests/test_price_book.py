@@ -70,23 +70,48 @@ def test_final_usd_price_from_the_2022_formula():
     assert spm["quote_usd"] == pb.quote_usd(27.17, 0.46, pb.SPM_2026_USD)
 
 
-def test_a_formula_part_can_be_changed_or_removed_for_one_question(monkeypatch):
+def test_the_default_formulas_as_text_give_the_same_prices():
+    assert pb.formula_usd(pb.DEFAULT_FORMULAS["flex_2022"], 2.85, 0.4) == 16.04
+    assert pb.formula_usd(pb.DEFAULT_FORMULAS["spm_2026"], 62.83, 1.46) == 150.25
+    assert pb.formula_usd(pb.DEFAULT_FORMULAS["flex_2022"], 2.85, None) is None      # needs the weight
+
+
+def test_a_typed_formula_reads_like_a_spreadsheet():
+    f = "[(GBP x 1.35 * 1.6 × 1.13) + ((kg+0.05)*15)] x 1.36"
+    assert pb.formula_usd(f, 2.85, 0.4) == round((2.85 * 1.35 * 1.6 * 1.13 + 0.45 * 15) * 1.36, 2)
+    assert pb.formula_usd("GBP * 3", 10, None) == 30          # no kg in it: no weight needed
+    import pytest
+    for bad, why in (("(GBP*2", "bracket"), ("foo*2", "foo"), ("kg*12", "list price"), ("GBP / 0", "zero"),
+                     ("GBP * 2 +", "complete"), ("__import__('os')", "")):
+        with pytest.raises(ValueError, match=why):
+            pb.check_formula(bad, "flex_2022")
+
+
+def test_a_formula_change_lasts_one_question(monkeypatch):
     monkeypatch.setattr(pb, "read_lines", lambda ds: [spec(size_in=8, ratings=["150"], grade="316", style="CGI") for _ in ds])
     default = pb.check(["8in 150 316 CGI"], second_look=False)[0]["matches"][0]
     assert default["quote_usd"] == pb.quote_usd(6.98, 0.46) and default["formula_changed"] is None
-    # Flexitallic markup removed (1) and shipping raised to 15 per kg:
-    m = pb.check(["8in 150 316 CGI"], second_look=False, formula={"flex_2022": {"flex": 1, "ship_per_kg": 15}})[0]["matches"][0]
-    assert m["quote_usd"] == round((6.98 * 1.35 * 1.47 * 1 + (0.46 + 0.05) * 15) * 1.36, 2)
-    assert "Flexitallic markup 1 instead of 1.13" in m["formula_changed"] and "x 15)]" in m["formula"]
-    # ...for that question only: the next one is back on the default.
+    mine = "[(GBP × 1.35 × 1.47) + ((kg + 0.05) × 15)] × 1.36"          # no Flexitallic markup, 15 per kg
+    m = pb.check(["8in 150 316 CGI"], second_look=False, formula={"flex_2022": mine})[0]["matches"][0]
+    assert m["quote_usd"] == round((6.98 * 1.35 * 1.47 + 0.51 * 15) * 1.36, 2)
+    assert m["formula"] == mine and "default" in m["formula_changed"]
     assert pb.check(["8in 150 316 CGI"], second_look=False)[0]["matches"][0]["quote_usd"] == default["quote_usd"]
 
 
-def test_a_formula_change_out_of_range_is_refused():
-    import pytest
-    with pytest.raises(ValueError):
-        pb.formula_overrides({"flex_2022": {"spm": 50}})
-    assert pb.formula_overrides({"spm_2026": {"conv": 2, "spm": 1.47}}) == {}   # no conversion on a USD list; 1.47 is the default
+def test_a_saved_formula_and_a_conversation_change_stack():
+    saved = {"flex_2022": "GBP * 4", "spm_2026": "USD * 2"}
+    # The conversation changes the Flexitallic one back to the default: that undoes the saved one.
+    assert pb.merge_formulas(saved, {"flex_2022": pb.DEFAULT_FORMULAS["flex_2022"]}) == {"spm_2026": "USD * 2"}
+    assert pb.merge_formulas(saved, None) == saved and pb.merge_formulas(None, None) == {}
+
+
+def test_ask_uses_the_persons_saved_formula(monkeypatch):
+    import ask_agent
+    seen = {}
+    monkeypatch.setattr(pb, "check", lambda d, formula=None, **kw: seen.update(formula=formula) or [])
+    ask_agent.execute("gasket_price", {"descriptions": ["8in 150 316"], "formula": {"flex_2022": "GBP * 3"}},
+                      ask_agent._Refs(), user={"role": "admin", "price_formula": {"flex_2022": "GBP * 2", "spm_2026": "USD * 2"}})
+    assert seen["formula"] == {"flex_2022": "GBP * 3", "spm_2026": "USD * 2"}
 
 
 def test_316_comes_from_flexitallic_with_its_weight():

@@ -2115,8 +2115,10 @@ def ask(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
         cid = record.start()
         if cid:
             yield f"data: {json.dumps({'t': 'chat', 'id': cid})}\n\n"
+        # The asker's own saved formula, for gasket prices (price roles only).
+        asker = {**user, "price_formula": _saved_formula(user)} if user.get("role") in _PRICE_ROLES else user
         try:
-            for ev in ask_agent.run(question, history, scope, user):
+            for ev in ask_agent.run(question, history, scope, asker):
                 record.see(ev)
                 yield f"data: {json.dumps(ev, default=str)}\n\n"
         except Exception as exc:
@@ -3085,6 +3087,68 @@ def _price_access(user: dict) -> None:
         raise HTTPException(status_code=403, detail="The price lists are for admin and procurement only.")
 
 
+def _saved_formula(user: dict) -> dict:
+    """This person's own changes to the selling-price formula ({} = the default).
+    Quietly {} if the column isn't there yet (migrations/add_user_price_formula.sql)."""
+    try:
+        rows = get_client().table("users").select("price_formula").eq("id", user.get("sub")).limit(1).execute().data
+        return (rows[0].get("price_formula") or {}) if rows else {}
+    except Exception as exc:
+        print(f"  [warn] saved price formula: {exc}")
+        return {}
+
+
+@app.get("/api/price-book/formula")
+def price_formula_get(user: dict = Depends(verify_jwt)):
+    _price_access(user)
+    import price_book
+    try:
+        mine = price_book.formula_overrides(_saved_formula(user))
+    except ValueError:
+        mine = {}
+    return _ok({"defaults": price_book.formula_defaults(), "mine": mine})
+
+
+# One real line per list, so a formula being typed shows what it would charge.
+_FORMULA_EXAMPLE = {"flex_2022": {"what": "R24 soft iron", "price": 2.85, "kg": 0.4},
+                    "spm_2026": {"what": '12" 300# CGI 304', "price": 62.83, "kg": 1.46}}
+
+
+@app.post("/api/price-book/formula/check")
+def price_formula_check(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
+    """Check a formula as it's typed: whether it reads, and its price for an example line."""
+    _price_access(user)
+    import price_book
+    src = body.get("source") if body.get("source") in price_book.DEFAULT_FORMULAS else "flex_2022"
+    ex = _FORMULA_EXAMPLE[src]
+    try:
+        price_book.check_formula(str(body.get("text") or ""), src)
+        usd = price_book.formula_usd(str(body.get("text")), ex["price"], ex["kg"])
+    except ValueError as exc:
+        return _ok({"error": str(exc).capitalize() + "."})
+    default = price_book.formula_usd(price_book.DEFAULT_FORMULAS[src], ex["price"], ex["kg"])
+    return _ok({"error": None, "example": {**ex, "usd": usd, "default_usd": default}})
+
+
+@app.put("/api/price-book/formula")
+def price_formula_save(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
+    """Save this person's formula: only the parts that differ from the default
+    are kept, so a later change to the default still reaches the rest."""
+    _price_access(user)
+    import price_book
+    try:
+        mine = price_book.formula_overrides(body.get("formula") or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc).capitalize() + ".")
+    try:
+        get_client().table("users").update({"price_formula": mine or None}).eq("id", user.get("sub")).execute()
+    except Exception as exc:
+        print(f"  [error] save price formula: {exc}")
+        raise HTTPException(status_code=500, detail="The formula couldn't be saved. If this is new, run "
+                            "migrations/add_user_price_formula.sql.")
+    return _ok({"mine": mine})
+
+
 @app.post("/api/price-book/check")
 def price_book_check(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
     _price_access(user)
@@ -3097,7 +3161,7 @@ def price_book_check(body: dict = Body(default={}), user: dict = Depends(verify_
     # Blank lines keep their place in the answer, so results line up with the rows.
     keep = [i for i, x in enumerate(lines) if x.strip()]
     try:
-        found = price_book.check([lines[i] for i in keep])
+        found = price_book.check([lines[i] for i in keep], formula=_saved_formula(user))
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
     except Exception as exc:

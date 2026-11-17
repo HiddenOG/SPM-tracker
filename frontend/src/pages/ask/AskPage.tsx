@@ -5,6 +5,7 @@ import { useAskChats } from '../../lib/askChats'
 import { canOpen } from '../../lib/pages'
 import { currentUser } from '../../lib/session'
 import { formatAnswer } from './format'
+import { FormulaChip } from './FormulaChip'
 import './ask.css'
 
 /*
@@ -499,6 +500,7 @@ function Ask() {
                         className={scope === s.v ? 'on' : ''} onClick={() => setScope(s.v)}>{s.label}</button>
               ))}
             </div>
+            {['admin', 'procurement'].includes(currentUser()?.role || '') && <FormulaChip />}
             <span className="sp" />
             {busy ? (
               <button className="send stop" type="button" aria-label="Stop" onClick={() => abort.current?.abort()}>{I.stop}</button>
