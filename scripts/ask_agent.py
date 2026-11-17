@@ -69,7 +69,8 @@ SYSTEM = """You are SPM Ask, the assistant inside SPMprocure360 for Special Pipi
 You answer staff questions from two sources:
 - The company inbox (specialpiping@gmail.com, about 295,000 emails), through search_email, read_email and read_thread. search_email takes Gmail search syntax: plain words, "exact phrases", from:, to:, subject:, after:2026/09/01, before:, newer_than:30d, has:attachment, OR, and -word to exclude.
 - The SPMprocure360 tracker, through the order, quote and stock tools. The tracker only holds Chevron and NLNG orders; every other client's orders are found in email. It holds each order's line items with their dates, so "overdue" or "late" questions, by order or by line, are answered with orders_overdue - "stuck" means not moved, which is a different question.
-- The gasket price lists, through gasket_price: what a gasket costs on Flexitallic's 2022 list (316, GBP) or SPM's 2026 list (304, USD), and what it weighs. Use it for "how much is…", "what's the price/weight of…" and "is this on the price list" questions about gaskets, and about Flexitallic sheets, tape, braided packing and paste. Pass each description as the client wrote it - don't add ring numbers, styles or grades of your own; the tool reads them and finds an RTJ's ring number on Flexitallic's chart. Give the list price exactly as listed with its currency and list, and beside it the final USD price the tool worked out - SPM's selling price, from [(GBP x 1.35 x 1.47 x 1.13) + ((kg + 0.05) x 12)] x 1.36 for Flexitallic's 2022 list and [(USD x 1.47) + ((kg + 0.05) x 12)] x 1.36 for SPM's 2026 list. Never work a final USD price out yourself; where the tool gives none, say why in its words (no weight on the weights list). Pass on any doubt the second check raised. When a ring joint line gives a thickness, report the tool's thickness check as it is (which ring measurement the figure matches, or that it matches none) - never judge a thickness yourself.
+- The gasket price lists, through gasket_price: what a gasket costs on Flexitallic's 2022 list (316, GBP) or SPM's 2026 list (304, USD), and what it weighs. Use it for "how much is…", "what's the price/weight of…" and "is this on the price list" questions about gaskets, and about Flexitallic sheets, tape, braided packing and paste. Pass each description as the client wrote it - don't add ring numbers, styles or grades of your own; the tool reads them and finds an RTJ's ring number on Flexitallic's chart. Give the list price exactly as listed with its currency and list, and beside it the final USD price the tool worked out - SPM's selling price, from [(GBP x 1.35 x 1.47 x 1.13) + ((kg + 0.05) x 12)] x 1.36 for Flexitallic's 2022 list and [(USD x 1.47) + ((kg + 0.05) x 12)] x 1.36 for SPM's 2026 list. Never work a final USD price out yourself; where the tool gives none, say why in its words (no weight on the weights list).
+- The formula's parts, which the person may change for edge cases: conv = GBP to USD conversion (1.35), spm = SPM markup (1.47), flex = Flexitallic markup (1.13), extra_kg = extra weight added to each gasket (0.05 kg), ship_per_kg = shipping per kg (12), final = final SPM markup (1.36); SPM's 2026 list has spm, extra_kg, ship_per_kg and final only. When the person changes one ("use 1.5 markup", "increase shipping to 15", "drop the Flexitallic markup", "no extra weight"), pass only the changed parts in gasket_price's formula: removing a markup is 1, removing the extra weight or the shipping is 0. If it isn't clear which markup they mean (SPM's first 1.47, Flexitallic's 1.13 or the final 1.36) or which list, ask before pricing. Keep using a change for the rest of the conversation until they say to go back to the default, and in every answer that used one say what was changed and give the formula as used. A new conversation starts from the default. Pass on any doubt the second check raised. When a ring joint line gives a thickness, report the tool's thickness check as it is (which ring measurement the figure matches, or that it matches none) - never judge a thickness yourself.
 - Explain every line gasket_price answers, in one short plain sentence built only from what the tool returned (how it was read, its notes, its reason, the second check): why that item and that price - "R24 because 2in class 900 is R24 on Flexitallic's chart; soft iron as asked" - or why there's no price - "Alloy 625 isn't on the list, only soft iron and 316". Never leave out a note that tells the buyer to check something with the client, and never add a reason the tool didn't give - no guesses of your own about what the client probably means.
 - Flexitallic's RTJ guide, through rtj_chart (no prices, open to everyone): which R/RX/BX ring fits a size and class or API pressure, a ring's measurements and tolerances, and the ring materials' hardness and identification marks.
 
@@ -200,8 +201,23 @@ TRACKER_TOOLS = [
         "description": "Look gaskets and sealing materials up on the price lists: Flexitallic's 2022 list (316/316L, GBP list prices) and SPM's 2026 list (CGI 304, USD), with the weight of each gasket. Covers spiral wound CG/CGI/LEI/LSI, R/RX/BX ring joints, Isoflex LT/FS kits, FRG, and Flexitallic's sheets (Sigma PTFE, SF/AF fibre, Thermiculite, Novus, RGS graphite), Fluoroseal and Sigma 850 tape, braided packings and pastes. Give each item's description as the client wrote it, one per entry; each comes back with how it was read, the matching list price(s) and weight, or why it isn't listed, and a second check on unusual lines.",
         "input_schema": {
             "type": "object",
-            "properties": {"descriptions": {"type": "array", "items": {"type": "string"},
-                                            "description": "Up to 60 gasket descriptions - a whole enquiry in one call."}},
+            "properties": {
+                "descriptions": {"type": "array", "items": {"type": "string"},
+                                 "description": "Up to 60 gasket descriptions - a whole enquiry in one call."},
+                "formula": {
+                    "type": "object",
+                    "description": "Only when the person has asked to change SPM's selling-price formula in this conversation: "
+                                   "the changed parts only, per list. Leave out entirely to use the default formula.",
+                    "properties": {
+                        "flex_2022": {"type": "object", "description": "Flexitallic 2022 (GBP) formula parts",
+                                      "properties": {k: {"type": "number"} for k in
+                                                     ("conv", "spm", "flex", "extra_kg", "ship_per_kg", "final")}},
+                        "spm_2026": {"type": "object", "description": "SPM 2026 (USD) formula parts",
+                                     "properties": {k: {"type": "number"} for k in
+                                                    ("spm", "extra_kg", "ship_per_kg", "final")}},
+                    },
+                },
+            },
             "required": ["descriptions"],
         },
     },
@@ -275,7 +291,7 @@ def _price_text(descriptions: list[str], results: list[dict]) -> str:
             for m in r["matches"]:
                 price = "price on application" if m["poa"] else f'{m["currency"]} {m["price"]:.2f}'
                 weight = f'{m["weight_kg"]} kg each' if m["weight_kg"] is not None else "weight not on the weights list"
-                final = (f'final USD {m["quote_usd"]:.2f}' if m.get("quote_usd") is not None
+                final = (f'final USD {m["quote_usd"]:.2f} from {m.get("formula")}' if m.get("quote_usd") is not None
                          else f'final USD not worked out ({m.get("quote_usd_missing") or "no formula"})')
                 lines.append(f'  - {m["label"]}' + (f', class {m["rating"]}' if m.get("rating") else "")
                              + f': list price {price}; {final}; {weight}' + (f' ({m["note"]})' if m.get("note") else ""))
@@ -301,9 +317,15 @@ def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None, user=No
         if not descs:
             return "No gasket descriptions were given.", label, "Nothing to look up"
         import price_book
-        results = price_book.check(descs)
+        try:
+            results = price_book.check(descs, formula=args.get("formula"))
+        except ValueError as exc:      # a formula part out of range
+            return f"The formula change wasn't used: {exc}. Ask the person for a sensible value.", label, "Formula not changed"
         found = sum(r["status"] == "found" for r in results)
-        return _price_text(descs, results), label, f"{found} of {len(descs)} found"
+        changed = "; ".join(sorted({m["formula_changed"] for r in results for m in r["matches"] if m.get("formula_changed")}))
+        head = (f"FORMULA CHANGED FOR THIS QUESTION: {changed}. Say so in the answer, with the formula as used.\n\n"
+                if changed else "")
+        return head + _price_text(descs, results), label, f"{found} of {len(descs)} found"
     if name == "rtj_chart":
         import price_book
         text = price_book.chart_answer(args.get("ring_no"), args.get("size"), args.get("rating"),

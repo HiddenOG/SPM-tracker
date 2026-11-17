@@ -70,6 +70,25 @@ def test_final_usd_price_from_the_2022_formula():
     assert spm["quote_usd"] == pb.quote_usd(27.17, 0.46, pb.SPM_2026_USD)
 
 
+def test_a_formula_part_can_be_changed_or_removed_for_one_question(monkeypatch):
+    monkeypatch.setattr(pb, "read_lines", lambda ds: [spec(size_in=8, ratings=["150"], grade="316", style="CGI") for _ in ds])
+    default = pb.check(["8in 150 316 CGI"], second_look=False)[0]["matches"][0]
+    assert default["quote_usd"] == pb.quote_usd(6.98, 0.46) and default["formula_changed"] is None
+    # Flexitallic markup removed (1) and shipping raised to 15 per kg:
+    m = pb.check(["8in 150 316 CGI"], second_look=False, formula={"flex_2022": {"flex": 1, "ship_per_kg": 15}})[0]["matches"][0]
+    assert m["quote_usd"] == round((6.98 * 1.35 * 1.47 * 1 + (0.46 + 0.05) * 15) * 1.36, 2)
+    assert "Flexitallic markup 1 instead of 1.13" in m["formula_changed"] and "x 15)]" in m["formula"]
+    # ...for that question only: the next one is back on the default.
+    assert pb.check(["8in 150 316 CGI"], second_look=False)[0]["matches"][0]["quote_usd"] == default["quote_usd"]
+
+
+def test_a_formula_change_out_of_range_is_refused():
+    import pytest
+    with pytest.raises(ValueError):
+        pb.formula_overrides({"flex_2022": {"spm": 50}})
+    assert pb.formula_overrides({"spm_2026": {"conv": 2, "spm": 1.47}}) == {}   # no conversion on a USD list; 1.47 is the default
+
+
 def test_316_comes_from_flexitallic_with_its_weight():
     r = pb.lookup(spec(size_in=8, ratings=["150"], grade="316", style="CGI"))
     assert prices(r) == [("GBP", 6.98)] and r["matches"][0]["weight_kg"] == 0.46

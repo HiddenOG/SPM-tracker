@@ -249,6 +249,59 @@ FLEX_2022_USD = {"conv": 1.35, "spm": 1.47, "flex": 1.13, "extra_kg": 0.05, "shi
 SPM_2026_USD = {"conv": 1.0, "spm": 1.47, "flex": 1.0, "extra_kg": 0.05, "ship_per_kg": 12.0, "final": 1.36}
 
 
+FORMULAS = {"flex_2022": FLEX_2022_USD, "spm_2026": SPM_2026_USD}
+FORMULA_NAMES = {"conv": "GBP to USD conversion", "spm": "SPM markup", "flex": "Flexitallic markup",
+                 "extra_kg": "extra weight (kg)", "ship_per_kg": "shipping per kg", "final": "final SPM markup"}
+# The parts a person may change for one question (Ask): multipliers between 0
+# and 10 (1 removes one), kg and shipping between 0 and 100 (0 removes one).
+_FORMULA_RANGE = {"conv": (0, 10), "spm": (0, 10), "flex": (0, 10), "final": (0, 10),
+                  "extra_kg": (0, 100), "ship_per_kg": (0, 100)}
+
+import contextvars  # noqa: E402
+
+_FORMULA: contextvars.ContextVar = contextvars.ContextVar("price_formula", default=None)
+
+
+def formula_overrides(raw) -> dict:
+    """{'flex_2022': {'spm': 1.5}, ...} from whatever Ask sent, keeping only
+    known parts with sensible numbers. Raises ValueError with a plain message."""
+    out: dict = {}
+    for src, parts in (raw or {}).items():
+        if src not in FORMULAS or not isinstance(parts, dict):
+            continue
+        for k, v in parts.items():
+            if k not in _FORMULA_RANGE or (src == "spm_2026" and k in ("conv", "flex")):
+                continue
+            try:
+                v = float(v)
+            except (TypeError, ValueError):
+                raise ValueError(f"{FORMULA_NAMES[k]} must be a number")
+            lo, hi = _FORMULA_RANGE[k]
+            if not lo <= v <= hi:
+                raise ValueError(f"{FORMULA_NAMES[k]} must be between {lo} and {hi}")
+            if v != FORMULAS[src][k]:
+                out.setdefault(src, {})[k] = v
+    return out
+
+
+def formula_for(source: str) -> dict:
+    return {**FORMULAS[source], **((_FORMULA.get() or {}).get(source) or {})}
+
+
+def formula_text(source: str, f: dict | None = None) -> str:
+    """The formula with its numbers, as a person would write it."""
+    f = f or formula_for(source)
+    price = "GBP" if source == "flex_2022" else "USD"
+    mult = " x ".join(f"{f[k]:g}" for k in ("conv", "spm", "flex") if not (source == "spm_2026" and k in ("conv", "flex")))
+    return f"[({price} x {mult}) + ((kg + {f['extra_kg']:g}) x {f['ship_per_kg']:g})] x {f['final']:g}"
+
+
+def formula_changes(source: str) -> str:
+    """'SPM markup 1.5 instead of 1.47' for the parts changed for this question, or ''."""
+    ch = (_FORMULA.get() or {}).get(source) or {}
+    return "; ".join(f"{FORMULA_NAMES[k]} {v:g} instead of {FORMULAS[source][k]:g}" for k, v in ch.items())
+
+
 def quote_usd(price: float | None, kg: float | None, f: dict = FLEX_2022_USD) -> float | None:
     """The final USD price for a list line, or None when the list price or the
     weight is missing - the shipping part needs the weight."""
@@ -269,19 +322,21 @@ def _hit(r: dict, weight: float | None, note: str | None = None, factor: float =
         elif weight is None:
             why_not = "no weight on the weights list"
         else:
-            usd = quote_usd(price, weight)
+            usd = quote_usd(price, weight, formula_for("flex_2022"))
     elif r["source"] == "spm_2026":
         if price is None:
             why_not = "no list price"
         elif weight is None:
             why_not = "no weight on the weights list"
         else:
-            usd = quote_usd(price, weight, SPM_2026_USD)
+            usd = quote_usd(price, weight, formula_for("spm_2026"))
     else:
         why_not = "no formula for this list"
+    changed = formula_changes(r["source"]) if r["source"] in FORMULAS else ""
     return {
         "source": r["source"], "page": r.get("page"), "label": _label(r), "rating": r.get("rating"),
         "price": price, "currency": r["currency"], "quote_usd": usd, "quote_usd_missing": why_not,
+        "formula": formula_text(r["source"]) if r["source"] in FORMULAS else None, "formula_changed": changed or None,
         "poa": bool(r.get("poa")), "weight_kg": weight, "note": "; ".join(x for x in (r.get("note"), note) if x) or None,
     }
 
@@ -774,10 +829,16 @@ def verify(descriptions: list[str], results: list[dict]) -> None:
             results[todo[n - 1]]["ai_check"] = {"verdict": c["verdict"], "comment": str(c.get("comment") or "")}
 
 
-def check(descriptions: list[str], second_look: bool = True) -> list[dict]:
-    """Read and look up each description; one result per line, in order."""
+def check(descriptions: list[str], second_look: bool = True, formula: dict | None = None) -> list[dict]:
+    """Read and look up each description; one result per line, in order.
+    formula: parts of the USD formula changed for this question only
+    ({'flex_2022': {'spm': 1.5}}); the defaults stand for everything else."""
     specs = read_lines(descriptions)
-    results = [{"spec": s, **lookup(s)} for s in specs]
+    token = _FORMULA.set(formula_overrides(formula))
+    try:
+        results = [{"spec": s, **lookup(s)} for s in specs]
+    finally:
+        _FORMULA.reset(token)
     if second_look:
         verify(descriptions, results)
     return results

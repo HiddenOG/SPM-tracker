@@ -437,11 +437,17 @@ def read_weights(path: str) -> list[dict]:
             for r in rows[hdr + 1:]:
                 if not r or not r[0]:
                     continue
+                cells = dict(zip(ratings, r[1:]))
                 for rating, v in zip(ratings, r[1:]):
+                    sheet = sh.name
+                    if not v and rating == "300" and cells.get("600"):
+                        # A blank 300 cell means "same as 600" - SPM's staff
+                        # confirmed it for 3in CGI (0.30 kg, as 400 and 600).
+                        v, sheet = cells["600"], f"{sh.name} (300 blank: as 600)"
                     if not v or not rating:
                         continue
                     row = {"kind": SIZE_SHEETS.get(sh.name) or DIN_SHEETS[sh.name], "rating": rating, "kg": float(v),
-                           "sheet": sh.name}
+                           "sheet": sheet}
                     if sh.name in DIN_SHEETS:
                         row["size_dn"] = int(r[0].upper().replace("DN", ""))
                     else:
