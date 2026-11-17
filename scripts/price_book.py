@@ -97,7 +97,7 @@ _PROMPT = """Each line below is a gasket (or other item) from a client's request
 - ratings: pressure classes as plain numbers, "150", "300", ... ("CL300/600" gives ["300","600"]; "300#" or "300LB" gives ["300"]; PN classes as "PN40"). API 6A pressures as the psi number: "5000 PSI", "API 5000", "5M" give ["5000"]; "10M" gives ["10000"].
 - grade: the stainless grade of the winding (spiral wound) or of the ring (ring joint): "304" for 304/304L/TP304, "316" for 316/316L/TP316L, "304_or_316" when the line accepts either ("304/316 SS WINDINGS", "304 OR 316"), "other" for Monel, Inconel/N06625, 347, carbon steel windings and so on.
 - filler: graphite (graphite, GPH, GRAF, flexicarb, FG, exfoliated graphite), ptfe, other (mica, ceramic, non-asbestos), unknown.
-- outer_ring / inner_ring: carbon_steel (CS, carbon steel, mild steel), 304, 316, other, none, unknown. Client codes often list the materials in order winding - filler - thickness - outer ring - inner ring, so two ring materials after the winding and filler are the outer ring then the inner ring: in "316SS-FLEX GRAPH S-WND 1/8" CS 316 SS" the winding is 316, the filler graphite, the outer ring CS and the inner ring 316 - a CGI. "CS/316", "CS & 316 SS" and "OR CS IR 316" read the same way. Only say "none" when the line says there is no such ring.
+- outer_ring / inner_ring: carbon_steel (CS, carbon steel, mild steel), 304, 316, other, none, unknown. Client codes often list the materials in order winding - filler - thickness - outer ring - inner ring, so two ring materials after the winding and filler are the outer ring then the inner ring: in "316SS-FLEX GRAPH S-WND 1/8" CS 316 SS" the winding is 316, the filler graphite, the outer ring CS and the inner ring 316 - a CGI. "CS/316", "CS & 316 SS" and "OR CS IR 316" read the same way. A ring written only as "stainless steel" or "SS" (no grade) - "OFFERING: STAINLESS STEEL INNER AND OUTER RING", "IR/OR SS" - takes the winding's grade (316 with a 316L winding). Only say "none" when the line says there is no such ring.
 - b1647_series: A or B when stated for sizes above 24".
 - ring_no: the ring number in its standard form, "R32", "RX24", "BX152" ("R-54" = "R54", "API R14" = "R14").
 - rtj_material: soft_iron, 316, 304, other (4-6CR/0.5MOLY, Inconel, ...), unknown. A ring described only as zinc or cadmium plated (no other material) is soft_iron - those are the plated ones; the flange material (ASTM A105) is not the ring's. rtj_shape: oval / octagonal. rtj_style: R, RX or BX when the line says so (or from the ring number), else unknown.
@@ -240,11 +240,48 @@ def _material_label(r: dict) -> str:
     return f"{r['style']}, {r.get('variant') or 'each'}"
 
 
+# SPM's selling price in USD from a Flexitallic 2022 list price (GBP):
+#   [(GBP x 1.35 conversion x 1.47 SPM markup x 1.13 Flexitallic markup)
+#     + ((weight kg + 0.05 extra) x 12 shipping per kg)] x 1.36 SPM markup
+FLEX_2022_USD = {"conv": 1.35, "spm": 1.47, "flex": 1.13, "extra_kg": 0.05, "ship_per_kg": 12.0, "final": 1.36}
+# And from SPM's 2026 list (already USD, 304):
+#   [(USD x 1.47 SPM markup) + ((weight kg + 0.05 extra) x 12 shipping per kg)] x 1.36 SPM markup
+SPM_2026_USD = {"conv": 1.0, "spm": 1.47, "flex": 1.0, "extra_kg": 0.05, "ship_per_kg": 12.0, "final": 1.36}
+
+
+def quote_usd(price: float | None, kg: float | None, f: dict = FLEX_2022_USD) -> float | None:
+    """The final USD price for a list line, or None when the list price or the
+    weight is missing - the shipping part needs the weight."""
+    if price is None or kg is None:
+        return None
+    return round((price * f["conv"] * f["spm"] * f["flex"] + (kg + f["extra_kg"]) * f["ship_per_kg"]) * f["final"], 2)
+
+
 def _hit(r: dict, weight: float | None, note: str | None = None, factor: float = 1.0) -> dict:
     price = _num(r.get("price"))
+    price = round(price * factor, 2) if price is not None else None
+    usd, why_not = None, None
+    if r["source"] == "flex_2022":
+        if r["currency"] != "GBP":
+            why_not = "listed in dollars, not pounds - the formula is for GBP prices"
+        elif price is None:
+            why_not = "no list price"
+        elif weight is None:
+            why_not = "no weight on the weights list"
+        else:
+            usd = quote_usd(price, weight)
+    elif r["source"] == "spm_2026":
+        if price is None:
+            why_not = "no list price"
+        elif weight is None:
+            why_not = "no weight on the weights list"
+        else:
+            usd = quote_usd(price, weight, SPM_2026_USD)
+    else:
+        why_not = "no formula for this list"
     return {
         "source": r["source"], "page": r.get("page"), "label": _label(r), "rating": r.get("rating"),
-        "price": round(price * factor, 2) if price is not None else None, "currency": r["currency"],
+        "price": price, "currency": r["currency"], "quote_usd": usd, "quote_usd_missing": why_not,
         "poa": bool(r.get("poa")), "weight_kg": weight, "note": "; ".join(x for x in (r.get("note"), note) if x) or None,
     }
 

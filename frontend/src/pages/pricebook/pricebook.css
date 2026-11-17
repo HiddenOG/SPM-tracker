@@ -10,6 +10,9 @@
 .pb-tag.miss .pb-mark{color:var(--crit)}
 .pb-what{flex:1 1 220px;min-width:0;color:var(--ink-2)}
 .pb-kg{color:var(--ink-2)}
+.pb-list{color:var(--ink-2)}
+.pb-usd{color:var(--ink)}
+.pb-nousd{font-size:11.5px;color:var(--ink-3)}
 .pb-read{margin-bottom:4px;font-size:11.5px;color:var(--ink-3)}
 .pb-tag.miss .pb-read{margin:4px 0 0}
 .pb-note{flex-basis:100%;font-size:11.5px;color:var(--ink-3)}

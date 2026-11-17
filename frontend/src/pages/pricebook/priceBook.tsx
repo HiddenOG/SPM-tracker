@@ -11,7 +11,8 @@ import './pricebook.css'
 export type Match = {
   source: string; page?: string; label: string; rating?: string
   price: number | null; currency: string; poa: boolean; weight_kg: number | null
-  note?: string | null; quote_usd?: number | null
+  note?: string | null
+  quote_usd?: number | null; quote_usd_missing?: string | null   // SPM's final USD price, or why there isn't one
 }
 export type Spec = Record<string, unknown>
 export type Result = {
@@ -77,7 +78,7 @@ function ReadAs({ spec }: { spec: Spec }) {
 }
 
 /** One quote line's answer, under its description. */
-export function PriceTag({ result, onUse }: { result: Result | 'loading' | null; onUse?: (m: Match) => void }) {
+export function PriceTag({ result }: { result: Result | 'loading' | null }) {
   if (result === 'loading') return <div className="pb-tag busy">Checking the price lists…</div>
   if (!result) return null
   if (result.status !== 'found') {
@@ -96,12 +97,11 @@ export function PriceTag({ result, onUse }: { result: Result | 'loading' | null;
         <div key={i} className="pb-hit">
           <span className="pb-mark" aria-hidden="true">✓</span>
           <span className="pb-what">{m.label}{m.rating ? ` · class ${m.rating}` : ''}</span>
-          <b className="mono">{listPrice(m)}</b>
+          <span className="mono pb-list" title="List price">{listPrice(m)}</span>
+          {m.quote_usd != null
+            ? <b className="mono pb-usd" title="Final USD: SPM's selling price from the formula">${m.quote_usd.toFixed(2)}</b>
+            : <span className="pb-nousd" title={m.quote_usd_missing || ''}>no USD price</span>}
           <span className="mono pb-kg">{kg(m.weight_kg)}</span>
-          {onUse && (
-            <button type="button" className="link" disabled={m.quote_usd == null} onClick={() => onUse(m)}
-                    title={m.quote_usd == null ? 'Waiting for the markup formula' : `Use $${m.quote_usd.toFixed(2)} as the unit price`}>Use</button>
-          )}
           {m.note && <span className="pb-note">{m.note}</span>}
         </div>
       ))}

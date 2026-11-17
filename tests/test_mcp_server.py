@@ -730,7 +730,7 @@ def test_every_tool_that_can_return_many_rows_caps_itself():
     own shape - one PO in, that order out - so a row cap would be noise."""
     src = (ROOT / "scripts" / "mcp_server.py").read_text(encoding="utf-8")
     bodies = src.split("@mcp.tool()")[1:]
-    assert len(bodies) == 9
+    assert len(bodies) == 10
     # Bounded by their own shape: one PO in, one order (or one sync) out.
     bounded_by_shape = {"order_detail", "refresh_order_mail",
                         "read_mail_thread", "read_message"}

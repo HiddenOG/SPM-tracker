@@ -58,6 +58,18 @@ def prices(r):
     return [(m["currency"], m["price"]) for m in r["matches"]]
 
 
+def test_final_usd_price_from_the_2022_formula():
+    # [(2.85 x 1.35 x 1.47 x 1.13) + ((0.4 + 0.05) x 12)] x 1.36 = 16.04
+    assert pb.quote_usd(2.85, 0.4) == 16.04
+    assert pb.quote_usd(2.85, None) is None
+    r = pb.lookup(spec(size_in=8, ratings=["150"], grade="316", style="CGI"))
+    assert r["matches"][0]["quote_usd"] == pb.quote_usd(6.98, 0.46)
+    # SPM's 2026 list: [(62.83 x 1.47) + ((1.46 + 0.05) x 12)] x 1.36 = 150.25
+    assert pb.quote_usd(62.83, 1.46, pb.SPM_2026_USD) == 150.25
+    spm = pb.lookup(spec(size_in=8, ratings=["150"], grade="304", style="CGI"))["matches"][0]
+    assert spm["quote_usd"] == pb.quote_usd(27.17, 0.46, pb.SPM_2026_USD)
+
+
 def test_316_comes_from_flexitallic_with_its_weight():
     r = pb.lookup(spec(size_in=8, ratings=["150"], grade="316", style="CGI"))
     assert prices(r) == [("GBP", 6.98)] and r["matches"][0]["weight_kg"] == 0.46

@@ -625,7 +625,7 @@ export default function QuoteForm() {
         return (
           <>
             <Rich key={`${formKey}-${r._k}`} html={r.description} placeholder="Item description…" onChange={h => setRows(rs => rs.map(x => (x._k === r._k ? { ...x, description: h } : x)))} />
-            <PriceTag result={pb[r._k] ?? null} onUse={m => m.quote_usd != null && updateRow(r._k, { unit_price: m.quote_usd })} />
+            <PriceTag result={pb[r._k] ?? null} />
           </>
         )
       case 'product_no':
