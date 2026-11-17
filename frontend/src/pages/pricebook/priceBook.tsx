@@ -32,7 +32,7 @@ export const kg = (v: number | null | undefined) => (v == null ? '—' : `${v} k
 // How the reader understood a line, as short chips: "Spiral wound", "8\"", "Class 150"...
 const KIND: Record<string, string> = {
   spiral_wound: 'Spiral wound', ring_joint: 'Ring joint', isolation_kit: 'Isolation kit', frg: 'FRG',
-  sheet: 'Sheet', tape: 'Tape', packing: 'Packing', paste: 'Paste', other: 'Other item',
+  sheet: 'Sheet', tape: 'Tape', packing: 'Packing', paste: 'Paste', unspecified: 'Type not stated', other: 'Other item',
 }
 const RING: Record<string, string> = { carbon_steel: 'CS', '304': '304', '316': '316' }
 const ASME = new Set(['150', '300', '400', '600', '900', '1500', '2500'])  // other numbers are API psi
@@ -53,7 +53,7 @@ export function chips(s: Spec): string[] {
   if (v('size_dn')) out.push(`DN${v('size_dn')}`)
   for (const r of (s.ratings as string[]) || [])
     out.push(/^PN/i.test(r) ? r : ASME.has(r) ? `Class ${r}` : `${r} psi`)
-  if (v('grade')) out.push(v('grade') === 'other' ? 'Other alloy' : v('grade') + ' SS')
+  if (v('grade')) out.push(v('grade') === 'other' ? 'Other alloy' : v('grade') === '304_or_316' ? '304 or 316 SS' : v('grade') + ' SS')
   if (v('rtj_material')) out.push(v('rtj_material') === 'soft_iron' ? 'Soft iron' : v('rtj_material'))
   if (v('filler')) out.push(v('filler') === 'graphite' ? 'Graphite filler' : v('filler') === 'ptfe' ? 'PTFE filler' : 'Other filler')
   if (v('outer_ring') && RING[v('outer_ring')]) out.push(`${RING[v('outer_ring')]} outer ring`)

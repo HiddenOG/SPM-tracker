@@ -51,12 +51,13 @@ _MATERIALS = [n for names in MATERIAL_NAMES.values() for n in names]
 _SPEC = {
     "type": "object",
     "properties": {
-        "kind": _ENUM("spiral_wound", "ring_joint", "isolation_kit", "frg", "sheet", "tape", "packing", "paste", "other"),
+        "kind": _ENUM("spiral_wound", "ring_joint", "isolation_kit", "frg", "sheet", "tape", "packing", "paste",
+                      "unspecified", "other"),
         "style": _ENUM("CG", "CGI", "LEI", "LSI", "unknown"),
         "size_in": {"type": ["number", "null"]},
         "size_dn": {"type": ["integer", "null"]},
         "ratings": {"type": "array", "items": {"type": "string"}},
-        "grade": _ENUM("304", "316", "other", "unknown"),
+        "grade": _ENUM("304", "316", "304_or_316", "other", "unknown"),
         "filler": _ENUM("graphite", "ptfe", "other", "unknown"),
         "outer_ring": _ENUM("carbon_steel", "304", "316", "other", "none", "unknown"),
         "inner_ring": _ENUM("304", "316", "carbon_steel", "other", "none", "unknown"),
@@ -65,7 +66,7 @@ _SPEC = {
         "rtj_material": _ENUM("soft_iron", "316", "304", "other", "unknown"),
         "rtj_shape": _ENUM("oval", "octagonal", "unknown"),
         "rtj_style": _ENUM("R", "RX", "BX", "unknown"),
-        "kit_type": _ENUM("FS", "LT", "unknown"),
+        "kit_type": _ENUM("FS", "LT", "other", "unknown"),
         "kit_facing": _ENUM("raised_face", "full_face", "ring_joint", "unknown"),
         "frg_type": _ENUM("sigma", "hot", "unknown"),
         "product_name": _ENUM(*_MATERIALS, "other", "unknown"),
@@ -88,19 +89,19 @@ _SCHEMA = {
 
 _PROMPT = """Each line below is a gasket (or other item) from a client's request for quotation. Read each one into the fields of the schema - one entry per line, in the same order. Copy what the line says; never guess a value it doesn't give - use "unknown" or null.
 
-- kind: spiral_wound (SW, SPW, SWG, spiral wound, Flexitallic CG/CGI), ring_joint (RTJ, ring joint, R-/RX-/BX- numbers), isolation_kit (insulation/isolation gasket kit, Isoflex), frg (FRG, faced/reinforced graphite ring gasket), sheet (gasket sheet / jointing sheet to cut from: Sigma, SF/AF fibre sheet, Thermiculite sheet, Novus, RGS graphite laminate), tape (Fluoroseal or Sigma 850 PTFE tape), packing (braided gland packing: Flex 305 ... Therm 894), paste (Thermiculite paste, GTS paste), or other (cut gaskets, soft cut, EPDM, camprofile/kammprofile, bolts, anything else).
-- product_name (sheet, tape, packing, paste): the product as Flexitallic names it, from the list in the schema. "Sigma 500 sheet" = "Sigma 500"; "Novus T.I." = "Novus TI"; "Thermiculite 894 packing" = "Therm 894"; "Flexitallic 305 packing" = "Flex 305". "Flex 304" is a packing name, never a stainless grade. "other" for a product not in the list, "unknown" if no product is named.
-- thickness_mm: sheet or tape thickness in mm (1/16" = 1.5, 1/8" = 3). width_mm: tape width, or a packing's square section size in mm ("10mm sq" = 10, 3/8" = 9.5). length_m: tape or coil length in metres. sheet_size: sheet size in mm, smaller side first, as "1500x1500", "1000x1000", "1500x2000", "1750x1750", "2000x2000" (1.5m x 1.5m = "1500x1500").
-- style (spiral wound): CGI when it has an inner ring (inner ring, IR, SG-IR, "IR/OR"), CG when it has only an outer/centering ring, LEI for low emission, LSI for low stress. "unknown" if the line doesn't say.
+- kind: spiral_wound (SW, SPW, SWG, spiral wound, Flexitallic CG/CGI), ring_joint (RTJ, ring joint, R-/RX-/BX- numbers), isolation_kit (insulation/isolation gasket kit, Isoflex), frg (FRG, faced/reinforced graphite ring gasket), sheet (gasket sheet / jointing sheet to cut from: Sigma, SF/AF fibre sheet, Thermiculite sheet, Novus, RGS graphite laminate), tape (Fluoroseal or Sigma 850 PTFE tape), packing (braided gland packing: Flex 305 ... Therm 894), paste (Thermiculite paste, GTS paste), unspecified (the line asks for a gasket by size and class but never says what kind, e.g. '4" x 150# FLEXITALLIC GASKET'), or other (cut gaskets - including ones cut from a named sheet like Sigma 511 - soft cut, EPDM, camprofile/kammprofile, jacketed, bolts, anything else).
+- product_name (sheet, tape, packing, paste - and a gasket cut from one of these sheets): the product as Flexitallic names it, from the list in the schema. "Sigma 500 sheet" = "Sigma 500"; "Novus T.I." = "Novus TI"; "Thermiculite 894 packing" = "Therm 894"; "Flexitallic 305 packing" = "Flex 305". "Flex 304" is a packing name, never a stainless grade. "other" for a product not in the list, "unknown" if no product is named.
+- thickness_mm: sheet or tape thickness in mm (1/16" = 1.5, 1/8" = 3). For a ring joint, the thickness or height in mm the line gives ("17.5 MM THICK" = 17.5); null if it gives none. width_mm: tape width, or a packing's square section size in mm ("10mm sq" = 10, 3/8" = 9.5). length_m: tape or coil length in metres. sheet_size: sheet size in mm, smaller side first, as "1500x1500", "1000x1000", "1500x2000", "1750x1750", "2000x2000" (1.5m x 1.5m = "1500x1500").
+- style (spiral wound): when the line names a style ("STYLE: CG", "TYPE CGI", part number CG), copy that style exactly, even if other words in the line seem to disagree - the lookup checks the two against each other. Only when it names none: CGI when it has an inner ring (inner ring, IR, SG-IR, "IR/OR"), CG when it has only an outer/centering ring, LEI for low emission, LSI for low stress. "unknown" if the line doesn't say.
 - size_in: nominal pipe size in inches as a number (1/2" = 0.5, 1-1/2" = 1.5, 3/4IN = 0.75, "SZ 8IN" = 8). An isolation kit written "3X1/4IN" is 3 inches with a 1/4 inch thickness: size 3. size_dn: the DN number when the size is given as DN (DN150 = 150). Leave both null when only diameters in mm are given.
 - ratings: pressure classes as plain numbers, "150", "300", ... ("CL300/600" gives ["300","600"]; "300#" or "300LB" gives ["300"]; PN classes as "PN40"). API 6A pressures as the psi number: "5000 PSI", "API 5000", "5M" give ["5000"]; "10M" gives ["10000"].
-- grade: the stainless grade of the winding (spiral wound) or of the ring (ring joint): "304" for 304/304L/TP304, "316" for 316/316L/TP316L, "other" for Monel, Inconel/N06625, 347, carbon steel windings and so on.
+- grade: the stainless grade of the winding (spiral wound) or of the ring (ring joint): "304" for 304/304L/TP304, "316" for 316/316L/TP316L, "304_or_316" when the line accepts either ("304/316 SS WINDINGS", "304 OR 316"), "other" for Monel, Inconel/N06625, 347, carbon steel windings and so on.
 - filler: graphite (graphite, GPH, GRAF, flexicarb, FG, exfoliated graphite), ptfe, other (mica, ceramic, non-asbestos), unknown.
 - outer_ring / inner_ring: carbon_steel (CS, carbon steel, mild steel), 304, 316, other, none, unknown. Client codes often list the materials in order winding - filler - thickness - outer ring - inner ring, so two ring materials after the winding and filler are the outer ring then the inner ring: in "316SS-FLEX GRAPH S-WND 1/8" CS 316 SS" the winding is 316, the filler graphite, the outer ring CS and the inner ring 316 - a CGI. "CS/316", "CS & 316 SS" and "OR CS IR 316" read the same way. Only say "none" when the line says there is no such ring.
 - b1647_series: A or B when stated for sizes above 24".
 - ring_no: the ring number in its standard form, "R32", "RX24", "BX152" ("R-54" = "R54", "API R14" = "R14").
-- rtj_material: soft_iron, 316, 304, other (4-6CR/0.5MOLY, Inconel, ...), unknown. rtj_shape: oval / octagonal. rtj_style: R, RX or BX when the line says so (or from the ring number), else unknown.
-- kit_type: FS or LT for Isoflex kits. kit_facing: the flange facing the kit is for.
+- rtj_material: soft_iron, 316, 304, other (4-6CR/0.5MOLY, Inconel, ...), unknown. A ring described only as zinc or cadmium plated (no other material) is soft_iron - those are the plated ones; the flange material (ASTM A105) is not the ring's. rtj_shape: oval / octagonal. rtj_style: R, RX or BX when the line says so (or from the ring number), else unknown.
+- kit_type: FS or LT for Isoflex kits; other for any other make or model of kit (IsoPro, VCS, Pikotek, ...); unknown when no model is named. kit_facing: the flange facing the kit is for.
 - frg_type: sigma or hot for FRG.
 
 The lines:
@@ -137,7 +138,10 @@ def _read_fresh(descriptions: list[str]) -> list[dict]:
     try:
         res = anthropic.Anthropic().messages.create(
             model=READ_MODEL, max_tokens=16000,
-            output_config={"effort": "low", "format": {"type": "json_schema", "schema": _SCHEMA}},
+            # Medium, not low: on lines that contradict themselves ("STYLE: CG"
+            # beside an inner ring material) low effort read them differently
+            # from one run to the next.
+            output_config={"effort": "medium", "format": {"type": "json_schema", "schema": _SCHEMA}},
             messages=[{"role": "user", "content": _PROMPT + numbered}],
         )
     except anthropic.APIError as exc:
@@ -281,9 +285,16 @@ def ring_for(size: float, rating: str, style: str | None = None) -> list[str]:
     return list(dict.fromkeys(usual or [r["ring_no"] for r in hits]))
 
 
+def _ring_entry(ring: str) -> dict:
+    """A ring's row on the chart. Rings printed only for segmented flanges
+    (RX25†) are kept under their mark."""
+    rings = _chart()["rings"]
+    return rings.get(ring) or rings.get(ring + "†") or {}
+
+
 def ring_dims(ring: str) -> str:
     """A ring's measurements from the chart, as a short phrase, or ''."""
-    d = _chart()["rings"].get(ring) or {}
+    d = _ring_entry(ring)
     parts = [f"pitch dia {d['pitch_mm']:g} mm" if d.get("pitch_mm") else "",
              f"OD {d['od_mm']:g} mm" if d.get("od_mm") else "",
              f"{d['width_mm']:g} mm wide" if d.get("width_mm") else "",
@@ -334,7 +345,7 @@ def chart_answer(ring_no: str | None = None, size=None, rating: str | None = Non
             elif rating:
                 out.append(f'{size_in:g}" {_pressure(r)}: no {st or "R, RX or BX"} ring on the chart')
     for ring in dict.fromkeys(rings):
-        d = c["rings"].get(ring)
+        d = _ring_entry(ring)
         if not d:
             out.append(f"{ring}: not in Flexitallic's RTJ guide.")
             continue
@@ -363,6 +374,32 @@ def chart_answer(ring_no: str | None = None, size=None, rating: str | None = Non
     return "\n".join(out) or "Nothing on Flexitallic's RTJ chart for that."
 
 
+def thickness_check(ring: str, mm: float, shape: str | None = None) -> str:
+    """A client's "17.5 MM THICK" against the ring's measurements on the chart.
+    Clients sometimes give the oval height on an octagonal ring, or the width;
+    say which measurement the figure is, so nobody has to guess."""
+    d = _ring_entry(ring)
+    if not d:
+        return f"{mm:g} mm: {ring} has no measurements on Flexitallic's RTJ chart"
+    names = {"oct_height_mm": "octagonal height", "oval_height_mm": "oval height", "height_mm": "height",
+             "width_mm": "width"}
+    order = ["oct_height_mm", "oval_height_mm"] if shape != "oval" else ["oval_height_mm", "oct_height_mm"]
+    order += ["height_mm", "width_mm"]
+    hits = [k for k in order if d.get(k) and abs(d[k] - mm) <= 0.25]
+    heights = ", ".join(f"{names[k]} {d[k]:g} mm" for k in order[:3] if d.get(k))
+    if not hits:
+        dims = ", ".join(f"{names[k]} {d[k]:g} mm" for k in order if d.get(k))
+        return f"Thickness {mm:g} mm doesn't match {ring} on the chart ({dims}) - check with the client"
+    k = hits[0]
+    stated = {"octagonal": "oct_height_mm", "oval": "oval_height_mm"}.get(shape or "")
+    if k == "width_mm":
+        return f"Thickness {mm:g} mm is {ring}'s width ({d[k]:g} mm), not its height ({heights}) - check with the client"
+    if stated and k != stated and d.get(stated):
+        return (f"Thickness {mm:g} mm is {ring}'s {names[k]} ({d[k]:g} mm), but the line says {shape}: "
+                f"{ring}'s {names[stated]} is {d[stated]:g} mm - check with the client")
+    return f"Thickness {mm:g} mm = {ring}'s {names[k]} ({d[k]:g} mm) on the chart ✓"
+
+
 # The rings as the lists name them, against the reader's names.
 _RING = {"mild steel": "carbon_steel", "316": "316", "304": "304"}
 _RING_NAME = {"carbon_steel": "carbon steel", "316": "316", "304": "304"}
@@ -388,11 +425,19 @@ def lookup(spec: dict) -> dict:
         if not ratings:
             return {"status": "not_listed", "matches": [], "reason": "No pressure class given."}
         style = spec.get("style")
+        if style == "CG" and spec.get("inner_ring") in ("304", "316", "carbon_steel"):
+            # "STYLE: CG" beside an inner ring material: a CG has no inner ring,
+            # so the line contradicts itself. The ring it names wins - and says so.
+            style = "CGI"
+            notes.append(f"Line says CG but gives a {_RING_NAME[spec['inner_ring']]} inner ring - read as CGI; "
+                         "check with the client")
         if style == "unknown":
             style = "CG" if spec.get("inner_ring") == "none" else "CGI"
             notes.append(f"Style not stated - read as {style}" + ("" if style == "CG" else " (with inner ring)"))
         grades = [spec["grade"]] if spec.get("grade") in ("304", "316") else ["304", "316"]
-        if len(grades) == 2:
+        if spec.get("grade") == "304_or_316":
+            notes.append("Client accepts 304 or 316 - both shown: 304 from SPM's list, 316 from Flexitallic's")
+        elif len(grades) == 2:
             notes.append("Grade not stated - both 304 (SPM list) and 316 (Flexitallic list) shown")
         ptfe = spec.get("filler") == "ptfe"
         for rating in ratings:
@@ -442,11 +487,28 @@ def lookup(spec: dict) -> dict:
                         hits.append(_hit(r, w))
         if ptfe and not hits:
             return {"status": "not_listed", "matches": [], "reason": "PTFE filler is only priced for standard CGI 316L (page 2)."}
+        if "304" in grades and hits and not any(h["source"] == "spm_2026" for h in hits):
+            # 304 was asked for (or allowed) but SPM's list had nothing: say why
+            # rather than leave "both shown" over a single 316 price.
+            why = ("prices CGI only" if style != "CGI" else
+                   "has no PTFE filler" if ptfe else
+                   "prices by nominal inch size only" if size is None else
+                   "doesn't have that size and class")
+            notes.append(f"No 304 price - SPM's 304 list {why}")
 
     elif kind == "ring_joint":
         ring = (spec.get("ring_no") or "").upper().replace("-", "").replace(" ", "")
         if ring:
             rings = [(ring, None)]
+            # A ring number written beside a size and class: check the two agree
+            # on the chart - "1-13/16in 10000# BX152" is a typo for BX151.
+            if size is not None and ratings:
+                style = "".join(c for c in ring if c.isalpha())
+                for r in ratings:
+                    chart = ring_for(size, r, style)
+                    if chart and ring not in chart:
+                        notes.append(f"Client wrote {ring}, but Flexitallic's RTJ chart gives {' or '.join(chart)} "
+                                     f"for {size:g}\" {_pressure(r)} - check with the client")
         else:
             # Clients write size and class; the list is by ring number. Flexitallic's
             # RTJ chart joins the two (load_price_book.py --rtj).
@@ -460,6 +522,13 @@ def lookup(spec: dict) -> dict:
                                   f"{' / '.join(_pressure(r) for r in ratings)} on Flexitallic's RTJ chart."}
             notes += [f"{n} is the ring for {size:g}\" {_pressure(r)} on Flexitallic's RTJ chart"
                       + (f" ({ring_dims(n)})" if ring_dims(n) else "") for n, r in rings]
+        # A ring number that isn't on the chart isn't a standard ring at all
+        # (RX58): that, not its material, is why it can't be priced.
+        unknown = [n for n, _ in rings if not _ring_entry(n)]
+        if unknown and len(unknown) == len(rings) and _chart()["rings"]:
+            return {"status": "not_listed", "matches": [], "notes": notes,
+                    "reason": f"{', '.join(unknown)} isn't a standard ring on Flexitallic's RTJ chart - "
+                              "ask the client for a drawing or dimensions."}
         mat = spec.get("rtj_material")
         if mat in ("304", "other"):
             return {"status": "not_listed", "matches": [], "notes": notes,
@@ -468,6 +537,10 @@ def lookup(spec: dict) -> dict:
         if mat == "unknown":
             notes.append("Ring material not stated - soft iron and 316 both shown")
         missing = []
+        t = _num(spec.get("thickness_mm"))
+        if t:
+            shape = spec.get("rtj_shape") if spec.get("rtj_shape") in ("oval", "octagonal") else None
+            notes += list(dict.fromkeys(thickness_check(ring, t, shape) for ring, _ in rings))
         for ring, rating in rings:
             style = "".join(c for c in ring if c.isalpha())
             if style == "R":
@@ -490,6 +563,9 @@ def lookup(spec: dict) -> dict:
         notes += missing
 
     elif kind in ("isolation_kit", "frg"):
+        if kind == "isolation_kit" and spec.get("kit_type") == "other":
+            return {"status": "not_listed", "matches": [],
+                    "reason": "Not an Isoflex kit - only Isoflex LT and FS kits are on the list."}
         if size is None or not ratings:
             return {"status": "not_listed", "matches": [], "reason": "Size or class not given."}
         if kind == "isolation_kit":
@@ -535,6 +611,24 @@ def lookup(spec: dict) -> dict:
                                   + ", ".join(show(v) for v in listed) + f"{unit}."}
             rows = same
         hits = [_hit(r, None) for r in rows]
+
+    elif kind == "unspecified":
+        return {"status": "not_listed", "matches": [],
+                "reason": "The line doesn't say what kind of gasket (spiral wound, ring joint, flat...) - ask the client "
+                          "before pricing."}
+
+    elif spec.get("product_name") in MATERIAL_NAMES["sheet"]:
+        # A gasket cut from a listed sheet: the list prices the sheet, not the
+        # cut gasket - give the sheet's price as the starting point.
+        name = spec["product_name"]
+        t = _num(spec.get("thickness_mm"))
+        rows = [r for r in prices if r["product"] == "sheet" and r.get("style") == name
+                and (t is None or _num(r.get("thickness_mm")) == t)]
+        ref = "; ".join(f"{_material_label(r)} {r['currency']} {_num(r['price']):.2f}" if r.get("price") is not None
+                        else f"{_material_label(r)} price on application" for r in rows[:4])
+        return {"status": "not_listed", "matches": [],
+                "reason": f"A gasket cut from {name} - the list prices the sheet, not cut gaskets."
+                          + (f" Sheet: {ref}." if ref else f" {name} isn't listed in that thickness.")}
 
     else:
         return {"status": "not_listed", "matches": [],

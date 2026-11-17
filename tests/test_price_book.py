@@ -195,6 +195,54 @@ def test_an_rtj_by_size_and_class_is_priced_by_its_ring_number():
     assert any('R32 is the ring for 3" class 2500' in n for n in r["notes"])
 
 
+def test_a_stated_thickness_is_checked_against_the_ring():
+    assert "= R32's octagonal height (17.5 mm)" in pb.thickness_check("R32", 17.5, "octagonal")
+    oval = pb.thickness_check("R32", 19.1, "octagonal")
+    assert "R32's oval height (19.1 mm), but the line says octagonal" in oval and "17.5 mm" in oval
+    assert "is R55's width (28.58 mm), not its height" in pb.thickness_check("R55", 28.6, "octagonal")
+    assert "doesn't match R13" in pb.thickness_check("R13", 16.0, "octagonal")
+    r = pb.lookup(spec(kind="ring_joint", size_in=3, ratings=["2500"], rtj_material="316", rtj_shape="octagonal",
+                       thickness_mm=17.5))
+    assert any("R32's octagonal height" in n for n in r["notes"])
+
+
+def test_a_written_ring_number_is_checked_against_size_and_class():
+    # Seplat wrote "1-13/16in 10000# BX152"; the chart's ring for that is BX151.
+    r = pb.lookup(spec(kind="ring_joint", ring_no="BX152", size_in=1.8125, ratings=["10000"], rtj_material="other"))
+    assert any("Client wrote BX152" in n and "BX151" in n for n in r["notes"])
+    r = pb.lookup(spec(kind="ring_joint", ring_no="R32", size_in=3, ratings=["2500"], rtj_material="316"))
+    assert not any("Client wrote" in n for n in r.get("notes") or [])
+
+
+def test_a_ring_number_not_on_the_chart_is_not_standard():
+    r = pb.lookup(spec(kind="ring_joint", ring_no="RX58", size_in=12, ratings=["1500"], rtj_material="other"))
+    assert r["status"] == "not_listed" and "isn't a standard ring" in r["reason"]
+    assert pb._ring_entry("RX25")          # printed only as RX25† (segmented flanges) - still standard
+
+
+def test_304_or_316_shows_both_lists_and_says_why_one_is_missing():
+    r = pb.lookup(spec(size_in=8, ratings=["150"], grade="304_or_316", style="CGI"))
+    assert sorted(prices(r)) == [("GBP", 6.98), ("USD", 27.17)] and any("accepts 304 or 316" in n for n in r["notes"])
+    cg = pb.lookup(spec(size_in=8, ratings=["150"], grade="304_or_316", style="CG"))
+    assert prices(cg) == [("GBP", 4.04)] and any("No 304 price - SPM's 304 list prices CGI only" in n for n in cg["notes"])
+
+
+def test_a_gasket_of_no_stated_kind_asks_the_client():
+    r = pb.lookup(spec(kind="unspecified", size_in=4, ratings=["150"]))
+    assert r["status"] == "not_listed" and "what kind of gasket" in r["reason"]
+
+
+def test_a_gasket_cut_from_a_listed_sheet_gives_the_sheet_price(monkeypatch):
+    monkeypatch.setitem(pb._CACHE, "prices", PRICES + MATERIALS)
+    r = pb.lookup(spec(kind="other", product_name="SF2800", thickness_mm=1.5, size_in=3))
+    assert r["status"] == "not_listed" and "cut from SF2800" in r["reason"] and "GBP 51.79" in r["reason"]
+
+
+def test_other_isolation_kits_are_not_isoflex():
+    r = pb.lookup(spec(kind="isolation_kit", kit_type="other", ratings=["150"]))
+    assert r["status"] == "not_listed" and "Isoflex" in r["reason"]
+
+
 def test_api_pressures_and_styles_on_the_chart():
     assert pb.ring_for(2.0625, "5000", "RX") == ["RX24"]
     assert pb.ring_for(13.625, "10000", "BX") == ["BX159"]
