@@ -228,10 +228,71 @@ def test_a_ring_listed_only_in_another_material_says_so():
 def test_the_same_description_reads_the_same_every_time(monkeypatch):
     calls = []
     monkeypatch.setattr(pb, "_read_fresh", lambda ds: calls.append(list(ds)) or [{"kind": "other"} for _ in ds])
+    monkeypatch.setattr(pb, "_saved_readings", lambda keys: {})
+    monkeypatch.setattr(pb, "_save_readings", lambda r: None)
     pb._READ_CACHE.clear()
     pb.read_lines(["gasket  8in  cl150", "flat gasket"])
     pb.read_lines(["GASKET 8IN CL150"])
     assert calls == [["GASKET 8IN CL150", "FLAT GASKET"]]
+
+
+class _ReadingsDb:
+    """Just enough of the Supabase client for the price_readings table."""
+    def __init__(self, rows=None, fail=False):
+        self.rows, self.fail, self.upserts = dict(rows or {}), fail, []
+        self._ids = None
+
+    def table(self, name):
+        assert name == "price_readings"
+        return self
+
+    def select(self, cols):
+        return self
+
+    def in_(self, col, ids):
+        self._ids = ids
+        return self
+
+    def upsert(self, rows, on_conflict=None):
+        self.upserts += rows
+        self._ids = None
+        return self
+
+    def execute(self):
+        if self.fail:
+            raise RuntimeError("table missing")
+        data = [{"id": i, "spec": self.rows[i]} for i in (self._ids or []) if i in self.rows]
+        return type("R", (), {"data": data})()
+
+
+def test_a_saved_reading_is_not_paid_for_again(monkeypatch):
+    calls = []
+    db = _ReadingsDb({pb._reading_id("R24 SOFT IRON"): {"kind": "ring_joint", "ring_no": "R24"}})
+    monkeypatch.setattr(pb, "get_client", lambda: db)
+    monkeypatch.setattr(pb, "_read_fresh", lambda ds: calls.append(list(ds)) or [{"kind": "other"} for _ in ds])
+    pb._READ_CACHE.clear()
+    out = pb.read_lines(["r24  soft iron", "flat gasket"])
+    # Only the unseen line goes to the reader, and its reading is saved.
+    assert calls == [["FLAT GASKET"]]
+    assert out == [{"kind": "ring_joint", "ring_no": "R24"}, {"kind": "other"}]
+    assert [(u["id"], u["description"], u["spec"]) for u in db.upserts] == \
+        [(pb._reading_id("FLAT GASKET"), "FLAT GASKET", {"kind": "other"})]
+    assert db.upserts[0]["rules"] == pb._rules_version()
+
+
+def test_without_the_readings_table_lines_are_still_read(monkeypatch):
+    monkeypatch.setattr(pb, "get_client", lambda: _ReadingsDb(fail=True))
+    monkeypatch.setattr(pb, "_read_fresh", lambda ds: [{"kind": "other"} for _ in ds])
+    pb._READ_CACHE.clear()
+    assert pb.read_lines(["flat gasket"]) == [{"kind": "other"}]
+
+
+def test_new_reader_rules_or_model_mean_a_fresh_reading(monkeypatch):
+    before = pb._reading_id("FLAT GASKET")
+    monkeypatch.setattr(pb, "READ_MODEL", pb.READ_MODEL + "-other")
+    after_model = pb._reading_id("FLAT GASKET")
+    monkeypatch.setattr(pb, "_PROMPT", pb._PROMPT + "\nA new rule.")
+    assert len({before, after_model, pb._reading_id("FLAT GASKET")}) == 3
 
 
 # ── RTJ lines given by size and class ────────────────────────────────────────

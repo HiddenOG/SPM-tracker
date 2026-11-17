@@ -21,13 +21,17 @@ both, each labelled.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
 
 from db import get_client
 
-READ_MODEL = os.environ.get("PRICE_READ_MODEL", "claude-opus-5-5")
+# Sonnet, at half Opus's price: it read all 73 lines of the two real-RFQ test
+# sets right (CG beside an inner ring, "16 SS", zinc-plated rings, BX152 on a
+# 1-13/16" flange ...), the same as Opus. PRICE_READ_MODEL overrides.
+READ_MODEL = os.environ.get("PRICE_READ_MODEL", "claude-sonnet-5-5")
 
 # ── step 1: read the description ─────────────────────────────────────────────
 
@@ -120,14 +124,73 @@ def _read_key(d: str) -> str:
 
 
 def read_lines(descriptions: list[str]) -> list[dict]:
-    """Each description as its fields. Raises RuntimeError with a plain message on failure."""
+    """Each description as its fields. Raises RuntimeError with a plain message on failure.
+
+    A line is read once and kept: first in memory, then in the price_readings
+    table, so a restart or redeploy doesn't pay to read the same words again.
+    Only lines never seen before go to the reader."""
     todo = [d for d in dict.fromkeys(_read_key(d) for d in descriptions) if d not in _READ_CACHE]
     if todo:
-        for key, spec in zip(todo, _read_fresh(todo)):
+        saved = _saved_readings(todo)
+        fresh = [k for k in todo if k not in saved]
+        if fresh:
+            got = dict(zip(fresh, _read_fresh(fresh)))
+            _save_readings(got)
+            saved.update(got)
+        for key in todo:
             if len(_READ_CACHE) >= _READ_CACHE_MAX:
                 _READ_CACHE.clear()
-            _READ_CACHE[key] = spec
+            _READ_CACHE[key] = saved[key]
     return [dict(_READ_CACHE[_read_key(d)]) for d in descriptions]
+
+
+def _rules_version() -> str:
+    """Changes whenever the reader's rules, answer shape or model change, so a
+    reading made under old rules is never reused - the line is read again."""
+    text = _PROMPT + json.dumps(_SCHEMA, sort_keys=True) + READ_MODEL
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def _reading_id(key: str) -> str:
+    return hashlib.sha256(f"{_rules_version()}|{key}".encode("utf-8")).hexdigest()
+
+
+def _saved_readings(keys: list[str]) -> dict[str, dict]:
+    """Readings already in price_readings, by key. Any trouble reaching the
+    table just means reading the lines afresh."""
+    ids = {_reading_id(k): k for k in keys}
+    found: dict[str, dict] = {}
+    try:
+        db = get_client()
+        idl = list(ids)
+        for i in range(0, len(idl), 100):
+            rows = db.table("price_readings").select("id,spec").in_("id", idl[i:i + 100]).execute().data or []
+            for row in rows:
+                if row.get("id") in ids and isinstance(row.get("spec"), dict):
+                    found[ids[row["id"]]] = row["spec"]
+    except Exception as exc:
+        print(f"  [warn] price_book saved readings: {exc}")
+    return found
+
+
+def _save_readings(readings: dict[str, dict]) -> None:
+    if not readings:
+        return
+    version = _rules_version()
+    rows = [{"id": _reading_id(k), "description": k, "spec": spec, "rules": version}
+            for k, spec in readings.items()]
+    try:
+        get_client().table("price_readings").upsert(rows, on_conflict="id").execute()
+    except Exception as exc:
+        print(f"  [warn] price_book save readings: {exc}")
+
+
+def _cached(rules: str, lines: str) -> list[dict]:
+    """The fixed instructions as their own block, marked for the prompt cache,
+    then the lines that change. The model reads the same text either way; a
+    second read within five minutes pays a twentieth for the instructions."""
+    return [{"type": "text", "text": rules, "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": lines}]
 
 
 def _read_fresh(descriptions: list[str]) -> list[dict]:
@@ -142,7 +205,7 @@ def _read_fresh(descriptions: list[str]) -> list[dict]:
             # beside an inner ring material) low effort read them differently
             # from one run to the next.
             output_config={"effort": "medium", "format": {"type": "json_schema", "schema": _SCHEMA}},
-            messages=[{"role": "user", "content": _PROMPT + numbered}],
+            messages=[{"role": "user", "content": _cached(_PROMPT, numbered)}],
         )
     except anthropic.APIError as exc:
         print(f"  [error] price_book.read_lines: {exc}")
@@ -941,7 +1004,7 @@ def verify(descriptions: list[str], results: list[dict]) -> None:
         res = anthropic.Anthropic().messages.create(
             model=READ_MODEL, max_tokens=16000,
             output_config={"effort": "medium", "format": {"type": "json_schema", "schema": _VERIFY_SCHEMA}},
-            messages=[{"role": "user", "content": _VERIFY_PROMPT + "\n\n".join(blocks)}],
+            messages=[{"role": "user", "content": _cached(_VERIFY_PROMPT, "\n\n".join(blocks))}],
         )
         if res.stop_reason in ("refusal", "max_tokens"):
             return

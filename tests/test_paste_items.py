@@ -54,7 +54,9 @@ def test_pdf_text_comes_back_as_a_table(monkeypatch):
         # The answer is held to a strict shape, and the text is sent as copied.
         assert sent["output_config"]["format"]["type"] == "json_schema"
         assert sent["output_config"]["format"]["schema"]["required"] == ["headers", "rows"]
-        assert PDF_TEXT in sent["messages"][0]["content"]
+        rules, pasted = sent["messages"][0]["content"]
+        assert rules["text"] == APP._PASTE_PROMPT and rules["cache_control"] == {"type": "ephemeral"}
+        assert pasted["text"] == PDF_TEXT
         assert sent["model"] == APP.PASTE_MODEL
     finally:
         APP.app.dependency_overrides.clear()

@@ -104,8 +104,9 @@ def reprocess_pending_acknowledgments():
             pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
 
             message = client_ai.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=2000,
+                model="claude-sonnet-5-5",
+                max_tokens=8000,
+                output_config={"effort": "low"},
                 messages=[
                     {
                         "role": "user",
@@ -124,7 +125,7 @@ def reprocess_pending_acknowledgments():
                 ],
             )
 
-            response_text = message.content[0].text.strip()
+            response_text = next((b.text for b in message.content if b.type == "text"), "").strip()
             if response_text.startswith("```"):
                 response_text = response_text.split("```")[1]
                 if response_text.startswith("json"):

@@ -405,9 +405,12 @@ def extract_ack_info_with_claude(pdf_path: str) -> dict:
     pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
     del pdf_bytes  # free raw bytes before the network round-trip
 
+    # Sonnet 5.5: a third cheaper than Sonnet 4.6. It thinks a little at low
+    # effort, so max_tokens leaves room for that as well as the answer.
     message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4000,
+        model="claude-sonnet-5-5",
+        max_tokens=8000,
+        output_config={"effort": "low"},
         messages=[
             {
                 "role": "user",
@@ -426,7 +429,8 @@ def extract_ack_info_with_claude(pdf_path: str) -> dict:
         ],
     )
 
-    response_text = message.content[0].text.strip()
+    # The answer is the text block; a thinking block can come before it.
+    response_text = next((b.text for b in message.content if b.type == "text"), "").strip()
 
     if "```" in response_text:
         parts = response_text.split("```")

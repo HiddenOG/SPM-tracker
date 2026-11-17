@@ -1638,10 +1638,14 @@ def _ai_stream(messages: list, max_tokens: int = 400, system: str = ""):
         try:
             import anthropic
             client = anthropic.Anthropic(api_key=claude_key)
+            # Haiku 5.5, about a tenth of Haiku 4.5's price. It may think a
+            # little first, so the cap has room for that on top of the answer;
+            # text_stream carries only the answer.
             kwargs: dict = {
-                "model":      "claude-haiku-4-5-20251001",
-                "max_tokens": max_tokens,
-                "messages":   messages,
+                "model":         "claude-haiku-5-5",
+                "max_tokens":    max_tokens + 2000,
+                "output_config": {"effort": "low"},
+                "messages":      messages,
             }
             if system:
                 kwargs["system"] = system
@@ -3053,7 +3057,10 @@ def parse_paste(body: dict = Body(default={}), user: dict = Depends(verify_jwt))
         res = anthropic.Anthropic().messages.create(
             model=PASTE_MODEL, max_tokens=16000,
             output_config={"effort": "low", "format": {"type": "json_schema", "schema": _PASTE_SCHEMA}},
-            messages=[{"role": "user", "content": _PASTE_PROMPT + text}],
+            # The fixed instructions are cached; the pasted text follows them.
+            messages=[{"role": "user", "content": [
+                {"type": "text", "text": _PASTE_PROMPT, "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": text}]}],
         )
     except anthropic.APIError as exc:
         print(f"  [error] parse_paste: {exc}")

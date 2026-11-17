@@ -252,12 +252,16 @@ def interpret_reply_with_claude(body_text: str) -> dict:
     prompt = STOCK_REPLY_PROMPT.format(body=body_text[:3000])
 
     message = client.messages.create(
-        model="claude-haiku-4-5-20251001",  # cheapest — sufficient for short texts
-        max_tokens=600,
+        # Haiku 5.5: about a tenth of Haiku 4.5's price. max_tokens leaves room
+        # for a little thinking at low effort as well as the short answer.
+        model="claude-haiku-5-5",
+        max_tokens=3000,
+        output_config={"effort": "low"},
         messages=[{"role": "user", "content": prompt}],
     )
 
-    response_text = message.content[0].text.strip()
+    # The answer is the text block; a thinking block can come before it.
+    response_text = next((b.text for b in message.content if b.type == "text"), "").strip()
     if response_text.startswith("```"):
         response_text = response_text.split("```")[1]
         if response_text.startswith("json"):

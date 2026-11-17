@@ -1049,8 +1049,11 @@ def extract_pdf_with_claude(pdf_path: str) -> dict:
     del pdf_bytes  # free raw bytes before the network round-trip
 
     message = client.messages.create(
-        model="claude-haiku-4-5-20251001",  # cheapest model — sufficient for structured PDFs
-        max_tokens=2000,
+        # Haiku 5.5: about a tenth of Haiku 4.5's price. It may think a little
+        # at low effort, so max_tokens leaves room for that too.
+        model="claude-haiku-5-5",
+        max_tokens=6000,
+        output_config={"effort": "low"},
         messages=[
             {
                 "role": "user",
@@ -1069,7 +1072,8 @@ def extract_pdf_with_claude(pdf_path: str) -> dict:
         ],
     )
 
-    response_text = message.content[0].text.strip()
+    # The answer is the text block; a thinking block can come before it.
+    response_text = next((b.text for b in message.content if b.type == "text"), "").strip()
 
     # Strip markdown fences if present
     if "```" in response_text:
