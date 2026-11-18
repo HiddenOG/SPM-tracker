@@ -393,6 +393,31 @@ def test_too_many_lines_does_not_go_down_the_chain(monkeypatch):
     assert tried == ["sonnet"]
 
 
+def test_a_free_model_gets_the_lines_in_batches_kept_in_order(monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "test")
+    sizes = []
+
+    def batch(spec, key, ds):
+        sizes.append(len(ds))
+        return [{"ring_no": d} for d in ds]
+    monkeypatch.setattr(pb, "_read_backup_batch", batch)
+    lines = [f"R{i}" for i in range(23)]
+    out = pb._read_backup("nvidia:moonshotai/kimi-k3.1-pro", lines)
+    assert sorted(sizes) == [3, 10, 10] and [o["ring_no"] for o in out] == lines
+
+
+def test_one_failed_batch_fails_the_whole_backup(monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "test")
+
+    def batch(spec, key, ds):
+        if "R15" in ds:
+            raise RuntimeError("503 busy")
+        return [{} for _ in ds]
+    monkeypatch.setattr(pb, "_read_backup_batch", batch)
+    with pytest.raises(RuntimeError, match="busy"):
+        pb._read_backup("nvidia:moonshotai/kimi-k3.1-pro", [f"R{i}" for i in range(23)])
+
+
 def test_a_free_models_reading_is_tidied_to_claudes_shape():
     t = pb._tidy({"kind": "gasket", "size_in": "8", "size_dn": "150.0", "ratings": [150],
                   "filler": "made-up", "ring_no": "", "extra": 1})

@@ -37,19 +37,29 @@ READ_MODEL = os.environ.get("PRICE_READ_MODEL", "claude-sonnet-5-5")
 VERIFY_MODEL = os.environ.get("PRICE_VERIFY_MODEL", "claude-opus-5-5")
 REREAD_NOTE = "Read again by the stronger model after the second check doubted the first reading"
 # Free backups, tried best first, only when neither Claude model can read the
-# lines (credit run out, an outage). On the 73-line RFQ test: Gemini Flash 73
-# right (small free quota, slow when Google is busy), Nemotron 72 (~5 min),
-# Qwen 70 (fast). Left out: gpt-oss-120b 66, Gemini Flash-Lite 63 (it picked
-# wrong ring numbers). "provider:model", comma-separated.
+# lines (credit run out, an outage). On the 73-line RFQ test: Kimi K3.1 Pro 73
+# right (NVIDIA, thinking off, 1.5-3.5 min in batches), Gemini Flash 73 (small
+# free quota, often "high demand"), Nemotron 72 (~5 min), Qwen 70 (fast).
+# Left out: gpt-oss-120b 66, Gemini Flash-Lite 63 (it picked wrong ring
+# numbers). "provider:model", comma-separated.
 # PRICE_READ_BACKUPS overrides; set it empty to turn the backups off.
 BACKUP_READERS = [s.strip() for s in os.environ.get(
     "PRICE_READ_BACKUPS",
-    "gemini:gemini-flash-latest,openrouter:nvidia/nemotron-3-ultra-550b-a55b:free,groq:qwen/qwen3.8-27b").split(",")
+    "nvidia:moonshotai/kimi-k3.1-pro,gemini:gemini-flash-latest,"
+    "openrouter:nvidia/nemotron-3-ultra-550b-a55b:free,groq:qwen/qwen3.8-27b").split(",")
     if ":" in s]
 _BACKUP_URLS = {"groq": "https://api.groq.com/openai/v1", "openrouter": "https://openrouter.ai/api/v1",
-                "gemini": "https://generativelanguage.googleapis.com/v1beta/openai"}
+                "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
+                "nvidia": "https://integrate.api.nvidia.com/v1"}
 _BACKUP_KEYS = {"groq": ("GROQ_API_KEY",), "openrouter": ("OPENROUTER_API_KEY", "OPEN_ROUTER_KEY"),
-                "gemini": ("GEMINI_API_KEY",)}
+                "gemini": ("GEMINI_API_KEY",), "nvidia": ("NVIDIA_API_KEY",)}
+# How a backup was tested: Kimi in plain JSON mode with its thinking off
+# (73/73, and over ten times faster than with it on).
+_BACKUP_JSON_MODE = {"nvidia:moonshotai/kimi-k3.1-pro"}
+_BACKUP_EXTRA = {"nvidia:moonshotai/kimi-k3.1-pro": {"chat_template_kwargs": {"thinking": False}}}
+# Lines per request. A free model writes slowly, so an RFQ goes as several
+# small requests at the same time and takes about as long as one of them.
+BACKUP_BATCH = 10
 BACKUP_NOTE = "Read by a free backup model ({model}) because Claude couldn't read it - check this line before quoting"
 
 # ── step 1: read the description ─────────────────────────────────────────────
@@ -212,29 +222,48 @@ def _read_with_backups(keys: list[str]) -> tuple[list[dict], str | None]:
 
 
 def _read_backup(spec: str, descriptions: list[str]) -> list[dict]:
-    """One free model, through its OpenAI-style API. Raises on any trouble so
-    the chain moves on to the next link."""
-    import httpx
-    provider, model = spec.split(":", 1)
+    """One free model, the lines split into batches sent at the same time.
+    Raises if any batch fails, so the chain moves on to the next link."""
+    provider = spec.split(":", 1)[0]
     key = next((os.environ[k].strip() for k in _BACKUP_KEYS.get(provider, ()) if os.environ.get(k, "").strip()), "")
     if not key or provider not in _BACKUP_URLS:
         raise RuntimeError(f"no key for {provider}")
+    batches = [descriptions[i:i + BACKUP_BATCH] for i in range(0, len(descriptions), BACKUP_BATCH)]
+    if len(batches) == 1:
+        return _read_backup_batch(spec, key, batches[0])
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(len(batches)) as ex:
+        parts = list(ex.map(lambda b: _read_backup_batch(spec, key, b), batches))
+    return [x for part in parts for x in part]
+
+
+def _read_backup_batch(spec: str, key: str, descriptions: list[str]) -> list[dict]:
+    """One request to a free model, through its OpenAI-style API."""
+    import httpx
+    provider, model = spec.split(":", 1)
     numbered = "\n".join(f"{i + 1}. {d.strip()[:1500]}" for i, d in enumerate(descriptions))
     prompt = _PROMPT + numbered
+    plain = prompt + "\n\nAnswer with one JSON object matching this JSON schema:\n" + json.dumps(_SCHEMA)
     body = {"model": model, "temperature": 0, "max_tokens": 16000,
             "messages": [{"role": "user", "content": prompt}],
             "response_format": {"type": "json_schema",
-                                "json_schema": {"name": "lines", "schema": _SCHEMA, "strict": False}}}
+                                "json_schema": {"name": "lines", "schema": _SCHEMA, "strict": False}},
+            **_BACKUP_EXTRA.get(spec, {})}
+    if spec in _BACKUP_JSON_MODE:
+        body["response_format"] = {"type": "json_object"}
+        body["messages"][0]["content"] = plain
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
     for attempt in range(3):
         r = httpx.post(_BACKUP_URLS[provider] + "/chat/completions", headers=headers, json=body, timeout=420)
         if r.status_code == 400 and "json_validate_failed" in r.text and attempt < 2:
             continue   # the model wrote broken JSON this time; ask once more
+        if r.status_code == 400 and "chat_template_kwargs" in body and "chat_template" in r.text:
+            body.pop("chat_template_kwargs")   # this host has no thinking switch
+            continue
         if r.status_code == 400 and "response_format" in r.text and body["response_format"]["type"] != "json_object":
             # No schema mode on this model: plain JSON mode, schema in the prompt.
             body["response_format"] = {"type": "json_object"}
-            body["messages"][0]["content"] = (prompt + "\n\nAnswer with one JSON object matching this JSON schema:\n"
-                                              + json.dumps(_SCHEMA))
+            body["messages"][0]["content"] = plain
             continue
         if r.status_code >= 400:
             raise RuntimeError(f"{r.status_code}: {r.text[:300]}")
