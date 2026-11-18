@@ -32,6 +32,25 @@ from db import get_client
 # sets right (CG beside an inner ring, "16 SS", zinc-plated rings, BX152 on a
 # 1-13/16" flange ...), the same as Opus. PRICE_READ_MODEL overrides.
 READ_MODEL = os.environ.get("PRICE_READ_MODEL", "claude-sonnet-5-5")
+# The backup for unclear lines: Opus does the second check on edge cases, and
+# re-reads any line it doubts. PRICE_VERIFY_MODEL overrides.
+VERIFY_MODEL = os.environ.get("PRICE_VERIFY_MODEL", "claude-opus-5-5")
+REREAD_NOTE = "Read again by the stronger model after the second check doubted the first reading"
+# Free backups, tried best first, only when neither Claude model can read the
+# lines (credit run out, an outage). On the 73-line RFQ test: Gemini Flash 73
+# right (small free quota, slow when Google is busy), Nemotron 72 (~5 min),
+# Qwen 70 (fast). Left out: gpt-oss-120b 66, Gemini Flash-Lite 63 (it picked
+# wrong ring numbers). "provider:model", comma-separated.
+# PRICE_READ_BACKUPS overrides; set it empty to turn the backups off.
+BACKUP_READERS = [s.strip() for s in os.environ.get(
+    "PRICE_READ_BACKUPS",
+    "gemini:gemini-flash-latest,openrouter:nvidia/nemotron-3-ultra-550b-a55b:free,groq:qwen/qwen3.8-27b").split(",")
+    if ":" in s]
+_BACKUP_URLS = {"groq": "https://api.groq.com/openai/v1", "openrouter": "https://openrouter.ai/api/v1",
+                "gemini": "https://generativelanguage.googleapis.com/v1beta/openai"}
+_BACKUP_KEYS = {"groq": ("GROQ_API_KEY",), "openrouter": ("OPENROUTER_API_KEY", "OPEN_ROUTER_KEY"),
+                "gemini": ("GEMINI_API_KEY",)}
+BACKUP_NOTE = "Read by a free backup model ({model}) because Claude couldn't read it - check this line before quoting"
 
 # ── step 1: read the description ─────────────────────────────────────────────
 
@@ -124,24 +143,145 @@ def _read_key(d: str) -> str:
 
 
 def read_lines(descriptions: list[str]) -> list[dict]:
-    """Each description as its fields. Raises RuntimeError with a plain message on failure.
+    """Each description as its fields. Raises RuntimeError with a plain message on failure."""
+    return _read_lines(descriptions)[0]
+
+
+def _read_lines(descriptions: list[str]) -> tuple[list[dict], list[str | None]]:
+    """Each description's fields, and for each the free backup model that read
+    it (None when Claude did).
 
     A line is read once and kept: first in memory, then in the price_readings
     table, so a restart or redeploy doesn't pay to read the same words again.
-    Only lines never seen before go to the reader."""
+    Only lines never seen before go to the reader. A backup model's reading is
+    used for this answer only and never kept, so Claude reads the line properly
+    once it is back."""
+    backup: dict[str, tuple[dict, str]] = {}
     todo = [d for d in dict.fromkeys(_read_key(d) for d in descriptions) if d not in _READ_CACHE]
     if todo:
         saved = _saved_readings(todo)
         fresh = [k for k in todo if k not in saved]
         if fresh:
-            got = dict(zip(fresh, _read_fresh(fresh)))
-            _save_readings(got)
-            saved.update(got)
+            lines, by = _read_with_backups(fresh)
+            got = dict(zip(fresh, lines))
+            if by:
+                backup = {k: (s, by) for k, s in got.items()}
+            else:
+                _save_readings(got)
+                saved.update(got)
         for key in todo:
+            if key in backup:
+                continue
             if len(_READ_CACHE) >= _READ_CACHE_MAX:
                 _READ_CACHE.clear()
             _READ_CACHE[key] = saved[key]
-    return [dict(_READ_CACHE[_read_key(d)]) for d in descriptions]
+    specs, sources = [], []
+    for d in descriptions:
+        k = _read_key(d)
+        if k in backup:
+            specs.append(dict(backup[k][0])); sources.append(backup[k][1])
+        else:
+            specs.append(dict(_READ_CACHE[k])); sources.append(None)
+    return specs, sources
+
+
+class _TooMany(RuntimeError):
+    """Too many lines for one answer: another model won't do better."""
+
+
+def _read_with_backups(keys: list[str]) -> tuple[list[dict], str | None]:
+    """The chain: Sonnet, then Opus, then each free backup in turn. Returns the
+    readings and the backup that made them (None for Claude). If every link
+    fails, the first Claude error is what the person sees."""
+    errors = []
+    for model in dict.fromkeys([READ_MODEL, VERIFY_MODEL]):
+        try:
+            return _read_fresh(keys, model), None
+        except _TooMany:
+            raise
+        except RuntimeError as exc:
+            errors.append(str(exc))
+    for spec in BACKUP_READERS:
+        try:
+            lines = _read_backup(spec, keys)
+            print(f"  [warn] price_book: Claude couldn't read {len(keys)} line(s); used backup {spec}")
+            return lines, spec.split(":", 1)[1]
+        except Exception as exc:
+            print(f"  [warn] price_book backup {spec}: {str(exc)[:200]}")
+    raise RuntimeError(errors[0] if errors else "The description reader didn't answer. Try again in a moment.")
+
+
+def _read_backup(spec: str, descriptions: list[str]) -> list[dict]:
+    """One free model, through its OpenAI-style API. Raises on any trouble so
+    the chain moves on to the next link."""
+    import httpx
+    provider, model = spec.split(":", 1)
+    key = next((os.environ[k].strip() for k in _BACKUP_KEYS.get(provider, ()) if os.environ.get(k, "").strip()), "")
+    if not key or provider not in _BACKUP_URLS:
+        raise RuntimeError(f"no key for {provider}")
+    numbered = "\n".join(f"{i + 1}. {d.strip()[:1500]}" for i, d in enumerate(descriptions))
+    prompt = _PROMPT + numbered
+    body = {"model": model, "temperature": 0, "max_tokens": 16000,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": {"type": "json_schema",
+                                "json_schema": {"name": "lines", "schema": _SCHEMA, "strict": False}}}
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    for attempt in range(3):
+        r = httpx.post(_BACKUP_URLS[provider] + "/chat/completions", headers=headers, json=body, timeout=420)
+        if r.status_code == 400 and "json_validate_failed" in r.text and attempt < 2:
+            continue   # the model wrote broken JSON this time; ask once more
+        if r.status_code == 400 and "response_format" in r.text and body["response_format"]["type"] != "json_object":
+            # No schema mode on this model: plain JSON mode, schema in the prompt.
+            body["response_format"] = {"type": "json_object"}
+            body["messages"][0]["content"] = (prompt + "\n\nAnswer with one JSON object matching this JSON schema:\n"
+                                              + json.dumps(_SCHEMA))
+            continue
+        if r.status_code >= 400:
+            raise RuntimeError(f"{r.status_code}: {r.text[:300]}")
+        break
+    text = r.json()["choices"][0]["message"]["content"] or ""
+    lines = _json_with_lines(text)
+    if not isinstance(lines, list) or len(lines) != len(descriptions):
+        raise RuntimeError("lost track of the lines")
+    return [_tidy(x) for x in lines]
+
+
+def _json_with_lines(text: str):
+    """The first JSON object in a free model's answer that holds "lines" -
+    some wrap it in thinking or write a second object after it."""
+    dec = json.JSONDecoder()
+    for m in _re.finditer(r"\{", text):
+        try:
+            obj, _ = dec.raw_decode(text, m.start())
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and "lines" in obj:
+            return obj["lines"]
+    raise RuntimeError("no readable answer")
+
+
+def _tidy(x) -> dict:
+    """A free model's reading in the exact shape Claude's has: every field
+    there, anything off the list made "unknown" (a kind off the list is
+    "other", so it is never priced on a guess)."""
+    x = x if isinstance(x, dict) else {}
+    out = {}
+    for name, rule in _SPEC["properties"].items():
+        v = x.get(name)
+        if "enum" in rule:
+            fallback = "unknown" if "unknown" in rule["enum"] else "other"
+            out[name] = v if v in rule["enum"] else fallback
+        elif rule.get("type") == "array":
+            out[name] = [str(i) for i in v] if isinstance(v, list) else []
+        elif "number" in rule["type"] or "integer" in rule["type"]:
+            try:
+                n = float(v)
+                out[name] = int(n) if "integer" in rule["type"] else n
+            except (TypeError, ValueError):
+                out[name] = None
+        else:
+            out[name] = str(v) if v not in (None, "") else None
+    return out
 
 
 def _rules_version() -> str:
@@ -193,14 +333,14 @@ def _cached(rules: str, lines: str) -> list[dict]:
             {"type": "text", "text": lines}]
 
 
-def _read_fresh(descriptions: list[str]) -> list[dict]:
+def _read_fresh(descriptions: list[str], model: str | None = None) -> list[dict]:
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise RuntimeError("No ANTHROPIC_API_KEY is configured.")
     import anthropic
     numbered = "\n".join(f"{i + 1}. {d.strip()[:1500]}" for i, d in enumerate(descriptions))
     try:
         res = anthropic.Anthropic().messages.create(
-            model=READ_MODEL, max_tokens=16000,
+            model=model or READ_MODEL, max_tokens=16000,
             # Medium, not low: on lines that contradict themselves ("STYLE: CG"
             # beside an inner ring material) low effort read them differently
             # from one run to the next.
@@ -213,7 +353,7 @@ def _read_fresh(descriptions: list[str]) -> list[dict]:
     if res.stop_reason == "refusal":
         raise RuntimeError("The description reader declined these lines.")
     if res.stop_reason == "max_tokens":
-        raise RuntimeError("Too many lines to read at once - check them in two parts.")
+        raise _TooMany("Too many lines to read at once - check them in two parts.")
     try:
         lines = json.loads(next(b.text for b in res.content if b.type == "text"))["lines"]
     except Exception:
@@ -779,6 +919,8 @@ def lookup(spec: dict) -> dict:
 
     elif kind == "ring_joint":
         ring = (spec.get("ring_no") or "").upper().replace("-", "").replace(" ", "")
+        if ring in ("UNKNOWN", "NONE", "N/A", "NA", "NULL"):
+            ring = ""   # a reader's "don't know" - work it out from size and class
         if ring:
             rings = [(ring, None)]
             # A ring number written beside a size and class: check the two agree
@@ -1002,7 +1144,7 @@ def verify(descriptions: list[str], results: list[dict]) -> None:
     try:
         import anthropic
         res = anthropic.Anthropic().messages.create(
-            model=READ_MODEL, max_tokens=16000,
+            model=VERIFY_MODEL, max_tokens=16000,
             output_config={"effort": "medium", "format": {"type": "json_schema", "schema": _VERIFY_SCHEMA}},
             messages=[{"role": "user", "content": _cached(_VERIFY_PROMPT, "\n\n".join(blocks))}],
         )
@@ -1022,12 +1164,50 @@ def check(descriptions: list[str], second_look: bool = True, formula: dict | Non
     """Read and look up each description; one result per line, in order.
     formula: parts of the USD formula changed for this question only
     ({'flex_2022': {'spm': 1.5}}); the defaults stand for everything else."""
-    specs = read_lines(descriptions)
-    token = _FORMULA.set(formula_overrides(formula))
-    try:
-        results = [{"spec": s, **lookup(s)} for s in specs]
-    finally:
-        _FORMULA.reset(token)
+    specs, sources = _read_lines(descriptions)
+    overrides = formula_overrides(formula)
+
+    def look(s: dict) -> dict:
+        token = _FORMULA.set(overrides)
+        try:
+            return {"spec": s, **lookup(s)}
+        finally:
+            _FORMULA.reset(token)
+
+    results = [look(s) for s in specs]
+    for r, by in zip(results, sources):
+        if by:
+            r["notes"] = (r.get("notes") or []) + [BACKUP_NOTE.format(model=by)]
     if second_look:
         verify(descriptions, results)
+        _reread_doubts(descriptions, results, look)
     return results
+
+
+def _reread_doubts(descriptions: list[str], results: list[dict], look) -> None:
+    """Opus as the backup: a line the second check doubts is read again by the
+    stronger model. If that reading differs, the line is looked up afresh and
+    the new reading is kept, so it is never paid for twice. If both models read
+    it the same, the doubt stands for the buyer to check."""
+    doubts = [i for i, r in enumerate(results) if (r.get("ai_check") or {}).get("verdict") == "doubt"]
+    if not doubts or VERIFY_MODEL == READ_MODEL:
+        return
+    keys = list(dict.fromkeys(_read_key(descriptions[i]) for i in doubts))
+    try:
+        again = dict(zip(keys, _read_fresh(keys, VERIFY_MODEL)))
+    except Exception as exc:
+        print(f"  [warn] price_book re-read: {exc}")
+        return
+    changed = {k: s for k, s in again.items() if k in _READ_CACHE and s != _READ_CACHE[k]}
+    for k, s in changed.items():
+        _READ_CACHE[k] = s
+    _save_readings(changed)
+    for i in doubts:
+        spec = again.get(_read_key(descriptions[i]))
+        if spec is None or spec == results[i]["spec"]:
+            continue
+        check_ = results[i]["ai_check"]
+        results[i] = look(spec)
+        results[i]["notes"] = (results[i].get("notes") or []) + [REREAD_NOTE]
+        results[i]["ai_check"] = {"verdict": "doubt", "comment": f"{check_['comment']} (That was about the first "
+                                  "reading; the answer above is from the stronger model's re-read.)"}

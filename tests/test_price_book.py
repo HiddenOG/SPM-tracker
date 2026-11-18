@@ -7,6 +7,8 @@ fields, so they check the rules that decide which list, page and row answer:
 """
 import time
 
+import pytest
+
 import price_book as pb
 from load_price_book import size_in
 
@@ -189,6 +191,46 @@ def test_sizes_read_from_the_lists():
 
 # ── which lines get the second AI look ───────────────────────────────────────
 
+def _backup_setup(monkeypatch, opus_reads):
+    """Sonnet reads 8in 150 316 with no style (an assumption -> edge case);
+    the second check doubts it; Opus's re-read is `opus_reads`."""
+    first = spec(size_in=8, ratings=["150"], grade="316")
+    calls = []
+    monkeypatch.setattr(pb, "_saved_readings", lambda keys: {})
+    saved = []
+    monkeypatch.setattr(pb, "_save_readings", lambda r: saved.append(dict(r)))
+    monkeypatch.setattr(pb, "_read_fresh", lambda ds, model=None: calls.append(model) or
+                        [dict(opus_reads if model == pb.VERIFY_MODEL else first) for _ in ds])
+    monkeypatch.setattr(pb, "verify", lambda d, results: [r.update(ai_check={"verdict": "doubt", "comment": "Style?"})
+                                                          for r in results])
+    monkeypatch.setattr(pb, "READ_MODEL", "claude-sonnet-5-5")
+    monkeypatch.setattr(pb, "VERIFY_MODEL", "claude-opus-5-5")
+    pb._READ_CACHE.clear()
+    return calls, saved
+
+
+def test_a_doubted_line_is_read_again_by_opus_and_kept(monkeypatch):
+    better = spec(size_in=8, ratings=["150"], grade="316", style="CGI")
+    calls, saved = _backup_setup(monkeypatch, better)
+    r = pb.check(["8in 150 316 spiral wound with inner ring"])[0]
+    assert calls == ["claude-sonnet-5-5", "claude-opus-5-5"]
+    assert r["spec"] == better and prices(r) == [("GBP", 6.98)]
+    assert pb.REREAD_NOTE in r["notes"] and "stronger model's re-read" in r["ai_check"]["comment"]
+    assert saved[-1] == {"8IN 150 316 SPIRAL WOUND WITH INNER RING": better}
+    # Next time the line is asked, Opus's reading is used with no new call.
+    monkeypatch.setattr(pb, "verify", lambda d, results: None)
+    assert pb.check(["8in 150 316 spiral wound with inner ring"])[0]["spec"] == better
+    assert calls == ["claude-sonnet-5-5", "claude-opus-5-5"]
+
+
+def test_when_opus_reads_it_the_same_the_doubt_stands(monkeypatch):
+    calls, saved = _backup_setup(monkeypatch, spec(size_in=8, ratings=["150"], grade="316"))
+    r = pb.check(["8in 150 316 spiral wound"])[0]
+    assert calls == ["claude-sonnet-5-5", "claude-opus-5-5"]
+    assert r["ai_check"] == {"verdict": "doubt", "comment": "Style?"} and pb.REREAD_NOTE not in (r.get("notes") or [])
+    assert saved == [{"8IN 150 316 SPIRAL WOUND": spec(size_in=8, ratings=["150"], grade="316")}, {}]
+
+
 def test_plain_single_matches_skip_the_second_look():
     r = {"spec": spec(), **pb.lookup(spec(size_in=8, ratings=["150"], grade="316", style="CGI"))}
     assert not pb._edge(r)
@@ -227,7 +269,7 @@ def test_a_ring_listed_only_in_another_material_says_so():
 
 def test_the_same_description_reads_the_same_every_time(monkeypatch):
     calls = []
-    monkeypatch.setattr(pb, "_read_fresh", lambda ds: calls.append(list(ds)) or [{"kind": "other"} for _ in ds])
+    monkeypatch.setattr(pb, "_read_fresh", lambda ds, model=None: calls.append(list(ds)) or [{"kind": "other"} for _ in ds])
     monkeypatch.setattr(pb, "_saved_readings", lambda keys: {})
     monkeypatch.setattr(pb, "_save_readings", lambda r: None)
     pb._READ_CACHE.clear()
@@ -269,7 +311,7 @@ def test_a_saved_reading_is_not_paid_for_again(monkeypatch):
     calls = []
     db = _ReadingsDb({pb._reading_id("R24 SOFT IRON"): {"kind": "ring_joint", "ring_no": "R24"}})
     monkeypatch.setattr(pb, "get_client", lambda: db)
-    monkeypatch.setattr(pb, "_read_fresh", lambda ds: calls.append(list(ds)) or [{"kind": "other"} for _ in ds])
+    monkeypatch.setattr(pb, "_read_fresh", lambda ds, model=None: calls.append(list(ds)) or [{"kind": "other"} for _ in ds])
     pb._READ_CACHE.clear()
     out = pb.read_lines(["r24  soft iron", "flat gasket"])
     # Only the unseen line goes to the reader, and its reading is saved.
@@ -282,9 +324,81 @@ def test_a_saved_reading_is_not_paid_for_again(monkeypatch):
 
 def test_without_the_readings_table_lines_are_still_read(monkeypatch):
     monkeypatch.setattr(pb, "get_client", lambda: _ReadingsDb(fail=True))
-    monkeypatch.setattr(pb, "_read_fresh", lambda ds: [{"kind": "other"} for _ in ds])
+    monkeypatch.setattr(pb, "_read_fresh", lambda ds, model=None: [{"kind": "other"} for _ in ds])
     pb._READ_CACHE.clear()
     assert pb.read_lines(["flat gasket"]) == [{"kind": "other"}]
+
+
+def _chain_setup(monkeypatch, claude_ok=(), backups_ok=()):
+    """Claude models in claude_ok answer, others fail; same for the backups."""
+    tried = []
+
+    def claude(ds, model=None):
+        tried.append(model)
+        if model not in claude_ok:
+            raise RuntimeError("The description reader didn't answer. Try again in a moment.")
+        return [spec(size_in=8, ratings=["150"], grade="316", style="CGI") for _ in ds]
+
+    def backup(s, ds):
+        tried.append(s)
+        if s not in backups_ok:
+            raise RuntimeError("429 rate limited")
+        return [pb._tidy({"kind": "spiral_wound", "style": "CGI", "size_in": "8", "ratings": [150],
+                          "grade": "316", "filler": "made-up"}) for _ in ds]
+
+    saved = []
+    monkeypatch.setattr(pb, "_read_fresh", claude)
+    monkeypatch.setattr(pb, "_read_backup", backup)
+    monkeypatch.setattr(pb, "_saved_readings", lambda keys: {})
+    monkeypatch.setattr(pb, "_save_readings", lambda r: saved.append(dict(r)) if r else None)
+    monkeypatch.setattr(pb, "READ_MODEL", "sonnet")
+    monkeypatch.setattr(pb, "VERIFY_MODEL", "opus")
+    monkeypatch.setattr(pb, "BACKUP_READERS", ["openrouter:nemotron", "groq:qwen"])
+    pb._READ_CACHE.clear()
+    return tried, saved
+
+
+def test_when_sonnet_fails_opus_reads_and_it_is_kept(monkeypatch):
+    tried, saved = _chain_setup(monkeypatch, claude_ok=("opus",))
+    r = pb.check(["8in 150 316 CGI"], second_look=False)[0]
+    assert tried == ["sonnet", "opus"] and prices(r) == [("GBP", 6.98)]
+    assert saved and not any("backup" in n for n in r.get("notes") or [])
+
+
+def test_when_claude_is_out_the_free_backups_are_tried_in_order(monkeypatch):
+    tried, saved = _chain_setup(monkeypatch, backups_ok=("groq:qwen",))
+    r = pb.check(["8in 150 316 CGI"], second_look=False)[0]
+    assert tried == ["sonnet", "opus", "openrouter:nemotron", "groq:qwen"]
+    assert prices(r) == [("GBP", 6.98)]
+    assert pb.BACKUP_NOTE.format(model="qwen") in r["notes"]
+    # A backup's reading is never kept: Claude reads the line once it's back.
+    assert saved == [] and pb._READ_CACHE == {}
+
+
+def test_when_every_reader_fails_the_claude_error_is_shown(monkeypatch):
+    _chain_setup(monkeypatch)
+    with pytest.raises(RuntimeError, match="didn't answer"):
+        pb.check(["8in 150 316 CGI"], second_look=False)
+
+
+def test_too_many_lines_does_not_go_down_the_chain(monkeypatch):
+    tried, _ = _chain_setup(monkeypatch)
+
+    def too_many(ds, model=None):
+        tried.append(model)
+        raise pb._TooMany("Too many lines to read at once - check them in two parts.")
+    monkeypatch.setattr(pb, "_read_fresh", too_many)
+    with pytest.raises(RuntimeError, match="two parts"):
+        pb.read_lines(["8in 150 316 CGI"])
+    assert tried == ["sonnet"]
+
+
+def test_a_free_models_reading_is_tidied_to_claudes_shape():
+    t = pb._tidy({"kind": "gasket", "size_in": "8", "size_dn": "150.0", "ratings": [150],
+                  "filler": "made-up", "ring_no": "", "extra": 1})
+    assert t["kind"] == "other" and t["filler"] == "unknown" and t["size_in"] == 8.0
+    assert t["size_dn"] == 150 and t["ratings"] == ["150"] and t["ring_no"] is None
+    assert set(t) == set(pb._SPEC["properties"])
 
 
 def test_new_reader_rules_or_model_mean_a_fresh_reading(monkeypatch):
@@ -310,6 +424,10 @@ def test_an_rtj_by_size_and_class_is_priced_by_its_ring_number():
     r = pb.lookup(spec(kind="ring_joint", size_in=3, ratings=["2500"], rtj_material="316", rtj_shape="octagonal"))
     assert prices(r) == [("GBP", 8.98)] and r["matches"][0]["weight_kg"] == 0.65
     assert any('R32 is the ring for 3" class 2500' in n for n in r["notes"])
+    # A reader that writes "unknown" for the ring number gets the same answer.
+    again = pb.lookup(spec(kind="ring_joint", ring_no="unknown", size_in=3, ratings=["2500"], rtj_material="316",
+                           rtj_shape="octagonal"))
+    assert prices(again) == [("GBP", 8.98)]
 
 
 def test_a_stated_thickness_is_checked_against_the_ring():
