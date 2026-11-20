@@ -281,13 +281,33 @@ def test_the_date_goes_in_the_message_so_the_system_prompt_can_be_cached():
 
 def test_history_is_text_only_capped_and_starts_with_the_user():
     hist = ([{"role": "assistant", "content": "orphan"}]
-            + [{"role": r, "content": "x" * 5000} for r in ["user", "assistant"] * 6]
+            + [{"role": r, "content": "x" * 25000} for r in ["user", "assistant"] * 6]
             + [{"role": "tool", "content": "never"}])
     clean = A._clean_history(hist)
     assert clean[0]["role"] == "user"
     assert len(clean) <= 8
-    assert all(len(m["content"]) <= 4000 for m in clean)
+    assert all(len(m["content"]) <= A.HISTORY_MSG_CHARS + 400 for m in clean)
+    assert sum(len(m["content"]) for m in clean) <= A.HISTORY_CHARS + 2000
     assert all(m["role"] in ("user", "assistant") for m in clean)
+
+
+def test_a_pasted_rfq_and_its_priced_table_reach_the_follow_up_whole():
+    """56 lines pasted (about 10,000 characters) and a 56-row price table
+    answering it: asking "can I get the total?" next must see every line of
+    both, not the first 28 - Ask once told the person their paste stopped there."""
+    paste = "\n".join(f'{i}\t{i}" 150 lb, RF SPIRAL WOUND GASKET, CS CENTERING RING, 316 SS WINDINGS, '
+                      f"WITH GRAPHITE FILLER, ASME B16.20\tEA\t3\t5.1\tNo Tax\t$15.30" for i in range(1, 57))
+    table = "\n".join(f"| {i} | {i}\" 150 SW CG | 3 | GBP 1.04 | 1.59 | 0.11 kg | CG, no inner ring |" for i in range(1, 57))
+    clean = A._clean_history([{"role": "user", "content": paste}, {"role": "assistant", "content": table}])
+    assert clean[0]["content"] == paste and clean[1]["content"] == table
+    assert "56\t56\"" in clean[0]["content"] and "| 56 |" in clean[1]["content"]
+
+
+def test_a_cut_message_says_it_was_cut():
+    old = "y" * 30000
+    clean = A._clean_history([{"role": "user", "content": old}, {"role": "assistant", "content": "ok"}])
+    assert "was cut here" in clean[0]["content"] and "did not end here" in clean[0]["content"]
+    assert len(clean[0]["content"]) < 30000
 
 
 def test_the_model_is_sonnet_5_5_with_room_to_think_and_a_fallback():

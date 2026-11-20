@@ -424,19 +424,50 @@ def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None, user=No
 
 # ── the loop ─────────────────────────────────────────────────────────────────
 
+# One earlier message is sent back whole up to this - the same as the longest
+# question allowed (web/app.py ASK_MAX_CHARS), so a pasted RFQ and the priced
+# table that answered it both survive into the follow-up.
+HISTORY_MSG_CHARS = 20_000
+# All earlier messages together. Filled newest first; an older message that
+# doesn't fit is cut, and says so.
+HISTORY_CHARS = 60_000
+
+
+def _cut_note(dropped: int) -> str:
+    return (f"\n\n[This earlier message was cut here for length - {dropped:,} more characters "
+            f"are not shown. It did not end here: don't say it stops at this point. If its "
+            f"missing part matters, say you can only see the start and ask for it again.]")
+
+
 def _clean_history(history) -> list:
-    """Earlier turns, as plain text only, last eight, each capped.
+    """Earlier turns, as plain text only, last eight, within a budget.
 
     Only the words of earlier questions and answers are sent back - not the
     emails read to produce them. Re-sending those would grow every question by
     the cost of all the ones before it.
+
+    Each message used to be cut to 4,000 characters. A 56-line RFQ pasted in,
+    and the 56-row price table that answered it, are 8-10,000 each: the
+    follow-up "what's the total?" saw half of both, and Ask told the person
+    their paste stopped at item 29. Now messages go back whole, newest first,
+    until the budget is spent; anything cut is marked as cut.
     """
-    out = []
+    msgs = []
     for m in (history or [])[-8:]:
         role = m.get("role")
         text = str(m.get("content") or "").strip()
         if role in ("user", "assistant") and text:
-            out.append({"role": role, "content": text[:4000]})
+            msgs.append({"role": role, "content": text})
+    out, left = [], HISTORY_CHARS
+    for m in reversed(msgs):
+        text = m["content"]
+        room = min(HISTORY_MSG_CHARS, left)
+        if room < 500:
+            break                                   # nothing useful fits any more
+        if len(text) > room:
+            text = text[:room] + _cut_note(len(text) - room)
+        out.insert(0, {"role": m["role"], "content": text})
+        left -= min(len(m["content"]), room)
     # The API needs alternating turns starting with the user.
     while out and out[0]["role"] != "user":
         out.pop(0)
