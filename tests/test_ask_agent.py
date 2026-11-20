@@ -374,6 +374,17 @@ def test_what_ask_remembers_comes_with_the_question(monkeypatch):
     assert "uses x1.13 only" not in client.calls[0]["system"]      # the system prompt stays cacheable
 
 
+def test_scaling_a_price_already_given_needs_no_new_lookup():
+    """'multiply the price by 1.54' after a priced answer re-ran the price tool
+    because Ask was told never to work a price out itself. Arithmetic on prices
+    already in the chat is now Ask's own; only changing a part of the formula
+    goes back through the tool."""
+    s = A.SYSTEM
+    assert "multiply the price by 1.54" in s and "don't run gasket_price again" in s
+    assert "goes back through gasket_price" in s
+    assert "Never work a final USD price out of a list price yourself" in s
+
+
 def test_follow_ups_are_read_against_the_chat():
     s = A.SYSTEM.lower()
     assert "the total of the prices you just gave" in s
