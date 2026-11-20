@@ -374,6 +374,28 @@ def test_what_ask_remembers_comes_with_the_question(monkeypatch):
     assert "uses x1.13 only" not in client.calls[0]["system"]      # the system prompt stays cacheable
 
 
+def test_the_calculator_gets_the_sum_ask_got_wrong():
+    # Ask wrote USD 529.47 x 3.7 = 1,958.944. It is 1,959.039.
+    assert A.calculate("529.47 * 3.7") == "1959.039 (to the cent: 1,959.04)"
+    assert A.calculate("USD 529.47 x 3.7") == "1959.039 (to the cent: 1,959.04)"
+    assert A.calculate("16.35*20 + 490.54") == "817.54"
+    assert A.calculate("1,958.94 × 2") == "3,917.88"
+    assert A.calculate("(108.27*1.35*1.47*1.13 + (12.16+0.05)*12) * 1.36").endswith("(to the cent: 529.47)")
+
+
+def test_the_calculator_only_does_arithmetic():
+    for bad in ("__import__('os').system('dir')", "2**999999", "open('x')", "", "1/0"):
+        assert A.calculate(bad).startswith("can't")
+
+
+def test_the_calculator_is_a_tool_in_every_scope_and_ask_must_use_it():
+    for scope in ("both", "mail", "tracker"):
+        assert "calculate" in {t["name"] for t in A.SCOPES[scope]}
+    assert "Never do arithmetic in your head" in A.SYSTEM
+    text, _, _ = A.execute("calculate", {"expressions": ["529.47 * 3.7", "1+1"]}, A._Refs())
+    assert "529.47 * 3.7 = 1959.039 (to the cent: 1,959.04)" in text and "1+1 = 2.00" in text
+
+
 def test_scaling_a_price_already_given_needs_no_new_lookup():
     """'multiply the price by 1.54' after a priced answer re-ran the price tool
     because Ask was told never to work a price out itself. Arithmetic on prices

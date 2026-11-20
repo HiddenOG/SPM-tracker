@@ -69,7 +69,7 @@ SYSTEM = """You are SPM Ask, the assistant inside SPMprocure360 for Special Pipi
 You answer staff questions from two sources:
 - The company inbox (specialpiping@gmail.com, about 295,000 emails), through search_email, read_email and read_thread. search_email takes Gmail search syntax: plain words, "exact phrases", from:, to:, subject:, after:2026/09/01, before:, newer_than:30d, has:attachment, OR, and -word to exclude.
 - The SPMprocure360 tracker, through the order, quote and stock tools. The tracker only holds Chevron and NLNG orders; every other client's orders are found in email. It holds each order's line items with their dates, so "overdue" or "late" questions, by order or by line, are answered with orders_overdue - "stuck" means not moved, which is a different question.
-- The gasket price lists, through gasket_price: what a gasket costs on Flexitallic's 2022 list (316, GBP) or SPM's 2026 list (304, USD), and what it weighs. Use it for "how much is…", "what's the price/weight of…" and "is this on the price list" questions about gaskets, and about Flexitallic sheets, tape, braided packing and paste. Pass each description as the client wrote it - don't add ring numbers, styles or grades of your own; the tool reads them and finds an RTJ's ring number on Flexitallic's chart. Give the list price exactly as listed with its currency and list, and beside it the final USD price the tool worked out - SPM's selling price, from [(GBP x 1.35 x 1.47 x 1.13) + ((kg + 0.05) x 12)] x 1.36 for Flexitallic's 2022 list and [(USD x 1.47) + ((kg + 0.05) x 12)] x 1.36 for SPM's 2026 list. Never work a final USD price out of a list price yourself - that is the tool's job; where the tool gives none, say why in its words (no weight on the weights list). But once prices are in the chat, arithmetic on them is yours: "multiply the price by 1.54", "add $5 each", "take 10% off", "the total", "in naira at 1,500" - do it straight from the prices already given, show the working in one line (USD 16.35 x 1.54 = USD 25.18), and don't run gasket_price again.
+- The gasket price lists, through gasket_price: what a gasket costs on Flexitallic's 2022 list (316, GBP) or SPM's 2026 list (304, USD), and what it weighs. Use it for "how much is…", "what's the price/weight of…" and "is this on the price list" questions about gaskets, and about Flexitallic sheets, tape, braided packing and paste. Pass each description as the client wrote it - don't add ring numbers, styles or grades of your own; the tool reads them and finds an RTJ's ring number on Flexitallic's chart. Give the list price exactly as listed with its currency and list, and beside it the final USD price the tool worked out - SPM's selling price, from [(GBP x 1.35 x 1.47 x 1.13) + ((kg + 0.05) x 12)] x 1.36 for Flexitallic's 2022 list and [(USD x 1.47) + ((kg + 0.05) x 12)] x 1.36 for SPM's 2026 list. Never work a final USD price out of a list price yourself - that is the tool's job; where the tool gives none, say why in its words (no weight on the weights list). But once prices are in the chat, arithmetic on them is yours: "multiply the price by 1.54", "add $5 each", "take 10% off", "the total", "in naira at 1,500" - do it straight from the prices already given with the calculate tool, show the working in one line (USD 16.35 x 1.54 = USD 25.18), and don't run gasket_price again.
 - The formula's parts, which the person may change for edge cases (a change to a part - "use 1.5 markup instead of 1.47", "drop the Flexitallic markup", "shipping 15" - goes back through gasket_price, because it changes how every price is built; a factor applied to the finished price does not): in the Flexitallic one, 1.35 = GBP to USD conversion, 1.47 = SPM markup, 1.13 = Flexitallic markup, 0.05 = extra kg added to each gasket's weight, 12 = shipping per kg, 1.36 = final SPM markup; SPM's 2026 one has 1.47, 0.05, 12 and 1.36. When the person changes something ("use 1.5 markup", "increase shipping to 15", "drop the Flexitallic markup", "no extra weight", "add $5 handling"), write the whole formula with that change into gasket_price's formula, starting from the formula last used (the one the tool shows with each price - the person's saved one, or the default): removing a markup means taking it out of the formula. If it isn't clear which markup they mean (SPM's 1.47, Flexitallic's 1.13 or the final 1.36) or which list, ask before pricing. Keep using a change for the rest of the conversation until they say to go back to the default (then send the default formula), and in every answer that used a changed formula say what changed and give the formula as used. A person may also have saved their own formula from the "Formula" chip under the text box; the tool then uses it by itself and shows it with the default beside it - mention it when it's in use, and say it can be changed back from that chip. Pass on any doubt the second check raised. When a ring joint line gives a thickness, report the tool's thickness check as it is (which ring measurement the figure matches, or that it matches none) - never judge a thickness yourself.
 - When gasket_price says a line doesn't state the gasket's type (or another detail it needs), don't guess and don't pick a type yourself. If the question comes from an emailed enquiry, read that enquiry's thread first (search_email on its subject or reference, then read_thread): SPM staff ask the client what type they mean, and sometimes the procurement head just says what to quote ("quote them CGI 316"). If the thread has the client's answer or such an instruction, price the line again with that detail added to its description, and cite the email. Only if it has neither, say the type isn't stated and the client should be asked.
 - Explain every line gasket_price answers, in one short plain sentence built only from what the tool returned (how it was read, its notes, its reason, the second check): why that item and that price - "R24 because 2in class 900 is R24 on Flexitallic's chart; soft iron as asked" - or why there's no price - "Alloy 625 isn't on the list, only soft iron and 316". Never leave out a note that tells the buyer to check something with the client, and never add a reason the tool didn't give - no guesses of your own about what the client probably means.
@@ -97,7 +97,7 @@ The conversation:
 - Use what is already in the chat. Don't re-run a tool for prices, orders or emails you already have unless the person asks for something new; don't ask the person to paste again what they already pasted.
 - A pasted table or list is everything they meant to send unless they say otherwise. Never tell someone their paste was cut short unless an earlier message you were given says it was cut.
 - Answer the question asked, at the length it needs. A follow-up like "the total?" gets the number and one line on what it covers - not a re-explanation of the formula, the list, or how you rounded. Explain or caveat only what changes the decision: lines to check with the client, and a changed formula when it's first used.
-- Do arithmetic exactly. When the price tool gives line totals and a grand total, use those.
+- Never do arithmetic in your head - not even one multiplication. Every sum, product, discount, conversion or total goes through calculate (several at once if needed), and you quote its result. When the price tool already gives line totals and a grand total, use those.
 - What you remember about this person and the team (given at the start of the question, when there is any) applies unless they say otherwise now. When someone tells you something that will stay true - "always", "from now on", "I usually", "remember", a client's standing preference, a person's usual formula - save it with remember. Don't save one-off requests or anything you can look up. If asked what you remember, say it; if asked to forget, use forget.
 - For "what did we price / quote / say last week" about earlier chats, use search_past_chats.
 
@@ -250,8 +250,24 @@ TRACKER_TOOLS = [
     },
 ]
 
-# Memory beyond one chat (scripts/ask_memory.py) - open in every scope.
+# Memory beyond one chat (scripts/ask_memory.py), and the calculator - open in
+# every scope.
 MEMORY_TOOLS = [
+    {
+        "name": "calculate",
+        "description": "Exact arithmetic. A language model writes numbers digit by digit and slips on sums like "
+                       "529.47 x 3.7 - use this for every multiplication, total, discount or conversion of prices "
+                       "or quantities, and quote its results. Give one or more expressions using numbers, + - * / "
+                       "and brackets; each comes back exact and rounded to the cent.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "expressions": {"type": "array", "items": {"type": "string"},
+                                "description": "e.g. [\"529.47 * 3.7\", \"16.35*20 + 490.54*1\"]"},
+            },
+            "required": ["expressions"],
+        },
+    },
     {
         "name": "remember",
         "description": "Save something that will stay true beyond this chat: a person's standing preference (their usual "
@@ -330,6 +346,52 @@ def _q(s: str, n=60) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+def calculate(expr: str) -> str:
+    """One arithmetic expression, exactly: numbers, + - * / and brackets only
+    (x, × and commas in numbers are accepted). Decimal arithmetic, so 529.47 x
+    3.7 is 1959.039, not a float's 1959.0389999. Returns the exact value and,
+    when it has more than two decimals, the value rounded to the cent."""
+    import ast
+    from decimal import Decimal, InvalidOperation, ROUND_HALF_UP, getcontext
+    getcontext().prec = 34
+    text = str(expr or "").replace("×", "*").replace("÷", "/")
+    text = re.sub(r"(?<=\d),(?=\d{3}\b)", "", text)               # 1,958.94 -> 1958.94
+    text = re.sub(r"(?<=[\d)\s])[xX](?=[\s\d(])", "*", text)       # 529.47 x 3.7
+    text = re.sub(r"\b(?:USD|GBP|NGN|EUR)\b|[$£₦€]", "", text).strip()
+    if not text or len(text) > 400 or not re.fullmatch(r"[\d\s.+\-*/()]+", text):
+        return "can't calculate that - use numbers, + - * / and brackets"
+    try:
+        tree = ast.parse(text, mode="eval")
+    except SyntaxError:
+        return "can't read that expression"
+
+    def ev(n):
+        if isinstance(n, ast.Expression):
+            return ev(n.body)
+        if isinstance(n, ast.Constant) and isinstance(n.value, (int, float)):
+            return Decimal(str(n.value))
+        if isinstance(n, ast.UnaryOp) and isinstance(n.op, (ast.UAdd, ast.USub)):
+            v = ev(n.operand)
+            return v if isinstance(n.op, ast.UAdd) else -v
+        if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+            a, b = ev(n.left), ev(n.right)
+            if isinstance(n.op, ast.Add):
+                return a + b
+            if isinstance(n.op, ast.Sub):
+                return a - b
+            if isinstance(n.op, ast.Mult):
+                return a * b
+            return a / b
+        raise ValueError("only numbers and + - * /")
+    try:
+        v = ev(tree)
+    except (ValueError, ZeroDivisionError, InvalidOperation) as exc:
+        return f"can't calculate that ({exc or 'division by zero'})"
+    exact = format(v.normalize(), "f")
+    cents = v.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return f"{cents:,}" if v == cents else f"{exact} (to the cent: {cents:,})"
+
+
 def _qty(v) -> float | None:
     try:
         q = float(str(v).replace(",", "").strip())
@@ -403,6 +465,9 @@ def _price_text(descriptions: list[str], results: list[dict], quantities: list |
 def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None, user=None):
     """Run one tool. Returns (text for the model, step label, step detail)."""
     args = args or {}
+    if name == "calculate":
+        exprs = [str(e) for e in (args.get("expressions") or []) if str(e).strip()][:40]
+        return "\n".join(f"{e} = {calculate(e)}" for e in exprs) or "No expression given.", "Calculating", ""
     if name in ("remember", "forget", "search_past_chats"):
         import ask_memory
         if name == "remember":
