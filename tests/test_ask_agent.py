@@ -303,6 +303,89 @@ def test_a_pasted_rfq_and_its_priced_table_reach_the_follow_up_whole():
     assert "56\t56\"" in clean[0]["content"] and "| 56 |" in clean[1]["content"]
 
 
+def test_the_whole_chat_goes_back_not_just_the_last_four_exchanges():
+    hist = [{"role": r, "content": f"{r} turn {i}"} for i in range(12) for r in ("user", "assistant")]
+    clean = A._clean_history(hist)
+    assert len(clean) == 24 and clean[0]["content"] == "user turn 0"
+
+
+def test_a_question_left_without_an_answer_keeps_the_turns_alternating():
+    clean = A._clean_history([{"role": "user", "content": "price these"}, {"role": "user", "content": "hello?"},
+                              {"role": "assistant", "content": "priced"}, {"role": "user", "content": "stopped"}])
+    assert [m["role"] for m in clean] == ["user", "assistant", "user", "assistant"]
+    assert "price these" in clean[0]["content"] and "hello?" in clean[0]["content"]
+
+
+def _priced(price_gbp, usd, label="CG 316L"):
+    return {"status": "found", "spec": {}, "matches": [{"label": label, "poa": False, "currency": "GBP",
+                                                         "price": price_gbp, "quote_usd": usd, "weight_kg": 0.1}]}
+
+
+def test_the_price_tool_works_out_line_totals_and_the_grand_total():
+    text = A._price_text(["2in 150 CG", "4in 150 CG", "alloy 625 ring"],
+                         [_priced(1.04, 1.587), _priced(1.95, 2.97),
+                          {"status": "not_listed", "spec": {}, "matches": [], "reason": "not on the list"}],
+                         [3, 96, 2])
+    assert "line total USD 4.77" in text            # 1.59 (rounded first) x 3
+    assert "line total USD 285.12" in text          # 2.97 x 96
+    assert "GRAND TOTAL: USD 289.89" in text
+    assert "GBP 190.32" in text                     # 1.04 x 3 + 1.95 x 96
+    assert "Left out of the total" in text and "lines 3" in text
+
+
+def test_without_quantities_there_is_no_total():
+    assert "GRAND TOTAL" not in A._price_text(["2in 150 CG"], [_priced(1.04, 1.59)])
+
+
+def test_quantities_follow_their_descriptions_when_blanks_are_dropped(monkeypatch):
+    import price_book
+    seen = {}
+
+    def check(descs, formula=None):
+        seen["descs"] = descs
+        return [_priced(1.0, 1.5) for _ in descs]
+    monkeypatch.setattr(price_book, "check", check)
+    monkeypatch.setattr(price_book, "merge_formulas", lambda a, b: None)
+    text, _, _ = A.execute("gasket_price", {"descriptions": ["2in CG", " ", "4in CG"], "quantities": [2, 9, 4]},
+                           A._Refs(), user={"role": "procurement"})
+    assert seen["descs"] == ["2in CG", "4in CG"]
+    assert "quantity 2; line total USD 3.00" in text and "quantity 4; line total USD 6.00" in text
+
+
+def test_remember_forget_and_past_chats_go_to_the_memory_module(monkeypatch):
+    import ask_memory
+    calls = []
+    monkeypatch.setattr(ask_memory, "remember", lambda u, note, about="me", chat_id=None: calls.append(("r", note, about)) or "Remembered [abc12345]")
+    monkeypatch.setattr(ask_memory, "forget", lambda u, nid: calls.append(("f", nid)) or "Forgot")
+    monkeypatch.setattr(ask_memory, "search_chats", lambda t, s=None: calls.append(("s", t)) or "found")
+    A.execute("remember", {"note": "Precious uses GBP x 1.35 x 1.13", "about": "me"}, A._Refs(), user={"sub": "u1"})
+    A.execute("forget", {"id": "abc12345"}, A._Refs(), user={"sub": "u1"})
+    A.execute("search_past_chats", {"text": "Seplat CGI"}, A._Refs(), user={"sub": "u1"})
+    assert calls == [("r", "Precious uses GBP x 1.35 x 1.13", "me"), ("f", "abc12345"), ("s", "Seplat CGI")]
+
+
+def test_what_ask_remembers_comes_with_the_question(monkeypatch):
+    import ask_memory
+    monkeypatch.setattr(ask_memory, "recall_text", lambda u: "What you remember (from earlier chats):\n- [abc12345] (about you) uses x1.13 only")
+    client = FakeClient([round_([text_block("ok")], "end_turn")])
+    run_all(client=client)
+    last = client.calls[0]["messages"][-1]["content"]
+    assert "uses x1.13 only" in last and "Today is" in last
+    assert "uses x1.13 only" not in client.calls[0]["system"]      # the system prompt stays cacheable
+
+
+def test_follow_ups_are_read_against_the_chat():
+    s = A.SYSTEM.lower()
+    assert "the total of the prices you just gave" in s
+    assert "never tell someone their paste was cut short" in s
+
+
+def test_the_memory_tools_are_open_in_every_scope():
+    for scope in ("both", "mail", "tracker"):
+        names = {t["name"] for t in A.SCOPES[scope]}
+        assert {"remember", "forget", "search_past_chats"} <= names
+
+
 def test_a_cut_message_says_it_was_cut():
     old = "y" * 30000
     clean = A._clean_history([{"role": "user", "content": old}, {"role": "assistant", "content": "ok"}])

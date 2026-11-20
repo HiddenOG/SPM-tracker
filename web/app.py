@@ -2087,6 +2087,54 @@ class _AskRecord:
 ASK_MAX_CHARS = 20_000
 
 
+def _ask_saved_history(chat_id: str | None) -> list:
+    """Every question and answer saved in this chat, oldest first, as
+    [{"role", "content"}]. Empty when there's no chat yet or it can't be read."""
+    if not chat_id or not _UUID_RE.match(chat_id):
+        return []
+    try:
+        rows = get_client().table("ask_messages").select("role,content") \
+            .eq("chat_id", chat_id).order("created_at").execute().data or []
+        return [{"role": r["role"], "content": r.get("content") or ""} for r in rows
+                if isinstance(r, dict) and r.get("role") in ("user", "assistant")]
+    except Exception as exc:
+        print(f"  [warn] ask history not loaded: {exc}")
+        return []
+
+
+@app.get("/api/ask/memory")
+def ask_memory_list(user: dict = Depends(verify_jwt)):
+    """What Ask remembers: this person's own notes and the team's."""
+    _ask_guard(user)
+    try:
+        mine = get_client().table("ask_memory").select("id,about,note,user_id,user_name,created_at") \
+            .eq("about", "person").eq("user_id", str(user.get("sub") or "")).order("created_at", desc=True).execute().data or []
+        team = get_client().table("ask_memory").select("id,about,note,user_id,user_name,created_at") \
+            .eq("about", "team").order("created_at", desc=True).execute().data or []
+        return _ok({"mine": mine, "team": team})
+    except Exception as exc:
+        print(f"  [error] ask_memory_list: {exc}")
+        gap = _schema_gap(exc)
+        raise HTTPException(status_code=503 if gap else 500,
+                            detail=gap or "Ask's memory couldn't be loaded. If it's new, run migrations/create_ask_memory.sql.")
+
+
+@app.delete("/api/ask/memory/{note_id}")
+def ask_memory_delete(note_id: str, user: dict = Depends(verify_jwt)):
+    """Delete a note: your own, or a team one. Admins may delete any."""
+    _ask_guard(user)
+    if not _UUID_RE.match(note_id):
+        raise HTTPException(status_code=404, detail="Note not found")
+    rows = get_client().table("ask_memory").select("id,about,user_id").eq("id", note_id).execute().data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail="Note not found")
+    n = rows[0]
+    if not (user.get("role") == "admin" or n["about"] == "team" or str(n.get("user_id")) == str(user.get("sub"))):
+        raise HTTPException(status_code=403, detail="That note is someone else's.")
+    get_client().table("ask_memory").delete().eq("id", note_id).execute()
+    return _ok({"ok": True})
+
+
 @app.post("/api/ask")
 def ask(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
     """SPM Ask: answer a question from the whole inbox and the tracker.
@@ -2111,6 +2159,12 @@ def ask(body: dict = Body(default={}), user: dict = Depends(verify_jwt)):
 
     import ask_agent
     chat_id = str(body.get("chat_id") or "").strip() or None
+    # The whole saved chat is Ask's memory of this conversation - not just the
+    # page's copy, which a reopened or long chat may only partly hold. The
+    # page's copy stands in when the chat isn't saved (or can't be read).
+    saved = _ask_saved_history(chat_id)
+    if saved:
+        history = saved
 
     def _gen():
         # The chat is saved as it goes (see _AskRecord); the first event says
@@ -4537,6 +4591,7 @@ _TABLE_MIGRATIONS = {
     "quotations":        "create_quotations.sql",
     "ask_chats":         "create_ask_chats.sql",
     "ask_messages":      "create_ask_chats.sql",
+    "ask_memory":        "create_ask_memory.sql",
 }
 
 

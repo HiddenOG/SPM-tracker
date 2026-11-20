@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import Shell from './shell/Shell'
 import AskPage from './pages/ask/AskPage'
 import AllChats from './pages/ask/AllChats'
+import AskMemory from './pages/ask/AskMemory'
 import DashboardPage from './pages/dashboard/DashboardPage'
 import OrdersPage from './pages/orders/OrdersPage'
 import DelaysPage from './pages/delays/DelaysPage'
@@ -42,6 +43,7 @@ export default function App() {
               rebuilt when a new chat gets its address mid-answer. */}
           <Route path="/ask/:chatId?" element={<AskPage />} />
           <Route path="/ask/all" element={<AllChats />} />
+          <Route path="/ask/memory" element={<AskMemory />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>

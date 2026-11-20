@@ -144,6 +144,7 @@ export default function ChatList({ activeId, allOpen }: { activeId: string | nul
         {!!chats?.length && (
           <Link to="/ask/all" className={`rc-all${allOpen ? ' on' : ''}`}>View all{chats.length > RECENT ? ` ${chats.length} chats` : ''}</Link>
         )}
+        <Link to="/ask/memory" className="rc-all">What Ask remembers</Link>
       </div>
     </div>
   )

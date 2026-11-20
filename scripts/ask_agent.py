@@ -92,10 +92,20 @@ How to work:
 - Do not write anything before or between tool calls. Write only the final answer.
 - If the emails don't settle the question, say what you found and what is missing. Never guess a date, an amount or a PO number.
 
+The conversation:
+- You see the whole chat so far. Read every follow-up against it, the way a colleague would. "The total", "those", "them", "the same", "that one", "now with the default formula", "and in naira?" all mean what you just gave or were just shown. "The total of the prices you just gave" means: multiply each line you priced by its quantity and add them up - do it, don't ask which total.
+- Use what is already in the chat. Don't re-run a tool for prices, orders or emails you already have unless the person asks for something new; don't ask the person to paste again what they already pasted.
+- A pasted table or list is everything they meant to send unless they say otherwise. Never tell someone their paste was cut short unless an earlier message you were given says it was cut.
+- Answer the question asked, at the length it needs. A follow-up like "the total?" gets the number and one line on what it covers - not a re-explanation of the formula, the list, or how you rounded. Explain or caveat only what changes the decision: lines to check with the client, and a changed formula when it's first used.
+- Do arithmetic exactly. When the price tool gives line totals and a grand total, use those.
+- What you remember about this person and the team (given at the start of the question, when there is any) applies unless they say otherwise now. When someone tells you something that will stay true - "always", "from now on", "I usually", "remember", a client's standing preference, a person's usual formula - save it with remember. Don't save one-off requests or anything you can look up. If asked what you remember, say it; if asked to forget, use forget.
+- For "what did we price / quote / say last week" about earlier chats, use search_past_chats.
+
 How to answer:
 - The first sentence is the direct answer.
 - Then short paragraphs, or lines starting with "- " for lists. Plain language. No headings. A list line may start with a short **bold** label, like "**QU-677580 (Seplat):**"; no other bold.
-- Use a table only when the person asks for one, or to set out several priced lines from gasket_price: a markdown table ("| Item | Description | Qty | List price | Final USD | Weight | Why |" then "|---|---|---|---|---|---|---|" then one row per line), with the client's description as written, the list price with its currency (GBP 2.85, USD 62.83), the tool's final USD price (or "—"), and the line's one-sentence explanation in Why. Lines to check with the client get "Check: " at the start of Why. Nothing inside a table cell but plain text and [n] citations.
+- Use a table only when the person asks for one, or to set out several priced lines from gasket_price: a markdown table ("| Item | Description | Qty | List price | Final USD | Line total | Weight | Why |" then "|---|---|---|---|---|---|---|---|" then one row per line), with the client's description as written, the list price with its currency (GBP 2.85, USD 62.83), the tool's final USD price (or "—"), the tool's line total (or "—" when there's no quantity), and the line's one-sentence explanation in Why. When quantities were given, end the table with a "| | **Total** | | | | <the tool's grand total> | | |" row and say under the table what the total leaves out (lines with no price). Lines to check with the client get "Check: " at the start of Why. Nothing inside a table cell but plain text, [n] citations and that one bold Total.
+- When a pasted enquiry has quantities, pass them to gasket_price as quantities, in the same order as the descriptions, so the tool works the line totals and the grand total out.
 - Cite emails by their reference number in square brackets, like [2], straight after the fact it supports.
 - Write PO numbers, SO numbers, amounts and dates exactly as the source has them."""
 
@@ -205,6 +215,9 @@ TRACKER_TOOLS = [
             "properties": {
                 "descriptions": {"type": "array", "items": {"type": "string"},
                                  "description": "Up to 60 gasket descriptions - a whole enquiry in one call."},
+                "quantities": {"type": "array", "items": {"type": "number"},
+                               "description": "Each description's quantity, in the same order, when the enquiry gives "
+                                              "them. The tool then works out each line total and the grand total."},
                 "formula": {
                     "type": "object",
                     "description": "Only when the person has asked to change SPM's selling-price formula in this conversation: "
@@ -237,13 +250,49 @@ TRACKER_TOOLS = [
     },
 ]
 
+# Memory beyond one chat (scripts/ask_memory.py) - open in every scope.
+MEMORY_TOOLS = [
+    {
+        "name": "remember",
+        "description": "Save something that will stay true beyond this chat: a person's standing preference (their usual "
+                       "price formula, how they like answers), or a fact for the whole team (a client's standing "
+                       "requirement, an agreed rule). Not for one-off requests or anything the tools can look up.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "note": {"type": "string", "description": "One short plain sentence, e.g. 'Precious prices Flexitallic "
+                                                           "lines as GBP x 1.35 x 1.13 only unless she says otherwise.'"},
+                "about": {"type": "string", "enum": ["me", "team"],
+                          "description": "'me' for this person, 'team' for everyone."},
+            },
+            "required": ["note"],
+        },
+    },
+    {
+        "name": "forget",
+        "description": "Delete a remembered note by the id shown in brackets beside it.",
+        "input_schema": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]},
+    },
+    {
+        "name": "search_past_chats",
+        "description": "Search earlier Ask chats (everyone's) for words - a client, a reference, an item - to find what "
+                       "was asked, priced or answered before.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"text": {"type": "string"},
+                           "since": {"type": "string", "description": "ISO date, e.g. 2026-11-01"}},
+            "required": ["text"],
+        },
+    },
+]
+
 # The price lists are buying prices: the same roles as the quote form's check.
 PRICE_ROLES = ("admin", "procurement")
 
 SCOPES = {
-    "both": EMAIL_TOOLS + TRACKER_TOOLS,
-    "mail": EMAIL_TOOLS,
-    "tracker": TRACKER_TOOLS,
+    "both": EMAIL_TOOLS + TRACKER_TOOLS + MEMORY_TOOLS,
+    "mail": EMAIL_TOOLS + MEMORY_TOOLS,
+    "tracker": TRACKER_TOOLS + MEMORY_TOOLS,
 }
 
 
@@ -281,10 +330,28 @@ def _q(s: str, n=60) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
-def _price_text(descriptions: list[str], results: list[dict]) -> str:
-    """The price-list answer, laid out for the model to read."""
+def _qty(v) -> float | None:
+    try:
+        q = float(str(v).replace(",", "").strip())
+        return q if q > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _money(x: float) -> str:
+    return f"{x:,.2f}"
+
+
+def _price_text(descriptions: list[str], results: list[dict], quantities: list | None = None) -> str:
+    """The price-list answer, laid out for the model to read. With quantities,
+    each line gets its line total (the quantity times the first match's final
+    USD, each price rounded to the cent first, as a quote shows it) and the
+    answer ends with the grand total and what it leaves out - so the model
+    never adds up 56 lines in its head."""
     out = []
-    for d, r in zip(descriptions, results):
+    total, list_totals, unpriced, multi = 0.0, {}, [], []
+    for i, (d, r) in enumerate(zip(descriptions, results)):
+        q = quantities[i] if quantities and i < len(quantities) else None
         read = {k: v for k, v in (r.get("spec") or {}).items() if v not in ("unknown", None, [], "none")}
         lines = [f"Gasket: {d.strip()[:300]}", f"  read as: {json.dumps(read)}"]
         if r["status"] == "found":
@@ -301,19 +368,59 @@ def _price_text(descriptions: list[str], results: list[dict]) -> str:
             lines.append("  why / notes: " + "; ".join(r["notes"]))
         if r.get("ai_check"):
             lines.append(f'  second check: {r["ai_check"]["verdict"]} - {r["ai_check"]["comment"]}')
-        out.append("\n".join(lines))
+        if quantities is not None:
+            first = r["matches"][0] if r["status"] == "found" and r["matches"] else None
+            if q is None:
+                lines.append("  quantity: not given - no line total")
+                unpriced.append(i + 1)
+            elif first is None or first.get("quote_usd") is None:
+                lines.append(f"  quantity {q:g}; line total: none - no final USD price for this line")
+                unpriced.append(i + 1)
+            else:
+                line = round(round(first["quote_usd"], 2) * q, 2)
+                total += line
+                if not first["poa"]:
+                    cur = first["currency"]
+                    list_totals[cur] = list_totals.get(cur, 0.0) + round(first["price"], 2) * q
+                if len(r["matches"]) > 1:
+                    multi.append(i + 1)
+                lines.append(f"  quantity {q:g}; line total USD {_money(line)}"
+                             + (" (first match's price)" if len(r["matches"]) > 1 else ""))
+        out.append(f"Line {i + 1}. " + "\n".join(lines))
+    if quantities is not None:
+        tail = [f"GRAND TOTAL: USD {_money(total)} - the sum of the {len(descriptions) - len(unpriced)} line totals above."]
+        if list_totals:
+            tail.append("List prices times quantity, for the same lines: "
+                        + ", ".join(f"{c} {_money(v)}" for c, v in sorted(list_totals.items())) + ".")
+        if unpriced:
+            tail.append(f"Left out of the total (no quantity or no final price): lines {', '.join(map(str, unpriced))}.")
+        if multi:
+            tail.append(f"Lines {', '.join(map(str, multi))} matched more than one list item; their line totals use the first.")
+        out.append("\n".join(tail))
     return "\n\n".join(out)
 
 
 def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None, user=None):
     """Run one tool. Returns (text for the model, step label, step detail)."""
     args = args or {}
+    if name in ("remember", "forget", "search_past_chats"):
+        import ask_memory
+        if name == "remember":
+            return ask_memory.remember(user, args.get("note"), args.get("about") or "me"), "Remembering that", "Memory"
+        if name == "forget":
+            return ask_memory.forget(user, args.get("id")), "Forgetting a note", "Memory"
+        return (ask_memory.search_chats(args.get("text"), args.get("since")),
+                "Searching earlier chats", "Past chats")
     if name == "gasket_price":
         label = "Checking the gasket price lists"
         if (user or {}).get("role") not in PRICE_ROLES:
             return ("The price lists are only open to admin and procurement staff. Tell the person that, "
                     "without giving any price.", label, "Not allowed")
-        descs = [str(d) for d in (args.get("descriptions") or []) if str(d).strip()][:60]
+        raw_q = list(args.get("quantities") or [])
+        pairs = [(str(d), raw_q[i] if i < len(raw_q) else None)
+                 for i, d in enumerate(args.get("descriptions") or []) if str(d).strip()][:60]
+        descs = [d for d, _ in pairs]
+        qtys = [_qty(q) for _, q in pairs] if raw_q else None
         if not descs:
             return "No gasket descriptions were given.", label, "Nothing to look up"
         import price_book
@@ -328,7 +435,7 @@ def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None, user=No
         changed = "; ".join(sorted({m["formula_changed"] for r in results for m in r["matches"] if m.get("formula_changed")}))
         head = (f"NOT THE DEFAULT FORMULA - used: {changed}. Say so in the answer, with the formula as used.\n\n"
                 if changed else "")
-        return head + _price_text(descs, results), label, f"{found} of {len(descs)} found"
+        return head + _price_text(descs, results, qtys), label, f"{found} of {len(descs)} found"
     if name == "rtj_chart":
         import price_book
         text = price_book.chart_answer(args.get("ring_no"), args.get("size"), args.get("rating"),
@@ -428,9 +535,11 @@ def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None, user=No
 # question allowed (web/app.py ASK_MAX_CHARS), so a pasted RFQ and the priced
 # table that answered it both survive into the follow-up.
 HISTORY_MSG_CHARS = 20_000
-# All earlier messages together. Filled newest first; an older message that
-# doesn't fit is cut, and says so.
-HISTORY_CHARS = 60_000
+# The whole chat goes back, like any chat assistant, up to this many
+# characters (about 30,000 tokens) - filled newest first; an older message
+# that doesn't fit is cut, and says so. The automatic cache makes a follow-up
+# re-read it at a tenth of the price.
+HISTORY_CHARS = 120_000
 
 
 def _cut_note(dropped: int) -> str:
@@ -440,7 +549,7 @@ def _cut_note(dropped: int) -> str:
 
 
 def _clean_history(history) -> list:
-    """Earlier turns, as plain text only, last eight, within a budget.
+    """Earlier turns, as plain text only - the whole chat, within a budget.
 
     Only the words of earlier questions and answers are sent back - not the
     emails read to produce them. Re-sending those would grow every question by
@@ -453,7 +562,7 @@ def _clean_history(history) -> list:
     until the budget is spent; anything cut is marked as cut.
     """
     msgs = []
-    for m in (history or [])[-8:]:
+    for m in (history or []):
         role = m.get("role")
         text = str(m.get("content") or "").strip()
         if role in ("user", "assistant") and text:
@@ -468,14 +577,25 @@ def _clean_history(history) -> list:
             text = text[:room] + _cut_note(len(text) - room)
         out.insert(0, {"role": m["role"], "content": text})
         left -= min(len(m["content"]), room)
-    # The API needs alternating turns starting with the user.
-    while out and out[0]["role"] != "user":
-        out.pop(0)
-    return out
+    # The API needs alternating turns starting with the user. A question whose
+    # answer never came (stopped, or failed to save) leaves two user turns in
+    # a row: fold them into one so neither is lost.
+    merged: list = []
+    for m in out:
+        if merged and merged[-1]["role"] == m["role"]:
+            merged[-1] = {"role": m["role"], "content": merged[-1]["content"] + "\n\n" + m["content"]}
+        else:
+            merged.append(m)
+    while merged and merged[0]["role"] != "user":
+        merged.pop(0)
+    # The new question is added as a user turn after this: end on the assistant.
+    if merged and merged[-1]["role"] == "user":
+        merged.append({"role": "assistant", "content": "(No answer was given to this question.)"})
+    return merged
 
 
 def run(question: str, history=None, scope: str = "both", user=None,
-        client=None, mail=None, tracker=None):
+        client=None, mail=None, tracker=None, recall=None):
     """Answer one question. Yields event dicts; see the module docstring."""
     started = time.time()
     tools = SCOPES.get(scope, SCOPES["both"])
@@ -489,11 +609,21 @@ def run(question: str, history=None, scope: str = "both", user=None,
         client = anthropic.Anthropic()
 
     now = datetime.now(_WAT)
+    # What Ask remembers about this person and the team, from earlier chats.
+    # Like the date, it goes in the message, not the system prompt.
+    remembered = ""
+    if user is not None and recall is not False:
+        try:
+            import ask_memory
+            remembered = ask_memory.recall_text(user)
+        except Exception as exc:
+            print(f"  [warn] ask memory not loaded: {exc}")
     messages = _clean_history(history) + [{
         "role": "user",
         # The date goes in the message, not the system prompt, so the system
         # prompt stays byte-identical and cacheable from one question to the next.
-        "content": f"(Today is {now:%A %d %b %Y}, Nigeria time.)\n\n{question.strip()}",
+        "content": f"(Today is {now:%A %d %b %Y}, Nigeria time.)\n\n"
+                   + (f"({remembered})\n\n" if remembered else "") + question.strip(),
     }]
 
     step_no = 0
