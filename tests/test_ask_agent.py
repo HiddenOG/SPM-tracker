@@ -438,6 +438,23 @@ def test_the_model_is_sonnet_5_5_with_room_to_think_and_a_fallback():
     assert sent["output_config"] == {"effort": A.EFFORT}
 
 
+def test_a_caller_can_run_a_lighter_setup_without_changing_ask():
+    """The WhatsApp agent runs this loop on Haiku with its own prompt and a
+    few tools; the website's Ask must keep all of its own settings."""
+    tools = A.tools_named(["find_orders", "calculate", "not_a_tool"])
+    assert [t["name"] for t in tools] == ["find_orders", "calculate"]
+    client = FakeClient([round_([text_block("Done.")], "end_turn")])
+    setup = {"model": "claude-haiku-5-5", "effort": "low", "system": "short",
+             "tools": tools, "max_rounds": 3, "max_tokens": 4000, "fallback": False}
+    list(A.run("hi", client=client, mail=FakeMail(), tracker=FakeTracker(), setup=setup))
+    sent = client.calls[0]
+    assert sent["model"] == "claude-haiku-5-5" and sent["system"] == "short"
+    assert sent["max_tokens"] == 4000 and sent["output_config"] == {"effort": "low"}
+    assert [t["name"] for t in sent["tools"]] == ["find_orders", "calculate"]
+    assert "fallbacks" not in sent and "betas" not in sent       # Haiku has no fallback model
+    assert A.MODEL == "claude-sonnet-5-5" and A.SYSTEM != "short"
+
+
 def test_ask_knows_the_gasket_shorthand():
     for term in ("CGI = CG plus an inner ring", '"16 SS"', "300#", "B16.47",
                  "A quote from Flexitallic"):

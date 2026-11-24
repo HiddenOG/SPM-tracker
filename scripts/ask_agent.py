@@ -88,6 +88,7 @@ How to work:
 - A short follow-up like "continue", "keep looking" or "search again" means carry on with the previous question: search for what it asked, in ways not tried yet. Never answer it with a general summary of recent mail.
 - Search first, then read the one to four emails that matter before answering.
 - Prices, offers and POs are usually in attachments, not the email text ("please find attached"). Search and read results list each email's attachments; open the relevant one with read_attachment before saying a price isn't there. Search results show only the start of each email.
+- For "any new PO today / this week" questions, check new_orders first for Chevron and NLNG - their POs come in by portal notice to another inbox, so email search misses them. Then search email for other clients' POs (Seplat, Mobil, TotalEnergies...), and also SPM's own "A New PO" forwards to the warehouse ("A New PO" newer_than:1d). A broad search like newer_than:1d PO returns hundreds of emails and only the newest few are shown, so never conclude "no new PO" from it.
 - For "latest", "status" or "update" questions, search recent mail first (newer_than:30d or newer_than:60d) and widen only if nothing useful comes back.
 - Do not write anything before or between tool calls. Write only the final answer.
 - If the emails don't settle the question, say what you found and what is missing. Never guess a date, an amount or a PO number.
@@ -162,6 +163,14 @@ TRACKER_TOOLS = [
         "name": "find_orders",
         "description": "Find Chevron or NLNG orders in the tracker by PO number, SO number, SPM PO number or buyer name. Partial numbers work.",
         "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
+    },
+    {
+        "name": "new_orders",
+        "description": "Chevron and NLNG POs that came in on or after a date, newest first. Use it first for any 'new PO today / this week' question - email search misses Chevron POs, whose notice goes to another inbox.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"since": {"type": "string", "description": "ISO date. Default today."}},
+        },
     },
     {
         "name": "order_detail",
@@ -572,6 +581,10 @@ def execute(name: str, args: dict, refs: _Refs, mail=None, tracker=None, user=No
     if name == "find_orders":
         q = str(args.get("query") or "")
         return tracker.find_orders(q, limit=20), f"Looking up “{_q(q, 40)}” in the tracker", "Tracker"
+    if name == "new_orders":
+        since = str(args.get("since") or "")
+        return (tracker.new_orders(since=since, limit=40),
+                f"Checking new POs in the tracker since {_q(since, 12) or 'today'}", "Tracker")
     if name == "order_detail":
         po = str(args.get("po_number") or "")
         return tracker.order_detail(po), f"Opening PO {_q(po, 20)} in the tracker", "Tracker"
@@ -659,11 +672,30 @@ def _clean_history(history) -> list:
     return merged
 
 
+def tools_named(names) -> list:
+    """The tool definitions with these names, in the order Ask lists them -
+    for a lighter setup than a whole scope (the WhatsApp agent)."""
+    wanted = set(names)
+    return [t for t in EMAIL_TOOLS + TRACKER_TOOLS + MEMORY_TOOLS if t["name"] in wanted]
+
+
 def run(question: str, history=None, scope: str = "both", user=None,
-        client=None, mail=None, tracker=None, recall=None):
-    """Answer one question. Yields event dicts; see the module docstring."""
+        client=None, mail=None, tracker=None, recall=None, setup=None):
+    """Answer one question. Yields event dicts; see the module docstring.
+
+    setup (optional) swaps Ask's own settings for another caller's: model,
+    effort, system, tools, max_rounds, max_tokens, fallback (bool). Anything
+    left out stays as Ask has it; the website passes none of it.
+    """
+    setup = setup or {}
+    model = setup.get("model", MODEL)
+    effort = setup.get("effort", EFFORT)
+    system = setup.get("system", SYSTEM)
+    max_rounds = setup.get("max_rounds", MAX_ROUNDS)
+    max_tokens = setup.get("max_tokens", MAX_TOKENS)
+    fallback = setup.get("fallback", True)
     started = time.time()
-    tools = SCOPES.get(scope, SCOPES["both"])
+    tools = setup.get("tools") or SCOPES.get(scope, SCOPES["both"])
     refs = _Refs()
     rounds = 0
     answer = ""
@@ -693,19 +725,22 @@ def run(question: str, history=None, scope: str = "both", user=None,
 
     step_no = 0
     try:
-        for rnd in range(1, MAX_ROUNDS + 1):
+        for rnd in range(1, max_rounds + 1):
             streamed = ""
             # Automatic caching marks the last block of each request, so the
             # next round reads the growing conversation from cache rather than
             # paying for it again.
+            # Haiku has no server-side fallback model, so a caller on Haiku
+            # turns it off (setup fallback=False).
+            extra = {"betas": [FALLBACK_BETA], "fallbacks": "default"} if fallback else {}
             with client.beta.messages.stream(
-                model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
+                model=model, max_tokens=max_tokens, system=system,
                 tools=tools, messages=messages,
                 # The last round may not search again: it has to answer.
-                tool_choice={"type": "none" if rnd == MAX_ROUNDS else "auto"},
+                tool_choice={"type": "none" if rnd == max_rounds else "auto"},
                 cache_control={"type": "ephemeral"},
-                output_config={"effort": EFFORT},
-                betas=[FALLBACK_BETA], fallbacks="default",
+                output_config={"effort": effort},
+                **extra,
             ) as stream:
                 for event in stream:
                     if (getattr(event, "type", "") == "content_block_delta"
@@ -755,7 +790,7 @@ def run(question: str, history=None, scope: str = "both", user=None,
                            "secs": round(time.time() - t0, 1)}
                     results.append({"type": "tool_result", "tool_use_id": block.id,
                                     "content": f"That failed: {msg}", "is_error": True})
-            if rnd == MAX_ROUNDS - 1:
+            if rnd == max_rounds - 1:
                 # Out of searches: answer from what was found rather than
                 # throwing it all away. (It once ended with only "couldn't
                 # finish" after finding the right thread.)
@@ -786,7 +821,7 @@ def _pending_label(name: str, args) -> str:
         return "Reading the whole conversation"
     if name == "read_attachment":
         return f"Opening “{_q(str(args.get('filename') or 'an attachment'), 50)}”"
-    if name in ("find_orders", "order_detail"):
+    if name in ("find_orders", "order_detail", "new_orders"):
         return "Checking the tracker"
     if name == "orders_stuck":
         return "Checking orders that haven't moved"

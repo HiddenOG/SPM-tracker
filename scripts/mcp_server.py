@@ -280,6 +280,36 @@ def _where_it_sits(row: dict, stages: list) -> tuple[str, str, int | None]:
 
 # ── orders ───────────────────────────────────────────────────────────────────
 
+def stuck_orders(days: int = 14, client: str = "") -> list[dict]:
+    """The facts behind orders_stuck, for other callers (the WhatsApp brief).
+
+    One dict per open order still for `days`+ days: client, po, days, stage
+    (where it sits), since (date), status. Raises if a table can't be read.
+    """
+    db = get_client()
+    want = (client or "").strip().lower()
+    out: list[dict] = []
+    for table, otype, po_col, stages in (
+        ("orders", "chevron", "buyer_po_number", _CHEVRON_STAGES),
+        ("nlng_orders", "nlng", "po_number", _NLNG_STAGES),
+    ):
+        if want and want != otype:
+            continue
+        try:
+            rows = db.table(table).select("*").execute().data or []
+        except Exception as exc:
+            raise RuntimeError(f"Could not read {table}: {exc}") from exc
+        for r in rows:
+            if (r.get("overall_status") or "").lower() in _TERMINAL:
+                continue
+            label, when, waited = _where_it_sits(r, stages)
+            if waited is None or waited < days:
+                continue
+            out.append({"client": otype, "po": r.get(po_col) or "?", "days": waited,
+                        "stage": label, "since": when, "status": r.get("overall_status") or "?"})
+    return out
+
+
 @mcp.tool()
 def orders_stuck(days: int = 14, client: str = "", limit: int = 25) -> str:
     """Orders that have not moved for a while - what needs chasing.
@@ -292,29 +322,14 @@ def orders_stuck(days: int = 14, client: str = "", limit: int = 25) -> str:
         client: "chevron" or "nlng" to narrow it; blank for both.
         limit: most rows to return.
     """
-    db = get_client()
     want = (client or "").strip().lower()
-    out: list[tuple[int, str]] = []
-
-    for table, otype, po_col, stages in (
-        ("orders", "chevron", "buyer_po_number", _CHEVRON_STAGES),
-        ("nlng_orders", "nlng", "po_number", _NLNG_STAGES),
-    ):
-        if want and want != otype:
-            continue
-        try:
-            rows = db.table(table).select("*").execute().data or []
-        except Exception as exc:
-            return f"Could not read {table}: {exc}"
-        for r in rows:
-            if (r.get("overall_status") or "").lower() in _TERMINAL:
-                continue
-            label, when, waited = _where_it_sits(r, stages)
-            if waited is None or waited < days:
-                continue
-            out.append((waited, "  %-7s PO %-12s  %3d days at: %-34s (since %s)  status=%s"
-                        % (otype, r.get(po_col) or "?", waited, label, when,
-                           r.get("overall_status") or "?")))
+    try:
+        facts = stuck_orders(days, client)
+    except RuntimeError as exc:
+        return str(exc)
+    out = [(s["days"], "  %-7s PO %-12s  %3d days at: %-34s (since %s)  status=%s"
+            % (s["client"], s["po"], s["days"], s["stage"], s["since"], s["status"]))
+           for s in facts]
 
     if not out:
         return f"No {want or 'Chevron or NLNG'} orders have been still for {days}+ days."
@@ -338,6 +353,94 @@ def _due_date(row: dict, lines: list) -> str | None:
     return _d(row.get("required_delivery_date")) if row.get("required_delivery_date") else None
 
 
+def overdue_orders(client: str = "", as_of: str = "", soon_days: int = 7) -> list[dict]:
+    """The facts behind orders_overdue, for other callers (the WhatsApp brief).
+
+    One dict per client (chevron, nlng), each with:
+      late        [{po, due, days_late, lines, stage}], earliest due first
+      lines_on_late, lines_own, no_date   the counts orders_overdue reports
+      stray       [{po, line, due, order_due}] - late lines in orders not yet due
+      req_passed  [{po, required, promised, lines}], earliest required first
+      due_soon    [{po, due, lines, stage}] - due within soon_days, earliest first
+    Raises if a table can't be read.
+    """
+    db = get_client()
+    want = (client or "").strip().lower()
+    cutoff = (as_of or "").strip()[:10] or datetime.now(timezone.utc).date().isoformat()
+    soon = (datetime.fromisoformat(cutoff) + timedelta(days=soon_days)).date().isoformat()
+    result = []
+
+    for table, otype, po_col, li_table, li_fk, li_date, li_no in (
+        ("orders", "chevron", "buyer_po_number", "order_line_items", "order_id",
+         "required_delivery_date", "line_no"),
+        ("nlng_orders", "nlng", "po_number", "nlng_order_line_items", "nlng_order_id",
+         "delivery_date", "item_no"),
+    ):
+        if want and want != otype:
+            continue
+        try:
+            rows = db.table(table).select("*").execute().data or []
+            items = db.table(li_table).select(
+                f"{li_fk},{li_no},description,quantity,{li_date},promised_date"
+            ).execute().data or []
+        except Exception as exc:
+            raise RuntimeError(f"Could not read {table}: {exc}") from exc
+        stages = _CHEVRON_STAGES if otype == "chevron" else _NLNG_STAGES
+        by_order: dict = {}
+        for it in items:
+            by_order.setdefault(it.get(li_fk), []).append(it)
+
+        late, lines_on_late, lines_own, no_date = [], 0, 0, 0
+        # Two things the counts above hide, and that people ask about: a single
+        # late line inside an order not yet due, and orders past what the client
+        # REQUIRED but not past what SPM PROMISED (PO 0061466745: required 31 Oct,
+        # promised 30 Nov - not overdue by this rule, though the client may
+        # chase it).
+        stray, req_passed, due_soon = [], [], []
+        for r in rows:
+            if r.get("delivered_at") or (r.get("overall_status") or "").lower() == "cancelled":
+                continue
+            lines = by_order.get(r["id"], [])
+            # NLNG lines carry no promised date, so the Delays page dates NLNG
+            # orders by the order's own required date - match it.
+            due = _due_date(r, lines if otype == "chevron" else [])
+            own_late = []
+            for l in lines:
+                own = l.get("promised_date") or l.get(li_date) or r.get("required_delivery_date")
+                if own and str(own)[:10] < cutoff:
+                    lines_own += 1
+                    own_late.append((l, str(own)[:10]))
+            if not due:
+                no_date += 1
+                continue
+            po = r.get(po_col) or "?"
+            if due < cutoff:
+                n = len(lines) or 1
+                lines_on_late += n
+                late.append({"po": po, "due": due, "days_late": _days_since(due), "lines": n,
+                             "stage": _where_it_sits(r, stages)[0]})
+                continue
+            stray += [{"po": po, "line": l.get(li_no) or "?", "due": d,
+                       "order_due": _due_date(r, lines if otype == "chevron" else [])}
+                      for l, d in own_late]
+            req = _d(r.get("required_delivery_date")) if r.get("required_delivery_date") else None
+            if req and req < cutoff:
+                req_passed.append({"po": po, "required": req, "promised": due,
+                                   "lines": len(lines) or 1})
+            if due <= soon:
+                due_soon.append({"po": po, "due": due, "lines": len(lines) or 1,
+                                 "stage": _where_it_sits(r, stages)[0]})
+
+        late.sort(key=lambda t: t["due"])
+        req_passed.sort(key=lambda t: t["required"])
+        due_soon.sort(key=lambda t: t["due"])
+        result.append({"client": otype, "cutoff": cutoff, "late": late,
+                       "lines_on_late": lines_on_late, "lines_own": lines_own,
+                       "no_date": no_date, "stray": stray, "req_passed": req_passed,
+                       "due_soon": due_soon})
+    return result
+
+
 @mcp.tool()
 def orders_overdue(client: str = "", as_of: str = "", limit: int = 40) -> str:
     """Orders and line items past their due date and not yet delivered.
@@ -355,90 +458,76 @@ def orders_overdue(client: str = "", as_of: str = "", limit: int = 40) -> str:
         as_of: ISO date to compare against; blank for today.
         limit: most orders to list. The totals always cover every order.
     """
-    db = get_client()
-    want = (client or "").strip().lower()
-    cutoff = (as_of or "").strip()[:10] or datetime.now(timezone.utc).date().isoformat()
+    try:
+        facts = overdue_orders(client, as_of)
+    except RuntimeError as exc:
+        return str(exc)
+    cap = min(limit, MAX_ROWS)
     out = []
-
-    for table, otype, po_col, li_table, li_fk, li_date, li_no in (
-        ("orders", "chevron", "buyer_po_number", "order_line_items", "order_id",
-         "required_delivery_date", "line_no"),
-        ("nlng_orders", "nlng", "po_number", "nlng_order_line_items", "nlng_order_id",
-         "delivery_date", "item_no"),
-    ):
-        if want and want != otype:
-            continue
-        try:
-            rows = db.table(table).select("*").execute().data or []
-            items = db.table(li_table).select(
-                f"{li_fk},{li_no},description,quantity,{li_date},promised_date"
-            ).execute().data or []
-        except Exception as exc:
-            return f"Could not read {table}: {exc}"
-        by_order: dict = {}
-        for it in items:
-            by_order.setdefault(it.get(li_fk), []).append(it)
-
-        late, lines_on_late, lines_own, no_date = [], 0, 0, 0
-        # Two things the counts above hide, and that people ask about: a single
-        # late line inside an order not yet due, and orders past what the client
-        # REQUIRED but not past what SPM PROMISED (PO 0061466745: required 31 Oct,
-        # promised 30 Nov - not overdue by this rule, though the client may
-        # chase it).
-        stray, req_passed = [], []
-        for r in rows:
-            if r.get("delivered_at") or (r.get("overall_status") or "").lower() == "cancelled":
-                continue
-            lines = by_order.get(r["id"], [])
-            # NLNG lines carry no promised date, so the Delays page dates NLNG
-            # orders by the order's own required date - match it.
-            due = _due_date(r, lines if otype == "chevron" else [])
-            own_late = []
-            for l in lines:
-                own = l.get("promised_date") or l.get(li_date) or r.get("required_delivery_date")
-                if own and str(own)[:10] < cutoff:
-                    lines_own += 1
-                    own_late.append((l, str(own)[:10]))
-            if not due:
-                no_date += 1
-                continue
-            if due < cutoff:
-                n = len(lines) or 1
-                lines_on_late += n
-                late.append((due, r, n))
-                continue
-            stray += [(r, l, d) for l, d in own_late]
-            req = _d(r.get("required_delivery_date")) if r.get("required_delivery_date") else None
-            if req and req < cutoff:
-                req_passed.append((req, due, r, len(lines) or 1))
-
-        late.sort(key=lambda t: t[0])
-        out.append(f"{otype.upper()}: {len(late)} overdue order(s) as of {cutoff}, "
-                   f"holding {lines_on_late} line(s). {lines_own} line(s) are past their "
+    for f in facts:
+        late, no_date = f["late"], f["no_date"]
+        out.append(f"{f['client'].upper()}: {len(late)} overdue order(s) as of {f['cutoff']}, "
+                   f"holding {f['lines_on_late']} line(s). {f['lines_own']} line(s) are past their "
                    f"own date." + (f" {no_date} open order(s) have no date at all." if no_date else ""))
-        for due, r, n in late[:min(limit, MAX_ROWS)]:
-            label, _, _ = _where_it_sits(r, _CHEVRON_STAGES if otype == "chevron" else _NLNG_STAGES)
-            days = _days_since(due)
+        for o in late[:cap]:
             out.append("  PO %-12s due %s (%s days late)  %2d line(s)  at: %s"
-                       % (r.get(po_col) or "?", due, days if days is not None else "?", n, label))
-        if len(late) > min(limit, MAX_ROWS):
-            out.append(f"  ... and {len(late) - min(limit, MAX_ROWS)} more, not listed.")
-        if stray:
+                       % (o["po"], o["due"], o["days_late"] if o["days_late"] is not None else "?",
+                          o["lines"], o["stage"]))
+        if len(late) > cap:
+            out.append(f"  ... and {len(late) - cap} more, not listed.")
+        if f["stray"]:
             out.append("  Late lines inside orders not yet due as a whole:")
-            for r, l, d in stray:
+            for s in f["stray"]:
                 out.append("    PO %-12s line %s, due %s - order due %s"
-                           % (r.get(po_col) or "?", l.get(li_no) or "?", d,
-                              _due_date(r, by_order.get(r["id"], []) if otype == "chevron" else [])))
+                           % (s["po"], s["line"], s["due"], s["order_due"]))
+        req_passed = f["req_passed"]
         if req_passed:
-            req_passed.sort(key=lambda t: t[0])
             out.append(f"  Not counted above: {len(req_passed)} open order(s), "
-                       f"{sum(t[3] for t in req_passed)} line(s), are past the client's "
+                       f"{sum(t['lines'] for t in req_passed)} line(s), are past the client's "
                        f"REQUIRED date but not yet past SPM's PROMISED date:")
-            for req, due, r, n in req_passed[:min(limit, MAX_ROWS)]:
+            for t in req_passed[:cap]:
                 out.append("    PO %-12s required %s, promised %s  %2d line(s)"
-                           % (r.get(po_col) or "?", req, due, n))
+                           % (t["po"], t["required"], t["promised"], t["lines"]))
 
     return "\n".join(out) or "No orders to check."
+
+
+@mcp.tool()
+def new_orders(since: str = "", limit: int = 40) -> str:
+    """Chevron and NLNG POs that came in on or after a date, newest first.
+
+    "Came in" is when the PO notification was received. This answers "any new
+    PO today / this week" - an email search can't, because Chevron's PO notice
+    goes to the Yahoo inbox and the Gmail trace is a bare forward (subject
+    0061522683, body "A New PO"), buried under the day's other mail.
+
+    Args:
+        since: ISO date; blank for today (Nigeria time).
+        limit: most rows to return.
+    """
+    day = (since or "").strip()[:10] or datetime.now(timezone(timedelta(hours=1))).date().isoformat()
+    db = get_client()
+    found = []
+    for table, otype, po_col, amt, cur, who in (
+        ("orders", "chevron", "buyer_po_number", "po_amount", "po_currency", "buyer_name"),
+        ("nlng_orders", "nlng", "po_number", "net_value", "currency", "contact_name"),
+    ):
+        try:
+            rows = db.table(table).select("*").gte("notification_received_at", day).execute().data or []
+        except Exception as exc:
+            return f"Could not read {table}: {exc}"
+        for r in rows:
+            found.append((str(r.get("notification_received_at")),
+                          "  %-7s PO %-12s came in %s  %s %s  buyer: %s  status: %s"
+                          % (otype, r.get(po_col) or "?", _d(r.get("notification_received_at")),
+                             r.get(cur) or "", r.get(amt) or "—", r.get(who) or "—",
+                             r.get("overall_status") or "?")))
+    if not found:
+        return f"No Chevron or NLNG PO has come in since {day}."
+    found.sort(reverse=True)
+    shown = found[:min(limit, MAX_ROWS)]
+    return (f"{len(found)} Chevron/NLNG PO(s) came in since {day}:\n"
+            + "\n".join(line for _, line in shown))
 
 
 @mcp.tool()
